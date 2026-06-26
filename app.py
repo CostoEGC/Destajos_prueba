@@ -6,9 +6,10 @@ import os
 import re
 import requests
 import json
+from zoneinfo import ZoneInfo
 
 
-URL_API_SHEET = st.secrets["URL_API_SHEET"]
+URL_API_SHEET = st.secrets["https://script.google.com/macros/s/AKfycbx3rQIPY_7bI-MjFBr4pQaXwamgpkOFq7zK_qraPYFjXDGVrZ7SSmfLC2vbUMifOovMQQ/exec"]
 
 def obtener_datos_gsheet():
     try:
@@ -136,7 +137,7 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio):
     col1, col2 = st.columns(2)
     if col1.button("✅ ACEPTAR"):
         # Guardamos la fecha y hora completa
-        ahora = datetime.now()
+        ahora = datetime.now(ZoneInfo("America/Mexico_City"))
 
         # Formato: 26/06/2026 14:30
         fecha_hora_str = ahora.strftime("%d/%m/%Y %H:%M:%S")
