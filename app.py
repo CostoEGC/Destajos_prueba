@@ -109,7 +109,7 @@ def login():
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
         if st.button("Ingresar", use_container_width=False):
-            usuarios_validos = {"admin": "1234", "saul": "1234", "auditor": "1234"}
+            usuarios_validos = st.secrets["usuarios"]
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
                 st.session_state.usuario = usuario
                 st.rerun()
