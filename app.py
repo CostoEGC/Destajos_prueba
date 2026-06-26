@@ -9,7 +9,7 @@ import json
 from zoneinfo import ZoneInfo
 
 
-URL_API_SHEET = st.secrets["https://script.google.com/macros/s/AKfycbx3rQIPY_7bI-MjFBr4pQaXwamgpkOFq7zK_qraPYFjXDGVrZ7SSmfLC2vbUMifOovMQQ/exec"]
+URL_API_SHEET = st.secrets["URL_API_SHEET"]
 
 def obtener_datos_gsheet():
     try:
