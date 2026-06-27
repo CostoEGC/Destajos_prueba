@@ -911,13 +911,13 @@ elif menu == "Diagrama Interactivo":
             
             # Tabla de leyenda construida con HTML puro para que las esferas queden perfectas
             html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
-            html_leyenda += "<tr><th style='text-align:center; border-bottom: 1px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 1px solid #ddd; padding: 10px;'>Nombre de la Partida</th></tr>"
+            html_leyenda += "<tr><th style='text-align:center; border-bottom: 2px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 2px solid #ddd; padding: 10px;'>Partida</th></tr>"
             
             for partida, color in mapa_colores_partida.items():
                 html_leyenda += f"""
                 <tr>
                     <td style='text-align:center; padding: 8px; border-bottom: 1px solid #eee;'>
-                        <div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto; box-shadow: 0 0 3px rgba(0,0,0,0.3);'></div>
+                        <div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto;'></div>
                     </td>
                     <td style='text-align:left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px;'>
                         {partida}
@@ -925,6 +925,9 @@ elif menu == "Diagrama Interactivo":
                 </tr>
                 """
             html_leyenda += "</table>"
+            
+            # Asegúrate de que esta línea esté idéntica a esta (especialmente el unsafe_allow_html=True)
+            st.markdown(html_leyenda, unsafe_allow_html=True)
             
             # Encapsulamos la leyenda en un contenedor con scrollbar en caso de que sean 131 partidas
             with st.container(height=600):
