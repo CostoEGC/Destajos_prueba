@@ -25,7 +25,6 @@ def obtener_datos_gsheet():
 
         if 'Fecha_Pago' in df.columns:
             df['Fecha_Pago'] = pd.to_datetime(df['Fecha_Pago'], errors='coerce')
-            # Formato estricto: DD/MM/AAAA HH:MM:SS
             df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
@@ -81,6 +80,14 @@ st.markdown(f"""
         font-size: 5px !important;
         height: auto !important;
     }}
+    /* CSS para centrar absolutamente todo el texto en las tablas de Streamlit */
+    [data-testid="stDataFrame"] div[data-testid="stTable"] th {{
+        text-align: center !important;
+        justify-content: center !important;
+    }}
+    [data-testid="stDataFrame"] div[data-testid="stTable"] td {{
+        text-align: center !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,7 +114,6 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-# Memoria para las pestañas
 if 'lote_registro' not in st.session_state:
     st.session_state.lote_registro = df['Lote'].unique()[0] if not df.empty else ""
 if 'mapa_lote_seleccionado' not in st.session_state:
@@ -186,14 +192,6 @@ resumen_df = resumen_df.sort_values(by='Prototipo', key=lambda x: x.map(clave_or
 resumen_df_final = resumen_df.rename(columns={'Prototipo': 'Proto', 'Cantidad': 'Total'}).set_index('Proto')
 st.sidebar.table(resumen_df_final)
 
-st.sidebar.markdown("""
-<style>
-    [data-testid="stSidebar"] table { margin-left: auto; margin-right: auto; }
-    [data-testid="stSidebar"] table th { text-align: center !important; }
-    [data-testid="stSidebar"] table td { text-align: center !important; }
-</style>
-""", unsafe_allow_html=True)
-
 total_general = resumen_df['Cantidad'].sum()
 st.sidebar.markdown(f"**Total Prototipos: {total_general}**")    
 
@@ -205,12 +203,9 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
-    # Convertimos a lista normal para evitar conflictos
     lotes_unicos = list(df['Lote'].unique())
     
     lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, key="lote_registro")
-    
-    # Sincronización 1 vía: Si estamos en esta pestaña, el mapa adopta este lote.
     st.session_state.mapa_lote_seleccionado = f"Lote {lote_activo}"
     
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago (Opcional):", value=None, format="DD/MM/YYYY")
@@ -304,7 +299,7 @@ if menu == "Registro de Destajos":
                     c5.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; text-align: center;'>—</div>", unsafe_allow_html=True)
 
 # =========================================================================
-# PESTAÑA 2: DASHBOARD
+# PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
 # =========================================================================
 elif menu == "Dashboard (Gráficos y Visor)":
     mostrar_cabecera_con_logo("📊 Visor Estadístico e Indicadores")
@@ -315,11 +310,10 @@ elif menu == "Dashboard (Gráficos y Visor)":
             return (int(match.group(1)), match.group(2))
         return (float('inf'), str(val))
 
-    st.markdown("### 🔍 Configuración de Evaluación")
+    st.markdown("### 🔍 Panel de Control y Filtros")
     
     d_col1, d_col2 = st.columns(2)
     protos_disponibles = sorted(df['Prototipo'].unique(), key=ordenar_prototipos)
-    
     lotes_disponibles = list(df['Lote'].unique())
     
     if 'tab2_lotes_seleccionados' not in st.session_state:
@@ -340,8 +334,10 @@ elif menu == "Dashboard (Gráficos y Visor)":
         monto_pagado = df_pagados['Precio'].sum()
         monto_pendiente = df_pendientes['Precio'].sum()
         
-        kpi1, kpi2, kpi3 = st.columns(3)
-        kpi1.metric("💰 Valor Total de Selección", f"${monto_total:,.2f}")
+        # --- TARJETAS KPI PRINCIPALES ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("💰 Presupuesto Global Seleccionado", f"${monto_total:,.2f}")
         
         if monto_total > 0:
             pct_pagado = (monto_pagado / monto_total) * 100
@@ -349,15 +345,19 @@ elif menu == "Dashboard (Gráficos y Visor)":
         else:
             pct_pagado, pct_pendiente = 0, 0
             
-        kpi2.metric("✅ Total Ejercido / Pagado", f"${monto_pagado:,.2f}", f"{pct_pagado:.2f}%")
-        kpi3.metric("⏳ Por Pagar (Deuda)", f"${monto_pendiente:,.2f}", f"-{pct_pendiente:.2f}%", delta_color="inverse")
+        kpi2.metric("✅ Monto Total Pagado", f"${monto_pagado:,.2f}", f"{pct_pagado:.2f}% de Avance")
+        kpi3.metric("🚨 Deuda Pendiente por Pagar", f"${monto_pendiente:,.2f}", f"-{pct_pendiente:.2f}%", delta_color="inverse")
+        
+        total_partidas_dash = len(df_dash)
+        partidas_pagadas_dash = len(df_pagados)
+        kpi4.metric("📋 Avance Físico (Partidas)", f"{partidas_pagadas_dash} / {total_partidas_dash}", f"{(partidas_pagadas_dash/total_partidas_dash*100) if total_partidas_dash>0 else 0:.1f}% Completadas")
         
         st.markdown("<hr>", unsafe_allow_html=True)
-        st.markdown("### 📋 Resumen Individual por Lote y Prototipo")
+        
+        # --- TABLA DE RESUMEN CENTRADA Y AJUSTADA ---
+        st.markdown("<h3 style='text-align: center;'>📋 Resumen Individual por Lote y Prototipo</h3>", unsafe_allow_html=True)
         
         df_dash_clean = df_dash.copy()
-        
-        # Agrupación SIN Destajista
         df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo', 'Estado'])['Precio'].sum().unstack(fill_value=0).reset_index()
         
         if 'Pagado' not in df_resumen.columns: df_resumen['Pagado'] = 0.0
@@ -367,48 +367,77 @@ elif menu == "Dashboard (Gráficos y Visor)":
         df_resumen = df_resumen[['Lote', 'Prototipo', 'Total', 'Pagado', 'Pendiente']]
         df_resumen.columns = ['Lote', 'Prototipo', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
         
-        st.dataframe(
-            df_resumen.style.format({
-                'Valor Total': '${:,.2f}',
-                'Total Pagado': '${:,.2f}',
-                'Deuda Pendiente': '${:,.2f}'
-            }), 
-            use_container_width=True,
-            hide_index=True
-        )
+        # Estilos aplicados directamente al dataframe de Pandas
+        styled_resumen = df_resumen.style.format({
+            'Valor Total': '${:,.2f}',
+            'Total Pagado': '${:,.2f}',
+            'Deuda Pendiente': '${:,.2f}'
+        }).set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+        
+        # Uso de columnas vacías a los lados para "apretar" la tabla y que el ancho se ajuste al texto
+        col_espacio_izq, col_tabla_centro, col_espacio_der = st.columns([1, 6, 1])
+        with col_tabla_centro:
+            st.dataframe(styled_resumen, use_container_width=False, hide_index=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        g_col1, g_col2 = st.columns(2)
-        df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
-        fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
-                           title="💼 Consolidado Financiero por Prototipo",
-                           barmode='group', color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444'})
-        g_col1.plotly_chart(fig_proto, use_container_width=True)
+        # --- SECCIÓN DE GRÁFICOS IMPRESIONANTES ---
+        st.markdown("### 📈 Inteligencia de Negocios y Gráficos")
         
-        df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Precio'].sum().reset_index()
-        fig_lote = px.bar(df_lotes_graf, x='Lote', y='Precio', color='Estado', 
-                          title="🏘️ Avance Financiero por Lote",
-                          color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#F59E0B'})
-        g_col2.plotly_chart(fig_lote, use_container_width=True)
-
-        g_col3, g_col4 = st.columns(2)
+        tab_graf1, tab_graf2 = st.tabs(["💰 Control por Prototipos y Lotes", "👷 Control de Destajistas (Contratistas)"])
         
-        if not df_pagados.empty:
-            df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
-            fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
-                              title="👷 Pagos Ejecutados por Destajista",
-                              hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-            g_col3.plotly_chart(fig_dest, use_container_width=True)
-        else:
-            g_col3.info("Aún no hay pagos ejecutados en la selección actual.")
+        with tab_graf1:
+            g_col1, g_col2 = st.columns(2)
             
-        if not df_pendientes.empty:
-            df_partidas_pend = df_pendientes.groupby('Partida')['Precio'].sum().reset_index()
-            fig_part_pend = px.bar(df_partidas_pend, y='Partida', x='Precio', orientation='h', \
-                                   title="📋 Presupuesto Pendiente por Partida", \
-                                   color_discrete_sequence=['#3B82F6'])
-            g_col4.plotly_chart(fig_part_pend, use_container_width=True)
+            # Dinero Pagado vs Pendiente por PROTOTIPO
+            df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
+            fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
+                               title="Comportamiento Financiero por Prototipo",
+                               barmode='group', text_auto='.2s',
+                               color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444'})
+            fig_proto.update_traces(textposition='outside')
+            g_col1.plotly_chart(fig_proto, use_container_width=True)
+            
+            # Treemap interactivo
+            fig_tree = px.treemap(df_dash, path=[px.Constant("Proyecto EGC"), 'Prototipo', 'Lote', 'Estado'], values='Precio',
+                                  title="Distribución del Presupuesto (Clic para explorar)",
+                                  color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
+            fig_tree.update_traces(root_color="lightgrey")
+            fig_tree.update_layout(margin=dict(t=50, l=25, r=25, b=25))
+            g_col2.plotly_chart(fig_tree, use_container_width=True)
+            
+            # Gráfico de Lotes
+            df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Precio'].sum().reset_index()
+            fig_lote = px.bar(df_lotes_graf, x='Lote', y='Precio', color='Estado', 
+                              title="Avance Financiero Específico por Lote",
+                              color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#F59E0B'})
+            st.plotly_chart(fig_lote, use_container_width=True)
+            
+        with tab_graf2:
+            g_col3, g_col4 = st.columns(2)
+            
+            # Montos Pagados por Destajista
+            if not df_pagados.empty:
+                df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
+                fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
+                                  title="🏆 Distribución de Pagos Ejecutados",
+                                  hole=0.4, color_discrete_sequence=px.colors.sequential.Teal)
+                fig_dest.update_traces(textposition='inside', textinfo='percent+label')
+                g_col3.plotly_chart(fig_dest, use_container_width=True)
+            else:
+                g_col3.info("Aún no hay pagos ejecutados en la selección actual para mostrar.")
+                
+            # Deuda Pendiente por Destajista
+            if not df_pendientes.empty:
+                # Quitamos momentáneamente los vacíos solo para la gráfica de deuda
+                df_pendientes_clean = df_pendientes.fillna("Sin Asignar")
+                df_deuda = df_pendientes_clean.groupby('Destajista')['Precio'].sum().reset_index().sort_values('Precio', ascending=True)
+                fig_deuda = px.bar(df_deuda, y='Destajista', x='Precio', orientation='h',
+                                   title="🚨 Pagos Pendientes por Destajista (Deuda)",
+                                   color_discrete_sequence=['#EF4444'], text_auto='$.2s')
+                g_col4.plotly_chart(fig_deuda, use_container_width=True)
+            else:
+                g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
 
 # =========================================================================
@@ -456,7 +485,6 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
-    # Ajuste de Prototipo para el Título y Lógica de KPIs
     if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
         df_kpi = df.copy()
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
@@ -464,7 +492,6 @@ elif menu == "Mapa Interactivo":
         lote_puro_kpi = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
         df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
         
-        # Extraemos el prototipo para agregarlo al título
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
@@ -472,8 +499,6 @@ elif menu == "Mapa Interactivo":
     pagado_mapa = df_kpi[df_kpi['Estado'] == 'Pagado']['Precio'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
 
-    # Se eliminó el fondo azul global (se removió 'background-color' del contenedor general) 
-    # y se mantienen los fondos de las tarjetas editables.
     st.markdown(f"""
     <div style="margin-bottom:20px;">
         <div style="margin-bottom: 15px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom: 10px;">
@@ -518,8 +543,10 @@ elif menu == "Mapa Interactivo":
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
                 
+                styled_desglose = df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+                
                 st.dataframe(
-                    df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}),
+                    styled_desglose,
                     use_container_width=True,
                     hide_index=True,
                     height=480
@@ -537,8 +564,10 @@ elif menu == "Mapa Interactivo":
             df_resumen_global['% Avance'] = (df_resumen_global['Pagadas'] / df_resumen_global['Total_Partidas']) * 100
             df_resumen_global['% Avance'] = df_resumen_global['% Avance'].apply(lambda x: f"{x:.1f}%")
             
+            styled_global = df_resumen_global.style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+            
             st.dataframe(
-                df_resumen_global.style.format({'Costo_Total': '${:,.2f}'}),
+                styled_global,
                 use_container_width=True,
                 hide_index=True,
                 height=480
