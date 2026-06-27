@@ -179,7 +179,6 @@ def clave_ordenamiento(val):
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏗️ Resumen Total")
 
-# Corrección aplicada: Sumar correctamente los totales independientes por prototipo en lugar de sumar lotes repetidos.
 df_unicos = st.session_state.df[['Lote', 'Prototipo']].drop_duplicates()
 resumen_df = df_unicos.groupby('Prototipo').size().reset_index(name='Cantidad')
 resumen_df = resumen_df.sort_values(by='Prototipo', key=lambda x: x.map(clave_ordenamiento))
@@ -206,9 +205,9 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
-    lotes_unicos = df['Lote'].unique()
+    # Convertimos a lista normal para evitar conflictos
+    lotes_unicos = list(df['Lote'].unique())
     
-    # El selectbox está ligado a la memoria del sistema (session_state)
     lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, key="lote_registro")
     
     # Sincronización 1 vía: Si estamos en esta pestaña, el mapa adopta este lote.
@@ -320,7 +319,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
     
     d_col1, d_col2 = st.columns(2)
     protos_disponibles = sorted(df['Prototipo'].unique(), key=ordenar_prototipos)
-    lotes_disponibles = df['Lote'].unique()
+    
+    # AQUÍ ESTÁ LA MAGIA QUE ARREGLA EL ERROR: list() convierte el NumPy array en lista de Python
+    lotes_disponibles = list(df['Lote'].unique())
     
     if 'tab2_lotes_seleccionados' not in st.session_state:
         st.session_state.tab2_lotes_seleccionados = lotes_disponibles
@@ -418,7 +419,6 @@ elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
-    # Reemplaza X y Y usando los píxeles de Paint.
     COORDENADAS_LOTES = {
         "1": {"x": 4577, "y": 3450},
         "2": {"x": 4721, "y": 3428},
@@ -430,7 +430,6 @@ elif menu == "Mapa Interactivo":
         "8": {"x": 5439, "y": 3578},
         "9": {"x": 5561, "y": 3610},
 
-        # Agrega aquí los demás números de lote: "4": {"x": ..., "y": ...},
     }
 
     lotes_datos_mapa = []
@@ -465,7 +464,6 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
-    # PANÉLES DE KPI EN LA PARTE SUPERIOR DEL MAPA (Cambian según Mostrar Todos o Lote Específico)
     if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
         df_kpi = df.copy()
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
@@ -503,12 +501,10 @@ elif menu == "Mapa Interactivo":
     col_mapa, col_info_lote = st.columns([5, 3])
 
     with col_info_lote:
-        # Selector de Lote vinculado a session_state mediante 'key' y con tamaño ajustado
         c_titulo, c_selector = st.columns([5, 5])
         with c_titulo:
             st.markdown("### 📋 Desglose:")
         with c_selector:
-            # Si el valor actual en memoria no está en las opciones, default a "Mostrar Todos"
             idx_mapa = opciones_selector.index(st.session_state.mapa_lote_seleccionado) if st.session_state.mapa_lote_seleccionado in opciones_selector else 0
             st.selectbox("Selector", opciones_selector, key="mapa_lote_seleccionado", label_visibility="collapsed")
         
@@ -533,7 +529,6 @@ elif menu == "Mapa Interactivo":
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
         else:
-            # TABLA GLOBAL RESUMIDA SI SELECCIONAN "MOSTRAR TODOS"
             st.markdown("**Resumen General por Lote:**")
             df_resumen_global = df.groupby('Lote').agg(
                 Total_Partidas=('Partida', 'count'),
@@ -564,7 +559,6 @@ elif menu == "Mapa Interactivo":
                     sizing="stretch", opacity=0.85, layer="below"
                 )
             )
-            # Y-axis invertido para coincidir exactamente con Paint
             fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
             fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
         else:
@@ -574,21 +568,19 @@ elif menu == "Mapa Interactivo":
         if lotes_datos_mapa:
             df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
             
-            # Dinámica de tamaño de puntos y zoom
             if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
                 df_mostrar_puntos = df_mapa_puntos
                 tamano_punto = 10
-                modo_grafico = "markers" # Puntos limpios sin texto
+                modo_grafico = "markers" 
             else:
                 id_buscado = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
                 df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
                 tamano_punto = 26
-                modo_grafico = "markers+text" # Se muestra el texto con el zoom
+                modo_grafico = "markers+text" 
                 
                 if not df_mostrar_puntos.empty:
                     target_x = df_mostrar_puntos.iloc[0]['x']
                     target_y = df_mostrar_puntos.iloc[0]['y']
-                    # Encuadre respetando la inversión del eje Y
                     fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
                     fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) 
 
