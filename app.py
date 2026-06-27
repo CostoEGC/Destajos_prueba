@@ -366,17 +366,34 @@ elif menu == "Dashboard (Gráficos y Visor)":
                           color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#F59E0B'})
         g_col2.plotly_chart(fig_lote, use_container_width=True)
 
+        g_col3, g_col4 = st.columns(2)
+        
+        if not df_pagados.empty:
+            df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
+            fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
+                              title="👷 Pagos Ejecutados por Destajista",
+                              hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+            g_col3.plotly_chart(fig_dest, use_container_width=True)
+        else:
+            g_col3.info("Aún no hay pagos ejecutados en la selección actual.")
+            
+        if not df_pendientes.empty:
+            df_partidas_pend = df_pendientes.groupby('Partida')['Precio'].sum().reset_index()
+            fig_part_pend = px.bar(df_partidas_pend, y='Partida', x='Precio', orientation='h', \
+                                   title="📋 Presupuesto Pendiente por Partida", \
+                                   color_discrete_sequence=['#3B82F6'])
+            g_col4.plotly_chart(fig_part_pend, use_container_width=True)
+
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (CON IMPLEMENTACIÓN DE COORDENADAS)
+# PESTAÑA 3: MAPA INTERACTIVO (BUSCANDO ÚNICAMENTE EL NÚMERO DEL LOTE)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     st.title("🗺️ Plano Interactivo Dinámico de Lotes")
     st.write("Visualización gráfica del avance del desarrollo en tiempo real.")
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
-    # ⚠️ AQUÍ ESTÁ EL SECRETO: Modifica estos valores con lo que te dé Paint
-    # Debes asegurarte de que el nombre entre comillas ("Lote 1") coincida EXACTAMENTE
-    # con cómo se llama en tu Google Sheets.
+    # ⚠️ AHORA USAMOS SOLO EL NÚMERO (tal cual aparece en la columna Lote de Google Sheets).
+    # Reemplaza los números de X y Y usando los píxeles que te dé Paint.
     COORDENADAS_LOTES = {
         "1": {"x": 4577, "y": 3450},
         "2": {"x": 4721, "y": 3428},
@@ -388,19 +405,19 @@ elif menu == "Mapa Interactivo":
         "8": {"x": 5439, "y": 3578},
         "9": {"x": 5561, "y": 3610},
 
-        # Añade los demás lotes aquí siguiendo el mismo formato...
+        # Agrega aquí los demás números de lote: "4": {"x": ..., "y": ...},
     }
 
-    # Procesar estados de cada lote en base al DataFrame actual de memoria
     lotes_datos_mapa = []
-    for lote, coords in COORDENADAS_LOTES.items():
-        df_lote_mapa = df[df['Lote'] == lote]
+    for lote_num, coords in COORDENADAS_LOTES.items():
+        # Buscamos en el DataFrame convirtiendo el valor a texto para asegurar coincidencia
+        df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)]
+        
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
             pagadas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             porcentaje = (pagadas / total_partidas) * 100 if total_partidas > 0 else 0
             
-            # Determinar color del marcador
             if porcentaje == 100:
                 color_lote = "🟢 Completado"
                 hex_color = "#10B981"
@@ -412,7 +429,8 @@ elif menu == "Mapa Interactivo":
                 hex_color = "#EF4444"
                 
             lotes_datos_mapa.append({
-                "Lote": lote,
+                "Lote": f"Lote {lote_num}",
+                "Lote_Id": str(lote_num),
                 "x": coords["x"],
                 "y": coords["y"],
                 "Avance": f"{porcentaje:.1f}%",
@@ -421,60 +439,60 @@ elif menu == "Mapa Interactivo":
                 "Detalle": f"{pagadas}/{total_partidas} Partidas Libres"
             })
 
-    df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
-
     # Filtro selector en la parte superior del mapa
-    lotes_disponibles_mapa = ["Mostrar Todos"] + list(COORDENADAS_LOTES.keys())
-    lote_seleccionado_mapa = st.selectbox("🔍 Enfocar un Lote en el plano:", lotes_disponibles_mapa)
+    opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
+    lote_seleccionado_mapa = st.selectbox("🔍 Enfocar un Lote en el plano:", opciones_selector)
 
     col_mapa, col_info_lote = st.columns([5, 3])
 
     with col_mapa:
-        # Cargar plano de fondo si existe
         fig_mapa = go.Figure()
         
         if os.path.exists("plano.png"):
             img_plano = Image.open("plano.png")
             ancho_img, alto_img = img_plano.size
+            
+            # Ajustamos la imagen de fondo de manera que respete el eje Y de Paint (0 arriba, Max abajo)
             fig_mapa.add_layout_image(
                 dict(
                     source=img_plano,
                     xref="x", yref="y",
-                    # Plotly usa la coordenada Y invertida para las imágenes por defecto, 
-                    # así que anclamos la imagen abajo.
-                    x=0, y=alto_img,
+                    x=0, y=0,
                     sizex=ancho_img, sizey=alto_img,
                     sizing="stretch", opacity=0.85, layer="below"
                 )
             )
-            # Ajustar los ejes al tamaño real de tu plano
+            # Invertimos el rango de Y: el 0 se queda arriba y el alto de la imagen abajo. ¡Igual que Paint!
             fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
-            fig_mapa.update_yaxes(range=[0, alto_img], visible=False, scaleanchor="x")
+            fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
         else:
-            st.info("💡 Guarda tu imagen del CAD como 'plano.png' en la misma carpeta del código para verla de fondo.")
+            st.info("💡 Para ver tu plano de fondo, guarda la imagen como 'plano.png' en la carpeta raíz del proyecto.")
             fig_mapa.update_xaxes(range=[0, 1000], visible=False)
-            fig_mapa.update_yaxes(range=[0, 1000], visible=False, scaleanchor="x")
+            fig_mapa.update_yaxes(range=[1000, 0], visible=False, scaleanchor="x")
 
-        # Dibujar los marcadores de los lotes si hay datos
         if lotes_datos_mapa:
+            df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
+            
             if lote_seleccionado_mapa != "Mostrar Todos":
-                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote'] == lote_seleccionado_mapa]
-                # Animación de enfoque y zoom
+                # Extraemos el número puro del texto del selector
+                id_buscado = lote_seleccionado_mapa.replace("Lote ", "")
+                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
+                
                 if not df_mostrar_puntos.empty:
                     target_x = df_mostrar_puntos.iloc[0]['x']
                     target_y = df_mostrar_puntos.iloc[0]['y']
-                    # 150 es el radio de acercamiento (puedes subirlo si hace mucho zoom)
-                    fig_mapa.update_xaxes(range=[target_x - 150, target_x + 150])
-                    fig_mapa.update_yaxes(range=[target_y - 150, target_y + 150])
+                    # Encuadre automático cerrado al rededor del punto
+                    fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
+                    fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) # Respeta eje invertido
             else:
                 df_mostrar_puntos = df_mapa_puntos
 
-            # Renderizar marcadores
+            # Renderizar círculos interactivos
             for _, item in df_mostrar_puntos.iterrows():
                 fig_mapa.add_trace(go.Scatter(
                     x=[item['x']], y=[item['y']],
                     mode="markers+text",
-                    marker=dict(size=22, color=item['Hex'], line=dict(width=2, color='white')),
+                    marker=dict(size=24, color=item['Hex'], line=dict(width=2, color='white')),
                     text=[item['Lote']], textposition="top center",
                     textfont=dict(size=12, color='black' if os.path.exists("plano.png") else 'white'),
                     hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
@@ -483,7 +501,7 @@ elif menu == "Mapa Interactivo":
         fig_mapa.update_layout(
             showlegend=False,
             margin=dict(l=0, r=0, t=0, b=0),
-            height=600,
+            height=620,
             template="plotly_white"
         )
         st.plotly_chart(fig_mapa, use_container_width=True)
@@ -491,22 +509,28 @@ elif menu == "Mapa Interactivo":
     with col_info_lote:
         st.markdown("### 📋 Estatus de Ejecución")
         
-        lote_para_desglose = lote_seleccionado_mapa if lote_seleccionado_mapa != "Mostrar Todos" else (df['Lote'].unique()[0] if len(df['Lote'].unique()) > 0 else None)
-        
-        if lote_para_desglose:
-            st.markdown(f"#### Desglose de Partidas: **{lote_para_desglose}**")
-            df_desglose_lote = df[df['Lote'] == lote_para_desglose][['Partida', 'Estado', 'Precio']]
-            
-            def formatear_estado_icono(val):
-                return "🟢 PAGADO" if val == "Pagado" else "⏳ PENDIENTE"
-                
-            df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
-            
-            st.dataframe(
-                df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}),
-                use_container_width=True,
-                hide_index=True,
-                height=480
-            )
+        if lote_seleccionado_mapa != "Mostrar Todos":
+            lote_puro_num = lote_seleccionado_mapa.replace("Lote ", "")
         else:
-            st.info("Selecciona un lote específico en el menú superior para ver su avance detallado partida por partida.")
+            lote_puro_num = str(df['Lote'].iloc[0]) if not df.empty else None
+            
+        if lote_puro_num:
+            st.markdown(f"#### Desglose de Partidas: **Lote {lote_puro_num}**")
+            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']]
+            
+            if not df_desglose_lote.empty:
+                def formatear_estado_icono(val):
+                    return "🟢 PAGADO" if val == "Pagado" else "⏳ PENDIENTE"
+                    
+                df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
+                
+                st.dataframe(
+                    df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=480
+                )
+            else:
+                st.info(f"No se encontraron partidas en Google Sheets para el lote número {lote_puro_num}.")
+        else:
+            st.info("Selecciona un lote específico en el menú superior para ver su avance detallado.")
