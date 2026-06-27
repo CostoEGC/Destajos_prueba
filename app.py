@@ -82,13 +82,22 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
+# --- CABECERA UNIVERSAL CON LOGO ---
+def mostrar_cabecera_con_logo(titulo, subtitulo=None):
+    col_texto, col_logo = st.columns([8, 2])
+    with col_texto:
+        st.title(titulo)
+        if subtitulo:
+            st.write(subtitulo)
+    with col_logo:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
 
 def login():
-    st.title("🔐 Control de estimaciones Construcasas")
-    st.write("Por favor, introduce tus credenciales para ingresar.")
-    
+    mostrar_cabecera_con_logo("🔐 Control de estimaciones", "Por favor, introduce tus credenciales para ingresar.")
     with st.container():
         usuario = st.text_input("Usuario", key="input_user")
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
@@ -177,20 +186,37 @@ total_general = resumen_df['Cantidad'].sum()
 st.sidebar.markdown(f"**Total Prototipos: {total_general}**")    
 
 # =========================================================================
+# LÓGICA DE MEMORIA ENTRE PESTAÑAS Y SINCRONIZACIÓN
+# =========================================================================
+if 'tab1_lote' not in st.session_state:
+    st.session_state.tab1_lote = df['Lote'].unique()[0] if not df.empty else None
+if 'sync_push' not in st.session_state:
+    st.session_state.sync_push = None
+
+# =========================================================================
 # PESTAÑA 1: REGISTRO DE DESTAJOS
 # =========================================================================
 if menu == "Registro de Destajos":
-    st.title("📝 Control de Pagos Destajos/Subcontratos")      
+    mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
     lotes_unicos = df['Lote'].unique()
     
-    if "lote_seleccionado" not in st.session_state or st.session_state.lote_seleccionado not in lotes_unicos:
-        st.session_state.lote_seleccionado = lotes_unicos[0] if len(lotes_unicos) > 0 else ""
+    # Mantener el lote donde nos quedamos
+    idx_reg = 0
+    if st.session_state.tab1_lote in lotes_unicos:
+        idx_reg = list(lotes_unicos).index(st.session_state.tab1_lote)
         
-    col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, key="lote_seleccionado")
-    lote_activo = st.session_state.lote_seleccionado 
+    lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_reg)
     
+    # Sincronización en 1 dirección: Si el usuario cambia el lote AQUÍ, empujamos el cambio a las demás pestañas.
+    if lote_activo != st.session_state.tab1_lote:
+        st.session_state.tab1_lote = lote_activo
+        st.session_state.sync_push = lote_activo
+        st.rerun() # Recargamos para aplicar el cambio interno
+    else:
+        st.session_state.sync_push = None # Reseteamos el empuje para no forzar las otras pestañas eternamente
+
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago (Opcional):", value=None, format="DD/MM/YYYY")
 
     df_lote = df[df['Lote'] == lote_activo]
@@ -285,7 +311,7 @@ if menu == "Registro de Destajos":
 # PESTAÑA 2: DASHBOARD
 # =========================================================================
 elif menu == "Dashboard (Gráficos y Visor)":
-    st.title("📊 Visor Estadístico e Indicadores")
+    mostrar_cabecera_con_logo("📊 Visor Estadístico e Indicadores")
     
     def ordenar_prototipos(val):
         match = re.search(r"(\d+)(.*)", str(val))
@@ -297,10 +323,21 @@ elif menu == "Dashboard (Gráficos y Visor)":
     
     d_col1, d_col2 = st.columns(2)
     protos_disponibles = sorted(df['Prototipo'].unique(), key=ordenar_prototipos)
-    lotes_disponibles = df['Lote'].unique()
+    lotes_disponibles = list(df['Lote'].unique())
     
+    # Recibir el empuje de sincronización
+    if st.session_state.sync_push and st.session_state.sync_push in lotes_disponibles:
+        st.session_state.tab2_lotes = [st.session_state.sync_push]
+        st.session_state.sync_push = None # Limpiar tras usar
+        
+    if 'tab2_lotes' not in st.session_state:
+        st.session_state.tab2_lotes = lotes_disponibles
+        
     protos_dash = d_col1.multiselect("Filtrar por Prototipos:", options=protos_disponibles, default=protos_disponibles)
-    lotes_dash = d_col2.multiselect("Filtrar por Lotes:", options=lotes_disponibles, default=lotes_disponibles)
+    lotes_dash = d_col2.multiselect("Filtrar por Lotes:", options=lotes_disponibles, default=st.session_state.tab2_lotes)
+    
+    # Guardar estado local
+    st.session_state.tab2_lotes = lotes_dash
     
     df_dash = df[(df['Lote'].isin(lotes_dash)) & (df['Prototipo'].isin(protos_dash))]
     
@@ -366,34 +403,13 @@ elif menu == "Dashboard (Gráficos y Visor)":
                           color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#F59E0B'})
         g_col2.plotly_chart(fig_lote, use_container_width=True)
 
-        g_col3, g_col4 = st.columns(2)
-        
-        if not df_pagados.empty:
-            df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
-            fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
-                              title="👷 Pagos Ejecutados por Destajista",
-                              hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-            g_col3.plotly_chart(fig_dest, use_container_width=True)
-        else:
-            g_col3.info("Aún no hay pagos ejecutados en la selección actual.")
-            
-        if not df_pendientes.empty:
-            df_partidas_pend = df_pendientes.groupby('Partida')['Precio'].sum().reset_index()
-            fig_part_pend = px.bar(df_partidas_pend, y='Partida', x='Precio', orientation='h', \
-                                   title="📋 Presupuesto Pendiente por Partida", \
-                                   color_discrete_sequence=['#3B82F6'])
-            g_col4.plotly_chart(fig_part_pend, use_container_width=True)
-
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (BUSCANDO ÚNICAMENTE EL NÚMERO DEL LOTE)
+# PESTAÑA 3: MAPA INTERACTIVO
 # =========================================================================
 elif menu == "Mapa Interactivo":
-    st.title("🗺️ Plano Interactivo Dinámico de Lotes")
-    st.write("Visualización gráfica del avance del desarrollo en tiempo real.")
+    mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo en tiempo real.")
 
-    # --- ARCHIVO DE COORDENADAS INTERNO ---
-    # ⚠️ AHORA USAMOS SOLO EL NÚMERO (tal cual aparece en la columna Lote de Google Sheets).
-    # Reemplaza los números de X y Y usando los píxeles que te dé Paint.
+    # --- COORDENADAS INTERNAS ---
     COORDENADAS_LOTES = {
         "1": {"x": 4577, "y": 3450},
         "2": {"x": 4721, "y": 3428},
@@ -405,12 +421,11 @@ elif menu == "Mapa Interactivo":
         "8": {"x": 5439, "y": 3578},
         "9": {"x": 5561, "y": 3610},
 
-        # Agrega aquí los demás números de lote: "4": {"x": ..., "y": ...},
+        # Añade aquí los demás números...
     }
 
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
-        # Buscamos en el DataFrame convirtiendo el valor a texto para asegurar coincidencia
         df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)]
         
         if not df_lote_mapa.empty:
@@ -436,86 +451,76 @@ elif menu == "Mapa Interactivo":
                 "Avance": f"{porcentaje:.1f}%",
                 "Estado": color_lote,
                 "Hex": hex_color,
-                "Detalle": f"{pagadas}/{total_partidas} Partidas Libres"
+                "Detalle": f"{pagadas}/{total_partidas} Partidas"
             })
 
-    # Filtro selector en la parte superior del mapa
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
-    lote_seleccionado_mapa = st.selectbox("🔍 Enfocar un Lote en el plano:", opciones_selector)
+
+    # Recibir empuje de sincronización
+    if st.session_state.sync_push:
+        target = f"Lote {st.session_state.sync_push}"
+        if target in opciones_selector:
+            st.session_state.tab3_mapa = target
+        st.session_state.sync_push = None
+            
+    if 'tab3_mapa' not in st.session_state:
+        st.session_state.tab3_mapa = "Mostrar Todos"
+
+    idx_mapa = 0
+    if st.session_state.tab3_mapa in opciones_selector:
+        idx_mapa = opciones_selector.index(st.session_state.tab3_mapa)
+
+    # --- PANÉLES DE KPI EN LA PARTE SUPERIOR DEL MAPA ---
+    if st.session_state.tab3_mapa == "Mostrar Todos":
+        df_kpi = df.copy()
+        titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
+    else:
+        lote_puro_kpi = st.session_state.tab3_mapa.replace("Lote ", "")
+        df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
+        titulo_kpi = f"🏠 Lote {lote_puro_kpi}"
+        
+    costo_total_mapa = df_kpi['Precio'].sum()
+    pagado_mapa = df_kpi[df_kpi['Estado'] == 'Pagado']['Precio'].sum()
+    pendiente_mapa = costo_total_mapa - pagado_mapa
+
+    st.markdown(f"""
+    <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
+        <div style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
+            <div style="font-size:24px; font-weight:bold;">{titulo_kpi}</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Costo Total</div>
+                <div style="font-size:24px; font-weight:bold;">${costo_total_mapa:,.2f}</div>
+            </div>
+            <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Total Pagado</div>
+                <div style="font-size:24px; font-weight:bold;">${pagado_mapa:,.2f}</div>
+            </div>
+            <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Total por Pagar</div>
+                <div style="font-size:24px; font-weight:bold;">${pendiente_mapa:,.2f}</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     col_mapa, col_info_lote = st.columns([5, 3])
 
-    with col_mapa:
-        fig_mapa = go.Figure()
-        
-        if os.path.exists("plano.png"):
-            img_plano = Image.open("plano.png")
-            ancho_img, alto_img = img_plano.size
-            
-            # Ajustamos la imagen de fondo de manera que respete el eje Y de Paint (0 arriba, Max abajo)
-            fig_mapa.add_layout_image(
-                dict(
-                    source=img_plano,
-                    xref="x", yref="y",
-                    x=0, y=0,
-                    sizex=ancho_img, sizey=alto_img,
-                    sizing="stretch", opacity=0.85, layer="below"
-                )
-            )
-            # Invertimos el rango de Y: el 0 se queda arriba y el alto de la imagen abajo. ¡Igual que Paint!
-            fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
-            fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
-        else:
-            st.info("💡 Para ver tu plano de fondo, guarda la imagen como 'plano.png' en la carpeta raíz del proyecto.")
-            fig_mapa.update_xaxes(range=[0, 1000], visible=False)
-            fig_mapa.update_yaxes(range=[1000, 0], visible=False, scaleanchor="x")
-
-        if lotes_datos_mapa:
-            df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
-            
-            if lote_seleccionado_mapa != "Mostrar Todos":
-                # Extraemos el número puro del texto del selector
-                id_buscado = lote_seleccionado_mapa.replace("Lote ", "")
-                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
-                
-                if not df_mostrar_puntos.empty:
-                    target_x = df_mostrar_puntos.iloc[0]['x']
-                    target_y = df_mostrar_puntos.iloc[0]['y']
-                    # Encuadre automático cerrado al rededor del punto
-                    fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
-                    fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) # Respeta eje invertido
-            else:
-                df_mostrar_puntos = df_mapa_puntos
-
-            # Renderizar círculos interactivos
-            for _, item in df_mostrar_puntos.iterrows():
-                fig_mapa.add_trace(go.Scatter(
-                    x=[item['x']], y=[item['y']],
-                    mode="markers+text",
-                    marker=dict(size=24, color=item['Hex'], line=dict(width=2, color='white')),
-                    text=[item['Lote']], textposition="top center",
-                    textfont=dict(size=12, color='black' if os.path.exists("plano.png") else 'white'),
-                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
-                ))
-
-        fig_mapa.update_layout(
-            showlegend=False,
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=620,
-            template="plotly_white"
-        )
-        st.plotly_chart(fig_mapa, use_container_width=True)
-
     with col_info_lote:
-        st.markdown("### 📋 Estatus de Ejecución")
+        # Selector alineado a la derecha y más pequeño
+        c_titulo, c_selector = st.columns([5, 5])
+        with c_titulo:
+            st.markdown("### 📋 Desglose:")
+        with c_selector:
+            # Selector sin etiqueta (para ahorrar espacio)
+            lote_seleccionado_mapa = st.selectbox("Selector", opciones_selector, index=idx_mapa, label_visibility="collapsed")
+            st.session_state.tab3_mapa = lote_seleccionado_mapa
         
+        st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
+
         if lote_seleccionado_mapa != "Mostrar Todos":
             lote_puro_num = lote_seleccionado_mapa.replace("Lote ", "")
-        else:
-            lote_puro_num = str(df['Lote'].iloc[0]) if not df.empty else None
-            
-        if lote_puro_num:
-            st.markdown(f"#### Desglose de Partidas: **Lote {lote_puro_num}**")
             df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']]
             
             if not df_desglose_lote.empty:
@@ -531,6 +536,83 @@ elif menu == "Mapa Interactivo":
                     height=480
                 )
             else:
-                st.info(f"No se encontraron partidas en Google Sheets para el lote número {lote_puro_num}.")
+                st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
         else:
-            st.info("Selecciona un lote específico en el menú superior para ver su avance detallado.")
+            # MOSTRAR TABLA GLOBAL RESUMIDA CUANDO SELECCIONAN "MOSTRAR TODOS"
+            st.markdown("**Resumen General por Lote:**")
+            
+            # Calculamos las métricas globales
+            df_resumen_global = df.groupby('Lote').agg(
+                Total_Partidas=('Partida', 'count'),
+                Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
+                Costo_Total=('Precio', 'sum')
+            ).reset_index()
+            
+            df_resumen_global['% Avance'] = (df_resumen_global['Pagadas'] / df_resumen_global['Total_Partidas']) * 100
+            
+            # Formateo estético
+            df_resumen_global['% Avance'] = df_resumen_global['% Avance'].apply(lambda x: f"{x:.1f}%")
+            
+            st.dataframe(
+                df_resumen_global.style.format({'Costo_Total': '${:,.2f}'}),
+                use_container_width=True,
+                hide_index=True,
+                height=480
+            )
+
+    with col_mapa:
+        fig_mapa = go.Figure()
+        
+        if os.path.exists("plano.png"):
+            img_plano = Image.open("plano.png")
+            ancho_img, alto_img = img_plano.size
+            fig_mapa.add_layout_image(
+                dict(
+                    source=img_plano, xref="x", yref="y", x=0, y=0,
+                    sizex=ancho_img, sizey=alto_img,
+                    sizing="stretch", opacity=0.85, layer="below"
+                )
+            )
+            fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
+            fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
+        else:
+            fig_mapa.update_xaxes(range=[0, 1000], visible=False)
+            fig_mapa.update_yaxes(range=[1000, 0], visible=False, scaleanchor="x")
+
+        if lotes_datos_mapa:
+            df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
+            
+            # Lógica para cambiar tamaño de los puntos
+            if lote_seleccionado_mapa == "Mostrar Todos":
+                df_mostrar_puntos = df_mapa_puntos
+                tamano_punto = 10
+                modo_grafico = "markers" # Oculta el texto para que no se empalmen
+            else:
+                id_buscado = lote_seleccionado_mapa.replace("Lote ", "")
+                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
+                tamano_punto = 26
+                modo_grafico = "markers+text" # Muestra el texto cuando hay zoom
+                
+                if not df_mostrar_puntos.empty:
+                    target_x = df_mostrar_puntos.iloc[0]['x']
+                    target_y = df_mostrar_puntos.iloc[0]['y']
+                    fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
+                    fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) 
+
+            for _, item in df_mostrar_puntos.iterrows():
+                fig_mapa.add_trace(go.Scatter(
+                    x=[item['x']], y=[item['y']],
+                    mode=modo_grafico,
+                    marker=dict(size=tamano_punto, color=item['Hex'], line=dict(width=2, color='white')),
+                    text=[item['Lote']], textposition="top center",
+                    textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
+                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
+                ))
+
+        fig_mapa.update_layout(
+            showlegend=False,
+            margin=dict(l=0, r=0, t=0, b=0),
+            height=600,
+            template="plotly_white"
+        )
+        st.plotly_chart(fig_mapa, use_container_width=True)
