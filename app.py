@@ -378,15 +378,15 @@ elif menu == "Mapa Interactivo":
     # Debes asegurarte de que el nombre entre comillas ("Lote 1") coincida EXACTAMENTE
     # con cómo se llama en tu Google Sheets.
     COORDENADAS_LOTES = {
-        "1": {"x": 4577,"y": 3450},
-        "2": {"x": 4721,"y": 3428},
-        "3": {"x": 4851,"y": 3482},
-        "4": {"x": 5081,"y": 3522},
-        "5": {"x": 5211,"y": 3540},
-        "6": {"x": 5321,"y": 3554},
-        "7": {"x": 5325,"y": 3574},
-        "8": {"x": 5439,"y": 3578},
-        "9": {"x": 5561,"y": 3610},
+        "1": {"x": 4577, "y": 3450},
+        "2": {"x": 4721, "y": 3428},
+        "3": {"x": 4851, "y": 3482},
+        "4": {"x": 5081, "y": 3522},
+        "5": {"x": 5211, "y": 3540},
+        "6": {"x": 5321, "y": 3554},
+        "7": {"x": 5325, "y": 3574},
+        "8": {"x": 5439, "y": 3578},
+        "9": {"x": 5561, "y": 3610},
 
         # Añade los demás lotes aquí siguiendo el mismo formato...
     }
