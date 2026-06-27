@@ -926,10 +926,14 @@ elif menu == "Diagrama Interactivo":
                 </tr>
                 """
             html_leyenda += "</table>"
+
+            try:
+                st.html(html_leyenda)
+            except AttributeError:
+                # Si esto falla, es porque tu versión de Streamlit es antigua
+                st.markdown(html_leyenda, unsafe_allow_html=True)
             
-            # Asegúrate de que esta línea esté idéntica a esta (especialmente el unsafe_allow_html=True)
-            st.markdown(html_leyenda, unsafe_allow_html=True)
-            
+                      
             # Encapsulamos la leyenda en un contenedor con scrollbar en caso de que sean 131 partidas
             with st.container(height=600):
                 st.markdown(html_leyenda, unsafe_allow_html=True)
