@@ -16,7 +16,6 @@ from PIL import Image
 # =========================================================================
 st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
-# Validamos la existencia de secrets para evitar errores en pruebas locales
 URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets else ""
 
 def obtener_datos_gsheet():
@@ -82,12 +81,10 @@ st.markdown(f"""
         font-size: 5px !important;
         height: auto !important;
     }}
-    /* CSS para centrar el contenedor global del DataFrame */
     [data-testid="stDataFrame"] {{
         display: flex;
         justify-content: center;
     }}
-    /* CSS para centrar absolutamente todo el texto en las tablas de Streamlit */
     [data-testid="stDataFrame"] div[data-testid="stTable"] th {{
         text-align: center !important;
         justify-content: center !important;
@@ -110,7 +107,7 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
             st.image("logo.png", use_container_width=True)
 
 # =========================================================================
-# INICIALIZACIÓN DE ESTADOS (MEMORIA DEL SISTEMA)
+# INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
 # =========================================================================
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
@@ -121,10 +118,13 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-if 'lote_registro' not in st.session_state:
-    st.session_state.lote_registro = df['Lote'].unique()[0] if not df.empty else ""
-if 'mapa_lote_seleccionado' not in st.session_state:
-    st.session_state.mapa_lote_seleccionado = "Mostrar Todos"
+# Esta variable controlará unificadamente el Lote en TODAS las pestañas.
+if 'lote_actual' not in st.session_state:
+    st.session_state.lote_actual = df['Lote'].unique()[0] if not df.empty else "1"
+
+# Esta variable controla si en el mapa se están viendo "Todos"
+if 'mostrar_todos_mapa' not in st.session_state:
+    st.session_state.mostrar_todos_mapa = False
 
 # --- 1. FORMULARIO DE ACCESO ---
 def login():
@@ -173,7 +173,7 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
     "Dashboard (Gráficos y Visor)", 
     "Mapa Interactivo",
-    "Diagrama Interactivo"  # <-- Nueva Pestaña Agregada
+    "Diagrama Interactivo"
 ])
 
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
@@ -217,8 +217,15 @@ if menu == "Registro de Destajos":
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
     lotes_unicos = list(df['Lote'].unique())
     
-    lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, key="lote_registro")
-    st.session_state.mapa_lote_seleccionado = f"Lote {lote_activo}"
+    # Sincronización maestra: Buscamos el índice del lote actual en la memoria
+    idx_t1 = lotes_unicos.index(st.session_state.lote_actual) if st.session_state.lote_actual in lotes_unicos else 0
+    lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_t1)
+    
+    # Si el usuario cambia el lote aquí, actualizamos la memoria maestra y recargamos
+    if lote_activo != st.session_state.lote_actual:
+        st.session_state.lote_actual = lote_activo
+        st.session_state.mostrar_todos_mapa = False
+        st.rerun()
     
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago (Opcional):", value=None, format="DD/MM/YYYY")
 
@@ -324,7 +331,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
 
     st.markdown("### 🔍 Panel de Control y Filtros Dinámicos")
     
-    # --- 1. MODIFICACIÓN: Agregado el filtro global de Destajista ---
     d_col1, d_col2, d_col3 = st.columns(3)
     protos_disponibles = sorted(df['Prototipo'].unique(), key=ordenar_prototipos)
     lotes_disponibles = list(df['Lote'].unique())
@@ -337,7 +343,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
     lotes_dash = d_col2.multiselect("Filtrar por Lotes:", options=lotes_disponibles, key="tab2_lotes_seleccionados")
     destajista_dash = d_col3.selectbox("Filtrar por Destajista Global:", options=destajistas_disponibles)
     
-    # Aplicar filtros dinámicos al dataframe del dashboard
     df_dash = df[(df['Lote'].isin(lotes_dash)) & (df['Prototipo'].isin(protos_dash))]
     if destajista_dash != "Todos":
         df_dash = df_dash[df_dash['Destajista'] == destajista_dash]
@@ -352,11 +357,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
         monto_pagado = df_pagados['Precio'].sum()
         monto_pendiente = df_pendientes['Precio'].sum()
         
-        # --- TARJETAS KPI PRINCIPALES ---
         st.markdown("<br>", unsafe_allow_html=True)
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
         
-        # Modificamos el título del KPI dependiendo de si hay un destajista seleccionado
         titulo_kpi = "💰 Presupuesto Global Seleccionado" if destajista_dash == "Todos" else f"💰 Asignado a {destajista_dash}"
         kpi1.metric(titulo_kpi, f"${monto_total:,.2f}")
         
@@ -374,8 +377,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
         kpi4.metric("📋 Avance Físico (Partidas)", f"{partidas_pagadas_dash} / {total_partidas_dash}", f"{(partidas_pagadas_dash/total_partidas_dash*100) if total_partidas_dash>0 else 0:.1f}% Completadas")
         
         st.markdown("<hr>", unsafe_allow_html=True)
-        
-        # --- 2. MODIFICACIÓN: TABLA DE RESUMEN CENTRADA Y AJUSTADA ---
         st.markdown("<h3 style='text-align: center;'>📋 Resumen Individual por Lote y Prototipo</h3>", unsafe_allow_html=True)
         
         df_dash_clean = df_dash.copy()
@@ -388,21 +389,18 @@ elif menu == "Dashboard (Gráficos y Visor)":
         df_resumen = df_resumen[['Lote', 'Prototipo', 'Total', 'Pagado', 'Pendiente']]
         df_resumen.columns = ['Lote', 'Prototipo', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
         
-        # Estilos aplicados directamente al dataframe de Pandas
         styled_resumen = df_resumen.style.format({
             'Valor Total': '${:,.2f}',
             'Total Pagado': '${:,.2f}',
             'Deuda Pendiente': '${:,.2f}'
         }).set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
         
-        # El CSS insertado arriba y estas columnas aseguran el centrado perfecto
         col_espacio_izq, col_tabla_centro, col_espacio_der = st.columns([1, 6, 1])
         with col_tabla_centro:
             st.dataframe(styled_resumen, use_container_width=True, hide_index=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- SECCIÓN DE GRÁFICOS IMPRESIONANTES ---
         st.markdown("### 📈 Inteligencia de Negocios y Gráficos")
         
         tab_graf1, tab_graf2 = st.tabs(["💰 Control por Prototipos y Lotes", "👷 Control de Destajistas (Contratistas)"])
@@ -410,7 +408,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf1:
             g_col1, g_col2 = st.columns(2)
             
-            # Dinero Pagado vs Pendiente por PROTOTIPO
             df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
             fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
                                title="Comportamiento Financiero por Prototipo",
@@ -419,7 +416,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
             fig_proto.update_traces(textposition='outside')
             g_col1.plotly_chart(fig_proto, use_container_width=True)
             
-            # Treemap interactivo
             fig_tree = px.treemap(df_dash, path=[px.Constant("Proyecto EGC"), 'Prototipo', 'Lote', 'Estado'], values='Precio',
                                   title="Distribución del Presupuesto (Clic para explorar)",
                                   color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
@@ -427,7 +423,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
             fig_tree.update_layout(margin=dict(t=50, l=25, r=25, b=25))
             g_col2.plotly_chart(fig_tree, use_container_width=True)
             
-            # Gráfico de Lotes
             df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Precio'].sum().reset_index()
             fig_lote = px.bar(df_lotes_graf, x='Lote', y='Precio', color='Estado', 
                               title="Avance Financiero Específico por Lote",
@@ -437,7 +432,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf2:
             g_col3, g_col4 = st.columns(2)
             
-            # Montos Pagados por Destajista
             if not df_pagados.empty:
                 df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
                 fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
@@ -448,9 +442,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
             else:
                 g_col3.info("Aún no hay pagos ejecutados en la selección actual para mostrar.")
                 
-            # Deuda Pendiente por Destajista
             if not df_pendientes.empty:
-                # Quitamos momentáneamente los vacíos solo para la gráfica de deuda
                 df_pendientes_clean = df_pendientes.fillna("Sin Asignar")
                 df_deuda = df_pendientes_clean.groupby('Destajista')['Precio'].sum().reset_index().sort_values('Precio', ascending=True)
                 fig_deuda = px.bar(df_deuda, y='Destajista', x='Precio', orientation='h',
@@ -468,60 +460,60 @@ elif menu == "Mapa Interactivo":
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
-        "1": {"x": 794, "y": 379},
-        "2": {"x": 799, "y": 346},
-        "3": {"x": 804, "y": 310},
-        "4": {"x": 807, "y": 285},
-        "5": {"x": 811, "y": 254},
-        "6": {"x": 818, "y": 225},
-        "7": {"x": 828, "y": 195},
-        "8": {"x": 825, "y": 169},
-        "9": {"x": 827, "y": 138},
-        "10": {"x": 713, "y": 151},
-        "11": {"x": 676, "y": 143},
-        "12": {"x": 646, "y": 139},
-        "13": {"x": 617, "y": 141},
-        "14": {"x": 589, "y": 132},
-        "15": {"x": 560, "y": 126},
-        "16": {"x": 532, "y": 127},
-        "17": {"x": 503, "y": 118},
-        "18": {"x": 469, "y": 123},
-        "19": {"x": 443, "y": 115},
-        "20": {"x": 416, "y": 109},
-        "21": {"x": 386, "y": 108},
-        "22": {"x": 358, "y": 103},
-        "23": {"x": 327, "y": 99},
-        "24": {"x": 300, "y": 96},
-        "25": {"x": 270, "y": 95},
-        "26": {"x": 240, "y": 89},
-        "27": {"x": 212, "y": 87},
-        "28": {"x": 182, "y": 82},
-        "29": {"x": 152, "y": 73},
-        "30": {"x": 122, "y": 70},
-        "31": {"x": 282, "y": 239},
-        "32": {"x": 320, "y": 245},
-        "33": {"x": 358, "y": 250},
-        "34": {"x": 393, "y": 256},
-        "35": {"x": 425, "y": 260},
-        "36": {"x": 459, "y": 264},
-        "37": {"x": 498, "y": 272},
-        "38": {"x": 532, "y": 278},
-        "39": {"x": 568, "y": 279},
-        "40": {"x": 603, "y": 285},
-        "41": {"x": 634, "y": 293},
-        "42": {"x": 675, "y": 295},
-        "43": {"x": 656, "y": 379},
-        "44": {"x": 612, "y": 379},
-        "45": {"x": 579, "y": 373},
-        "46": {"x": 546, "y": 367},
-        "47": {"x": 510, "y": 364},
-        "48": {"x": 475, "y": 358},
-        "49": {"x": 437, "y": 355},
-        "50": {"x": 407, "y": 351},
-        "51": {"x": 381, "y": 348},
-        "52": {"x": 349, "y": 343},
-        "53": {"x": 311, "y": 337},
-        "54": {"x": 268, "y": 336},
+        "1": {"x": 284, "y": 247},
+        "2": {"x": 320, "y": 251},
+        "3": {"x": 356, "y": 259},      
+        "4": {"x": 387, "y": 259},
+        "5": {"x": 424, "y": 262},
+        "6": {"x": 458, "y": 268},
+        "7": {"x": 493, "y": 271},
+        "8": {"x": 529, "y": 278},
+        "9": {"x": 563, "y": 281},
+        "10": {"x": 599, "y": 287},
+        "11": {"x": 634, "y": 294},
+        "12": {"x": 670, "y": 294},
+        "13": {"x": 654, "y": 386},
+        "14": {"x": 610, "y": 382},
+        "15": {"x": 578, "y": 379},
+        "16": {"x": 544, "y": 374},
+        "17": {"x": 508, "y": 368},
+        "18": {"x": 475, "y": 364},
+        "19": {"x": 437, "y": 359},
+        "20": {"x": 408, "y": 353},
+        "21": {"x": 379, "y": 351},
+        "22": {"x": 350, "y": 346},
+        "23": {"x": 313, "y": 339},
+        "24": {"x": 271, "y": 332},
+        "25": {"x": 795, "y": 378},
+        "26": {"x": 799, "y": 345},
+        "27": {"x": 805, "y": 311},
+        "28": {"x": 808, "y": 284},
+        "29": {"x": 813, "y": 253},
+        "30": {"x": 817, "y": 226},
+        "31": {"x": 824, "y": 196},
+        "32": {"x": 826, "y": 169},
+        "33": {"x": 830, "y": 140},
+        "34": {"x": 715, "y": 151},
+        "35": {"x": 676, "y": 142},
+        "36": {"x": 650, "y": 143},
+        "37": {"x": 617, "y": 138},
+        "38": {"x": 592, "y": 132},
+        "39": {"x": 558, "y": 130},
+        "40": {"x": 530, "y": 125},
+        "41": {"x": 502, "y": 123},
+        "42": {"x": 472, "y": 119},
+        "43": {"x": 444, "y": 115},
+        "44": {"x": 416, "y": 113},
+        "45": {"x": 384, "y": 108},
+        "46": {"x": 356, "y": 104},
+        "47": {"x": 325, "y": 100},
+        "48": {"x": 300, "y": 94},
+        "49": {"x": 271, "y": 93},
+        "50": {"x": 240, "y": 91},
+        "51": {"x": 213, "y": 90},
+        "52": {"x": 182, "y": 86},
+        "53": {"x": 153, "y": 74},
+        "54": {"x": 123, "y": 70},
         "55": {"x": 151, "y": 185},
         "56": {"x": 146, "y": 217},
         "57": {"x": 144, "y": 245},
@@ -619,8 +611,6 @@ elif menu == "Mapa Interactivo":
         "149": {"x": 848, "y": 846},
         "150": {"x": 837, "y": 813},
         "151": {"x": 822, "y": 765},
-
-
     }
 
     lotes_datos_mapa = []
@@ -655,11 +645,19 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
-    if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
+    # Sincronización maestra para el Mapa
+    if st.session_state.mostrar_todos_mapa:
+        valor_defecto_mapa = "Mostrar Todos"
+    else:
+        valor_defecto_mapa = f"Lote {st.session_state.lote_actual}"
+        
+    idx_t3 = opciones_selector.index(valor_defecto_mapa) if valor_defecto_mapa in opciones_selector else 0
+
+    if st.session_state.mostrar_todos_mapa:
         df_kpi = df.copy()
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
     else:
-        lote_puro_kpi = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
+        lote_puro_kpi = st.session_state.lote_actual
         df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
         
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
@@ -698,13 +696,21 @@ elif menu == "Mapa Interactivo":
         with c_titulo:
             st.markdown("### 📋 Desglose:")
         with c_selector:
-            idx_mapa = opciones_selector.index(st.session_state.mapa_lote_seleccionado) if st.session_state.mapa_lote_seleccionado in opciones_selector else 0
-            st.selectbox("Selector", opciones_selector, key="mapa_lote_seleccionado", label_visibility="collapsed")
+            mapa_sel = st.selectbox("Selector", opciones_selector, index=idx_t3, label_visibility="collapsed")
+            
+            # Detectar cambios en el menú desplegable y actualizar la memoria global
+            if mapa_sel != valor_defecto_mapa:
+                if mapa_sel == "Mostrar Todos":
+                    st.session_state.mostrar_todos_mapa = True
+                else:
+                    st.session_state.mostrar_todos_mapa = False
+                    st.session_state.lote_actual = mapa_sel.replace("Lote ", "")
+                st.rerun()
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
-        if st.session_state.mapa_lote_seleccionado != "Mostrar Todos":
-            lote_puro_num = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
+        if not st.session_state.mostrar_todos_mapa:
+            lote_puro_num = st.session_state.lote_actual
             df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']]
             
             if not df_desglose_lote.empty:
@@ -765,12 +771,12 @@ elif menu == "Mapa Interactivo":
         if lotes_datos_mapa:
             df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
             
-            if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
+            if st.session_state.mostrar_todos_mapa:
                 df_mostrar_puntos = df_mapa_puntos
                 tamano_punto = 10
                 modo_grafico = "markers" 
             else:
-                id_buscado = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
+                id_buscado = st.session_state.lote_actual
                 df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
                 tamano_punto = 26
                 modo_grafico = "markers+text" 
@@ -800,25 +806,40 @@ elif menu == "Mapa Interactivo":
         st.plotly_chart(fig_mapa, use_container_width=True)
 
 # =========================================================================
-# PESTAÑA 4: DIAGRAMA INTERACTIVO (NUEVA PESTAÑA)
+# PESTAÑA 4: DIAGRAMA INTERACTIVO (CON LEYENDA Y COLORES POR PARTIDA)
 # =========================================================================
 elif menu == "Diagrama Interactivo":
-    mostrar_cabecera_con_logo("🔗 Diagrama Interactivo de Partidas", "Explora visualmente el avance financiero de cada lote.")
+    mostrar_cabecera_con_logo("🔗 Diagrama Interactivo de Partidas", "Explora visualmente el avance financiero asignado por colores.")
     
     col_texto, col_selector = st.columns([6, 4])
     with col_texto:
-        st.markdown("Selecciona un lote para ver el estado de sus partidas representadas como círculos. Los círculos **rellenos en verde** representan partidas **pagadas**, y los **círculos vacíos** representan partidas **pendientes**.")
+        st.markdown("Selecciona un lote para ver sus partidas representadas como círculos. Cada partida tiene un **color único**.")
+        st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes**.", unsafe_allow_html=True)
     
     with col_selector:
         lotes_diag = list(df['Lote'].unique())
-        lote_seleccionado_diag = st.selectbox("Selecciona Lote a Explorar:", lotes_diag)
+        
+        # Sincronización maestra
+        idx_t4 = lotes_diag.index(st.session_state.lote_actual) if st.session_state.lote_actual in lotes_diag else 0
+        lote_seleccionado_diag = st.selectbox("Selecciona Lote a Explorar:", lotes_diag, index=idx_t4)
+        
+        # Si cambiamos el lote aquí, impacta todas las pestañas
+        if lote_seleccionado_diag != st.session_state.lote_actual:
+            st.session_state.lote_actual = lote_seleccionado_diag
+            st.session_state.mostrar_todos_mapa = False
+            st.rerun()
 
     df_lote_diag = df[df['Lote'] == lote_seleccionado_diag]
 
     if not df_lote_diag.empty:
-        # Lógica para crear la cuadrícula (Grid)
+        
+        # Generar Paleta de Colores Dinámica para cada partida distinta
+        paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+        partidas_unicas = df_lote_diag['Partida'].unique()
+        mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas)}
+
         num_partidas = len(df_lote_diag)
-        cols = math.ceil(math.sqrt(num_partidas)) # Calcular columnas para un cuadro casi perfecto
+        cols = math.ceil(math.sqrt(num_partidas))
 
         x_coords = []
         y_coords = []
@@ -835,52 +856,79 @@ elif menu == "Diagrama Interactivo":
             estado = row.Estado
             costo = row.Precio
             destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+            
+            color_asignado = mapa_colores_partida[row.Partida]
 
-            # 3.2.1: Partidas pagadas (relleno), Partidas pendientes (sin relleno)
+            # Relleno vs Hueco según estado
             if estado == "Pagado":
-                colores_relleno.append("#10B981") # Verde Esmeralda (Relleno)
-                colores_borde.append("#10B981")   # Borde Verde
+                colores_relleno.append(color_asignado)
+                colores_borde.append(color_asignado)
             else:
-                colores_relleno.append("rgba(0,0,0,0)") # Transparente (Sin Relleno)
-                colores_borde.append("#EF4444")         # Borde Rojo para resaltar pendiente
+                colores_relleno.append("rgba(0,0,0,0)") # Hueco (transparente)
+                colores_borde.append(color_asignado)    # El borde lleva el color identificador
 
-            # Tooltip al pasar el cursor
             hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo:</b> ${costo:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
             textos_hover.append(hover_text)
 
-        # Crear el gráfico Plotly Scatter (Diagrama de Puntos)
-        fig_diag = go.Figure(data=go.Scatter(
-            x=x_coords,
-            y=y_coords,
-            mode='markers',
-            marker=dict(
-                size=35, # Tamaño de los círculos
-                color=colores_relleno,
-                symbol='circle',
-                line=dict(width=3, color=colores_borde)
-            ),
-            text=textos_hover,
-            hoverinfo='text'
-        ))
-
-        # Ajustes de visualización para que parezca una cuadrícula flotante
-        fig_diag.update_layout(
-            title=dict(text=f"Partidas del Lote {lote_seleccionado_diag} ({num_partidas} en total)", font=dict(size=20)),
-            xaxis=dict(visible=False, showgrid=False, zeroline=False),
-            yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
-            plot_bgcolor='rgba(0,0,0,0)', # Fondo transparente
-            paper_bgcolor='rgba(0,0,0,0)',
-            height=max(500, (math.ceil(num_partidas/cols) * 60)), # Altura dinámica
-            hoverlabel=dict(bgcolor="white", font_size=14, font_family="Arial")
-        )
-
-        st.plotly_chart(fig_diag, use_container_width=True)
+        # Dividimos la pantalla: Izquierda el diagrama, Derecha la Leyenda
+        col_diagrama, col_leyenda = st.columns([7, 3])
         
-        # Resumen Rápido debajo del diagrama
-        pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
-        pendientes_diag = num_partidas - pagadas_diag
-        
-        st.markdown(f"**🟢 Pagadas:** {pagadas_diag} | **🔴 Pendientes:** {pendientes_diag} | **Total:** {num_partidas}")
+        with col_diagrama:
+            fig_diag = go.Figure(data=go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                mode='markers',
+                marker=dict(
+                    size=35,
+                    color=colores_relleno,
+                    symbol='circle',
+                    line=dict(width=4, color=colores_borde)
+                ),
+                text=textos_hover,
+                hoverinfo='text'
+            ))
+
+            fig_diag.update_layout(
+                title=dict(text=f"Partidas del Lote {lote_seleccionado_diag} ({num_partidas} en total)", font=dict(size=20)),
+                xaxis=dict(visible=False, showgrid=False, zeroline=False),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                height=max(500, (math.ceil(num_partidas/cols) * 60)),
+                # Ajuste del fondo negro con letras blancas en el tooltip:
+                hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
+            )
+
+            st.plotly_chart(fig_diag, use_container_width=True)
+            
+            pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
+            pendientes_diag = num_partidas - pagadas_diag
+            st.markdown(f"**🟢 Total Pagadas:** {pagadas_diag} | **🔴 Total Pendientes:** {pendientes_diag}")
+            
+        with col_leyenda:
+            st.markdown("### 🎨 Leyenda de Partidas")
+            st.markdown("Identifica cada burbuja por el color asignado a su partida correspondiente.", unsafe_allow_html=True)
+            
+            # Tabla de leyenda construida con HTML puro para que las esferas queden perfectas
+            html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
+            html_leyenda += "<tr><th style='text-align:center; border-bottom: 1px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 1px solid #ddd; padding: 10px;'>Nombre de la Partida</th></tr>"
+            
+            for partida, color in mapa_colores_partida.items():
+                html_leyenda += f"""
+                <tr>
+                    <td style='text-align:center; padding: 8px; border-bottom: 1px solid #eee;'>
+                        <div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto; box-shadow: 0 0 3px rgba(0,0,0,0.3);'></div>
+                    </td>
+                    <td style='text-align:left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px;'>
+                        {partida}
+                    </td>
+                </tr>
+                """
+            html_leyenda += "</table>"
+            
+            # Encapsulamos la leyenda en un contenedor con scrollbar en caso de que sean 131 partidas
+            with st.container(height=600):
+                st.markdown(html_leyenda, unsafe_allow_html=True)
         
     else:
         st.warning("⚠️ No hay partidas registradas para este lote.")
