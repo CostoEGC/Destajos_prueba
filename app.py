@@ -320,7 +320,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
     d_col1, d_col2 = st.columns(2)
     protos_disponibles = sorted(df['Prototipo'].unique(), key=ordenar_prototipos)
     
-    # AQUÍ ESTÁ LA MAGIA QUE ARREGLA EL ERROR: list() convierte el NumPy array en lista de Python
     lotes_disponibles = list(df['Lote'].unique())
     
     if 'tab2_lotes_seleccionados' not in st.session_state:
@@ -357,16 +356,16 @@ elif menu == "Dashboard (Gráficos y Visor)":
         st.markdown("### 📋 Resumen Individual por Lote y Prototipo")
         
         df_dash_clean = df_dash.copy()
-        df_dash_clean['Destajista'] = df_dash_clean['Destajista'].fillna('Sin Asignar')
         
-        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo', 'Destajista', 'Estado'])['Precio'].sum().unstack(fill_value=0).reset_index()
+        # Agrupación SIN Destajista
+        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo', 'Estado'])['Precio'].sum().unstack(fill_value=0).reset_index()
         
         if 'Pagado' not in df_resumen.columns: df_resumen['Pagado'] = 0.0
         if 'Pendiente' not in df_resumen.columns: df_resumen['Pendiente'] = 0.0
         
         df_resumen['Total'] = df_resumen['Pagado'] + df_resumen['Pendiente']
-        df_resumen = df_resumen[['Lote', 'Prototipo', 'Destajista', 'Total', 'Pagado', 'Pendiente']]
-        df_resumen.columns = ['Lote', 'Prototipo', 'Destajista', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
+        df_resumen = df_resumen[['Lote', 'Prototipo', 'Total', 'Pagado', 'Pendiente']]
+        df_resumen.columns = ['Lote', 'Prototipo', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
         
         st.dataframe(
             df_resumen.style.format({
@@ -420,16 +419,9 @@ elif menu == "Mapa Interactivo":
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
-        "1": {"x": 4577, "y": 3450},
-        "2": {"x": 4721, "y": 3428},
-        "3": {"x": 4851, "y": 3482},
-        "4": {"x": 5081, "y": 3522},
-        "5": {"x": 5211, "y": 3540},
-        "6": {"x": 5321, "y": 3554},
-        "7": {"x": 5325, "y": 3574},
-        "8": {"x": 5439, "y": 3578},
-        "9": {"x": 5561, "y": 3610},
-
+        "1": {"x": 150, "y": 200},
+        "2": {"x": 250, "y": 200},
+        "3": {"x": 350, "y": 200},
     }
 
     lotes_datos_mapa = []
@@ -464,25 +456,31 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
+    # Ajuste de Prototipo para el Título y Lógica de KPIs
     if st.session_state.mapa_lote_seleccionado == "Mostrar Todos":
         df_kpi = df.copy()
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
     else:
         lote_puro_kpi = st.session_state.mapa_lote_seleccionado.replace("Lote ", "")
         df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
-        titulo_kpi = f"🏠 Lote {lote_puro_kpi}"
+        
+        # Extraemos el prototipo para agregarlo al título
+        prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
+        titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
     costo_total_mapa = df_kpi['Precio'].sum()
     pagado_mapa = df_kpi[df_kpi['Estado'] == 'Pagado']['Precio'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
 
+    # Se eliminó el fondo azul global (se removió 'background-color' del contenedor general) 
+    # y se mantienen los fondos de las tarjetas editables.
     st.markdown(f"""
-    <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
-        <div style="margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
+    <div style="margin-bottom:20px;">
+        <div style="margin-bottom: 15px; border-bottom: 1px solid rgba(128,128,128,0.3); padding-bottom: 10px;">
             <div style="font-size:24px; font-weight:bold;">{titulo_kpi}</div>
         </div>
         <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
-            <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
+            <div style="flex: 1; text-align: center; background-color:rgba(128,128,128,0.1); padding: 15px; border-radius:8px;">
                 <div style="font-size:14px; opacity: 0.9;">Costo Total</div>
                 <div style="font-size:24px; font-weight:bold;">${costo_total_mapa:,.2f}</div>
             </div>
