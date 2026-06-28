@@ -935,8 +935,8 @@ elif menu == "Diagrama Interactivo":
             
                       
             # Encapsulamos la leyenda en un contenedor con scrollbar en caso de que sean 131 partidas
-            with st.container(height=600):
-                st.markdown(html_leyenda, unsafe_allow_html=True)
+            #with st.container(height=600):
+             #   st.markdown(html_leyenda, unsafe_allow_html=True)
         
     else:
         st.warning("⚠️ No hay partidas registradas para este lote.")
