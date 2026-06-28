@@ -931,6 +931,7 @@ elif menu == "Diagrama Interactivo":
                 st.html(html_leyenda)
             except AttributeError:
                 # Si esto falla, es porque tu versión de Streamlit es antigua
+                st.container(height=600):
                 st.markdown(html_leyenda, unsafe_allow_html=True)
             
                       
