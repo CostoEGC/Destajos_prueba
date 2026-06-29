@@ -167,7 +167,7 @@ if st.session_state.usuario is None:
 @st.dialog("⚠️ CONFIRMACIÓN DE PAGO")
 def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, es_pago_2):
     st.warning(f"¿Confirmas el pago por **${monto_pago:,.2f}** de la partida **{partida}** para el **{lote}**?")
-    if no es_pago_2:
+    if not es_pago_2:
         st.markdown(f"**Destajista asignado:** {destajista}")
     st.markdown(f"**Monto a liberar:** `${monto_pago:,.2f}`")
     
