@@ -29,6 +29,19 @@ def obtener_datos_gsheet():
             df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
+        
+        # INICIALIZACIÓN DE NUEVAS COLUMNAS (Compatibilidad con base de datos existente)
+        if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
+        if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
+        if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
+        if 'Usuario_2' not in df.columns: df['Usuario_2'] = ''
+        
+        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
+        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
+        
+        # Migración automática de datos viejos: Si estaba "Pagado" pero no tiene valor en Pago_1, se lo asignamos.
+        df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
+
         return df
     except Exception as e:
         st.error(f"Error al conectar con Google Sheets: {e}")
@@ -59,7 +72,7 @@ ANCHO_LOGIN_ENTRADAS = "200px"
 ESPACIO_ENTRE_RENGLONES = "8px"
 TAMANO_LETRA_PAGADO = "14px"
 GROSOR_ETIQUETA_PAGADO = "2px -25px"
-TAMANO_LETRA_TABLA = "14px"
+TAMANO_LETRA_TABLA = "11px" # Reducido ligeramente para acomodar más columnas
 TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
@@ -80,6 +93,10 @@ st.markdown(f"""
         padding: 1px 5px !important;
         font-size: 5px !important;
         height: auto !important;
+    }}
+    div[data-testid="stNumberInput"] input {{
+        font-size: 11px !important;
+        padding: 4px !important;
     }}
     [data-testid="stDataFrame"] {{
         display: flex;
@@ -148,10 +165,11 @@ if st.session_state.usuario is None:
     st.stop()
 
 @st.dialog("⚠️ CONFIRMACIÓN DE PAGO")
-def dialogo_confirmacion(indice, lote, partida, destajista, precio):
-    st.warning(f"¿Confirmas el pago de la partida **{partida}** para el **{lote}**?")
-    st.markdown(f"**Destajista asignado:** {destajista}")
-    st.markdown(f"**Monto a liberar:** `${precio:,.2f}`")
+def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, es_pago_2):
+    st.warning(f"¿Confirmas el pago por **${monto_pago:,.2f}** de la partida **{partida}** para el **{lote}**?")
+    if no es_pago_2:
+        st.markdown(f"**Destajista asignado:** {destajista}")
+    st.markdown(f"**Monto a liberar:** `${monto_pago:,.2f}`")
     
     col1, col2 = st.columns(2)
     if col1.button("✅ ACEPTAR"):
@@ -159,11 +177,26 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio):
         fecha_hora_str = ahora.strftime("%d/%m/%Y %H:%M:%S")
         usuario_actual = st.session_state.usuario
 
-        st.session_state.df.at[indice, 'Estado'] = 'Pagado'
-        st.session_state.df.at[indice, 'Destajista'] = destajista
-        st.session_state.df.at[indice, 'Fecha_Pago'] = fecha_hora_str
-        st.session_state.df.at[indice, 'Usuario'] = usuario_actual
+        if es_pago_2:
+            st.session_state.df.at[indice, 'Pago_2'] = monto_pago
+            st.session_state.df.at[indice, 'Fecha_Pago_2'] = fecha_hora_str
+            st.session_state.df.at[indice, 'Usuario_2'] = usuario_actual
+        else:
+            st.session_state.df.at[indice, 'Pago_1'] = monto_pago
+            st.session_state.df.at[indice, 'Fecha_Pago'] = fecha_hora_str
+            st.session_state.df.at[indice, 'Usuario'] = usuario_actual
+            st.session_state.df.at[indice, 'Destajista'] = destajista
         
+        # Recalcular Estado Global
+        fila = st.session_state.df.loc[indice]
+        pagado_tot = float(fila.get('Pago_1', 0)) + float(fila.get('Pago_2', 0))
+        costo_tot = float(fila['Precio'])
+        
+        if pagado_tot >= costo_tot:
+            st.session_state.df.at[indice, 'Estado'] = 'Pagado'
+        else:
+            st.session_state.df.at[indice, 'Estado'] = 'Pago Parcial'
+            
         st.rerun()
 
     if col2.button("❌ CANCELAR"):
@@ -241,7 +274,7 @@ if menu == "Registro de Destajos":
         st.session_state.mostrar_todos_mapa = False
         st.rerun()
     
-    fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago (Opcional):", value=None, format="DD/MM/YYYY")
+    fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago 1 (Opcional):", value=None, format="DD/MM/YYYY")
 
     # Filtramos usando texto para asegurar que encuentre el lote correctamente
     df_lote = df[df['Lote'].astype(str).str.strip() == str(lote_activo)]
@@ -250,8 +283,10 @@ if menu == "Registro de Destajos":
     construccion = df_lote['Construccion_m2'].iloc[0] if not df_lote.empty else 0
 
     costo_total_filtrado = df_lote['Precio'].sum()
-    pagado_filtrado = df_lote[df_lote['Estado'] == 'Pagado']['Precio'].sum()
-    pendiente_filtrado = df_lote[df_lote['Estado'] != 'Pagado']['Precio'].sum()
+    df_lote_temp = df_lote.copy()
+    df_lote_temp['Total_Pagado_Temp'] = pd.to_numeric(df_lote_temp.get('Pago_1', 0)) + pd.to_numeric(df_lote_temp.get('Pago_2', 0))
+    pagado_filtrado = df_lote_temp['Total_Pagado_Temp'].sum()
+    pendiente_filtrado = costo_total_filtrado - pagado_filtrado
 
     st.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
@@ -265,7 +300,7 @@ if menu == "Registro de Destajos":
                 <div style="font-size:24px; font-weight:bold;">${costo_total_filtrado:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Total Pagado</div>
+                <div style="font-size:14px; opacity: 0.9;">Total Pagado Real</div>
                 <div style="font-size:24px; font-weight:bold;">${pagado_filtrado:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
@@ -280,7 +315,7 @@ if menu == "Registro de Destajos":
     f_col1, f_col2, f_col3 = st.columns([2, 2, 2])
     filtro_concepto = f_col1.text_input("Buscar Concepto:", "", placeholder="Ej. Muros")
     filtro_destajista = f_col2.selectbox("Filtrar por Destajista:", ["Todos"] + LISTA_DESTAJISTAS)
-    filtro_estado = f_col3.selectbox("Filtrar por Estado de Pago:", ["Todos", "Pendiente", "Pagado"])
+    filtro_estado = f_col3.selectbox("Filtrar por Estado de Pago:", ["Todos", "Pendiente", "Pago Parcial", "Pagado"])
     
     df_filtrado = df_lote.copy()
     if filtro_concepto:
@@ -293,44 +328,102 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
 
     st.markdown("<br>", unsafe_allow_html=True)
-    h1, h2, h3, h4, h5, h6 = st.columns([4, 1.5, 3, 1.5, 2, 1.5])
-    h1.markdown("🗑️ **Partida**")
-    h2.markdown("💵 **Costo**")
-    h3.markdown("👷 **Destajista/Contratista**")
-    h4.markdown("📊 **Estado**")
-    h5.markdown("📆 **Fecha Pago**")
-    h6.markdown("👤 **Usuario**")
+    
+    # NUEVA ESTRUCTURA DE COLUMNAS (12 Columnas proporcionadas)
+    cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0, 1.2]
+    h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
+    h1.markdown("<div style='font-size:11px;'>🗑️ **Partida**</div>", unsafe_allow_html=True)
+    h2.markdown("<div style='font-size:11px;'>💵 **Costo**</div>", unsafe_allow_html=True)
+    h3.markdown("<div style='font-size:11px;'>👷 **Destajista**</div>", unsafe_allow_html=True)
+    h4.markdown("<div style='font-size:11px;'>💰 **Monto a pagar**</div>", unsafe_allow_html=True)
+    h5.markdown("")
+    h6.markdown("<div style='font-size:11px;'>💳 **Pago 1**</div>", unsafe_allow_html=True)
+    h7.markdown("<div style='font-size:11px;'>📆 **Fecha 1**</div>", unsafe_allow_html=True)
+    h8.markdown("<div style='font-size:11px;'>💳 **Pago 2**</div>", unsafe_allow_html=True)
+    h9.markdown("<div style='font-size:11px;'>📆 **Fecha 2**</div>", unsafe_allow_html=True)
+    h10.markdown("<div style='font-size:11px;'>📊 **Estado**</div>", unsafe_allow_html=True)
+    h11.markdown("<div style='font-size:11px;'>🚨 **Por pagar**</div>", unsafe_allow_html=True)
+    h12.markdown("<div style='font-size:11px;'>👤 **Usuario**</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
-    with st.container(height=450):
+    with st.container(height=550):
         if df_filtrado.empty:
             st.info("No hay partidas que coincidan con los filtros seleccionados.")
         else:
             for numero, (indice, fila) in enumerate(df_filtrado.iterrows(), start=1):
-                c1, c2, c3, c4, c5, c6 = st.columns([4, 1.5, 3, 1.5, 2, 1.5])
+                c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(cols_weights)
                 
+                precio = float(fila['Precio'])
+                pago_1 = float(fila.get('Pago_1', 0))
+                pago_2 = float(fila.get('Pago_2', 0))
+                total_pagado = pago_1 + pago_2
+                por_pagar = precio - total_pagado
+                pct_pagado = min(100, int((total_pagado / precio) * 100)) if precio > 0 else 0
+                
+                # C1: Partida
                 c1.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{numero}.- {fila['Partida']}</div>", unsafe_allow_html=True)
-                c2.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>${fila['Precio']:,.2f}</div>", unsafe_allow_html=True)
+                # C2: Costo
+                c2.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${precio:,.2f}</div>", unsafe_allow_html=True)
                 
-                if fila['Estado'] == 'Pagado':
-                    c3.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{fila['Destajista']}</div>", unsafe_allow_html=True)
-                    c4.markdown(f"<div style='background-color:#10B981; color:white; padding:{GROSOR_ETIQUETA_PAGADO}; border-radius:4px; font-size:{TAMANO_LETRA_PAGADO}; text-align:center; margin-bottom:{ESPACIO_ENTRE_RENGLONES};'>🔒 PAGADO</div>", unsafe_allow_html=True)
-                    c5.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{fila['Fecha_Pago']}</div>", unsafe_allow_html=True)
-                    user_val = fila['Usuario'] if pd.notna(fila['Usuario']) else ""
-                    c6.markdown(f"<div style='font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>{user_val}</div>", unsafe_allow_html=True)
+                # C3: Destajista
+                dest_val = fila.get('Destajista', '')
+                if pago_1 > 0:
+                    c3.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{dest_val}</div>", unsafe_allow_html=True)
+                    destajista_seleccionado = dest_val
                 else:
-                    destajista_seleccionado = c3.selectbox(
-                        "Destajista Dropdown", 
-                        options=["Seleccionar..."] + LISTA_DESTAJISTAS,
-                        key=f"sel_{indice}", 
-                        label_visibility="collapsed"
-                    )
-                    if c4.button("P", key=f"btn_{indice}"):
-                        if destajista_seleccionado == "Seleccionar...":
-                            st.error("⚠️ Debes seleccionar un destajista primero.")
+                    destajista_seleccionado = c3.selectbox("Destajista", ["Seleccionar..."] + LISTA_DESTAJISTAS, key=f"sel_{indice}", label_visibility="collapsed")
+                
+                # C4 y C5: Input Monto a Pagar y Botón
+                if por_pagar > 0:
+                    monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=0.0, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
+                    if c5.button("💳", key=f"btn_{indice}", type="primary", use_container_width=True):
+                        if pago_1 == 0 and destajista_seleccionado == "Seleccionar...":
+                            st.error("⚠️ Debes seleccionar un destajista primero para el Pago 1.")
+                        elif monto_input <= 0:
+                            st.error("⚠️ El monto a pagar debe ser mayor a 0.")
+                        elif monto_input > por_pagar:
+                            st.error("⚠️ La cantidad supera el monto máximo a pagar o no se admiten valores negativos.")
                         else:
-                            dialogo_confirmacion(indice, fila['Lote'], fila['Partida'], destajista_seleccionado, fila['Precio'])
-                    c5.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; text-align: center;'>—</div>", unsafe_allow_html=True)
+                            es_pago_2 = (pago_1 > 0)
+                            dialogo_confirmacion(indice, fila['Lote'], fila['Partida'], destajista_seleccionado, precio, monto_input, es_pago_2)
+                else:
+                    c4.markdown(f"<div style='text-align:center; color:gray; font-size:{TAMANO_LETRA_TABLA};'>Completado</div>", unsafe_allow_html=True)
+                    c5.markdown("")
+                
+                # C6 y C7: Pago 1 y Fecha
+                c6.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_1:,.2f}</div>", unsafe_allow_html=True)
+                f1 = fila.get('Fecha_Pago', '-') if str(fila.get('Fecha_Pago', '')) != 'nan' else '-'
+                c7.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f1}</div>", unsafe_allow_html=True)
+                
+                # C8 y C9: Pago 2 y Fecha
+                c8.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_2:,.2f}</div>", unsafe_allow_html=True)
+                f2 = fila.get('Fecha_Pago_2', '-') if str(fila.get('Fecha_Pago_2', '')) != 'nan' else '-'
+                c9.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f2}</div>", unsafe_allow_html=True)
+                
+                # C10: Estado (Barra y Porcentaje)
+                color_barra = "#10B981" if pct_pagado == 100 else "#3B82F6"
+                barra_html = f"""
+                <div style="width: 100%; background-color: #e5e7eb; border-radius: 4px; height: 18px; position: relative; margin-top: 2px;">
+                    <div style="width: {pct_pagado}%; background-color: {color_barra}; height: 100%; border-radius: 4px;"></div>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; font-size: 10px; color: {'white' if pct_pagado>50 else 'black'}; font-weight: bold; line-height: 18px;">Pagado al {pct_pagado}%</div>
+                </div>
+                """
+                c10.markdown(barra_html, unsafe_allow_html=True)
+                
+                # C11: Por pagar
+                color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
+                c11.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
+                
+                # C12: Usuario 1 / Usuario 2
+                u1 = str(fila.get('Usuario', ''))
+                u2 = str(fila.get('Usuario_2', ''))
+                if u1 == 'nan': u1 = ''
+                if u2 == 'nan': u2 = ''
+                
+                if u1 and u2: user_display = f"{u1} / {u2}"
+                elif u1: user_display = u1
+                else: user_display = "-"
+                c12.markdown(f"<div style='font-size: 9px; text-align:center; margin-top:2px;'>{user_display}</div>", unsafe_allow_html=True)
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
@@ -358,19 +451,21 @@ elif menu == "Dashboard (Gráficos y Visor)":
     lotes_dash = d_col2.multiselect("Filtrar por Lotes:", options=lotes_disponibles, key="tab2_lotes_seleccionados")
     destajista_dash = d_col3.selectbox("Filtrar por Destajista Global:", options=destajistas_disponibles)
     
-    df_dash = df[(df['Lote'].isin(lotes_dash)) & (df['Prototipo'].isin(protos_dash))]
+    df_dash = df[(df['Lote'].isin(lotes_dash)) & (df['Prototipo'].isin(protos_dash))].copy()
     if destajista_dash != "Todos":
         df_dash = df_dash[df_dash['Destajista'] == destajista_dash]
     
     if df_dash.empty:
         st.warning("⚠️ No hay datos para mostrar con los filtros seleccionados.")
     else:
-        df_pagados = df_dash[df_dash['Estado'] == 'Pagado']
-        df_pendientes = df_dash[df_dash['Estado'] != 'Pagado']
+        df_dash['Total_Pagado_Real'] = pd.to_numeric(df_dash['Pago_1']) + pd.to_numeric(df_dash['Pago_2'])
         
         monto_total = df_dash['Precio'].sum()
-        monto_pagado = df_pagados['Precio'].sum()
-        monto_pendiente = df_pendientes['Precio'].sum()
+        monto_pagado = df_dash['Total_Pagado_Real'].sum()
+        monto_pendiente = monto_total - monto_pagado
+        
+        df_pagados = df_dash[df_dash['Estado'] == 'Pagado'] # Solo las que llegaron al 100%
+        df_pendientes = df_dash[df_dash['Estado'] != 'Pagado']
         
         st.markdown("<br>", unsafe_allow_html=True)
         kpi1, kpi2, kpi3, kpi4 = st.columns(4)
@@ -384,24 +479,20 @@ elif menu == "Dashboard (Gráficos y Visor)":
         else:
             pct_pagado, pct_pendiente = 0, 0
             
-        kpi2.metric("✅ Monto Total Pagado", f"${monto_pagado:,.2f}", f"{pct_pagado:.2f}% de Avance")
+        kpi2.metric("✅ Monto Total Pagado", f"${monto_pagado:,.2f}", f"{pct_pagado:.2f}% de Avance Real")
         kpi3.metric("🚨 Deuda Pendiente por Pagar", f"${monto_pendiente:,.2f}", f"-{pct_pendiente:.2f}%", delta_color="inverse")
         
         total_partidas_dash = len(df_dash)
         partidas_pagadas_dash = len(df_pagados)
-        kpi4.metric("📋 Avance Físico (Partidas)", f"{partidas_pagadas_dash} / {total_partidas_dash}", f"{(partidas_pagadas_dash/total_partidas_dash*100) if total_partidas_dash>0 else 0:.1f}% Completadas")
+        kpi4.metric("📋 Partidas Completadas (100%)", f"{partidas_pagadas_dash} / {total_partidas_dash}", f"{(partidas_pagadas_dash/total_partidas_dash*100) if total_partidas_dash>0 else 0:.1f}%")
         
         st.markdown("<hr>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center;'>📋 Resumen Individual por Lote y Prototipo</h3>", unsafe_allow_html=True)
         
         df_dash_clean = df_dash.copy()
-        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo', 'Estado'])['Precio'].sum().unstack(fill_value=0).reset_index()
+        df_dash_clean['Deuda_Pendiente'] = df_dash_clean['Precio'] - df_dash_clean['Total_Pagado_Real']
         
-        if 'Pagado' not in df_resumen.columns: df_resumen['Pagado'] = 0.0
-        if 'Pendiente' not in df_resumen.columns: df_resumen['Pendiente'] = 0.0
-        
-        df_resumen['Total'] = df_resumen['Pagado'] + df_resumen['Pendiente']
-        df_resumen = df_resumen[['Lote', 'Prototipo', 'Total', 'Pagado', 'Pendiente']]
+        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo'])[['Precio', 'Total_Pagado_Real', 'Deuda_Pendiente']].sum().reset_index()
         df_resumen.columns = ['Lote', 'Prototipo', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
         
         styled_resumen = df_resumen.style.format({
@@ -423,17 +514,18 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf1:
             g_col1, g_col2 = st.columns(2)
             
+            # Gráfico con los 3 Estados Actualizados
             df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
             fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
                                title="Comportamiento Financiero por Prototipo",
                                barmode='group', text_auto='.2s',
-                               color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444'})
+                               color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444'})
             fig_proto.update_traces(textposition='outside')
             g_col1.plotly_chart(fig_proto, use_container_width=True)
             
             fig_tree = px.treemap(df_dash, path=[px.Constant("Proyecto EGC"), 'Prototipo', 'Lote', 'Estado'], values='Precio',
                                   title="Distribución del Presupuesto (Clic para explorar)",
-                                  color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
+                                  color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
             fig_tree.update_traces(root_color="lightgrey")
             fig_tree.update_layout(margin=dict(t=50, l=25, r=25, b=25))
             g_col2.plotly_chart(fig_tree, use_container_width=True)
@@ -441,27 +533,31 @@ elif menu == "Dashboard (Gráficos y Visor)":
             df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Precio'].sum().reset_index()
             fig_lote = px.bar(df_lotes_graf, x='Lote', y='Precio', color='Estado', 
                               title="Avance Financiero Específico por Lote",
-                              color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#F59E0B'})
+                              color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444'})
             st.plotly_chart(fig_lote, use_container_width=True)
             
         with tab_graf2:
             g_col3, g_col4 = st.columns(2)
             
-            if not df_pagados.empty:
-                df_dest = df_pagados.groupby('Destajista')['Precio'].sum().reset_index()
-                fig_dest = px.pie(df_dest, names='Destajista', values='Precio', 
-                                  title="🏆 Distribución de Pagos Ejecutados",
+            # Pie Chart ahora suma el Total Pagado Real
+            df_pagos_efectivos = df_dash[df_dash['Total_Pagado_Real'] > 0]
+            if not df_pagos_efectivos.empty:
+                df_dest = df_pagos_efectivos.groupby('Destajista')['Total_Pagado_Real'].sum().reset_index()
+                fig_dest = px.pie(df_dest, names='Destajista', values='Total_Pagado_Real', 
+                                  title="🏆 Distribución de Dinero Pagado",
                                   hole=0.4, color_discrete_sequence=px.colors.sequential.Teal)
                 fig_dest.update_traces(textposition='inside', textinfo='percent+label')
                 g_col3.plotly_chart(fig_dest, use_container_width=True)
             else:
                 g_col3.info("Aún no hay pagos ejecutados en la selección actual para mostrar.")
                 
-            if not df_pendientes.empty:
-                df_pendientes_clean = df_pendientes.fillna("Sin Asignar")
-                df_deuda = df_pendientes_clean.groupby('Destajista')['Precio'].sum().reset_index().sort_values('Precio', ascending=True)
-                fig_deuda = px.bar(df_deuda, y='Destajista', x='Precio', orientation='h',
-                                   title="🚨 Pagos Pendientes por Destajista (Deuda)",
+            df_deudores = df_dash[df_dash['Total_Pagado_Real'] < df_dash['Precio']].copy()
+            if not df_deudores.empty:
+                df_deudores['Deuda'] = df_deudores['Precio'] - df_deudores['Total_Pagado_Real']
+                df_deudores_clean = df_deudores.fillna("Sin Asignar")
+                df_deuda = df_deudores_clean.groupby('Destajista')['Deuda'].sum().reset_index().sort_values('Deuda', ascending=True)
+                fig_deuda = px.bar(df_deuda, y='Destajista', x='Deuda', orientation='h',
+                                   title="🚨 Pagos Pendientes por Destajista (Deuda Restante)",
                                    color_discrete_sequence=['#EF4444'], text_auto='$.2s')
                 g_col4.plotly_chart(fig_deuda, use_container_width=True)
             else:
@@ -475,170 +571,62 @@ elif menu == "Mapa Interactivo":
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
-        "1": {"x": 794, "y": 379},
-        "2": {"x": 799, "y": 346},
-        "3": {"x": 804, "y": 310},
-        "4": {"x": 807, "y": 285},
-        "5": {"x": 811, "y": 254},
-        "6": {"x": 818, "y": 225},
-        "7": {"x": 828, "y": 195},
-        "8": {"x": 825, "y": 169},
-        "9": {"x": 827, "y": 138},
-        "10": {"x": 713, "y": 151},
-        "11": {"x": 676, "y": 143},
-        "12": {"x": 646, "y": 139},
-        "13": {"x": 617, "y": 141},
-        "14": {"x": 589, "y": 132},
-        "15": {"x": 560, "y": 126},
-        "16": {"x": 532, "y": 127},
-        "17": {"x": 503, "y": 118},
-        "18": {"x": 469, "y": 123},
-        "19": {"x": 443, "y": 115},
-        "20": {"x": 416, "y": 109},
-        "21": {"x": 386, "y": 108},
-        "22": {"x": 358, "y": 103},
-        "23": {"x": 327, "y": 99},
-        "24": {"x": 300, "y": 96},
-        "25": {"x": 270, "y": 95},
-        "26": {"x": 240, "y": 89},
-        "27": {"x": 212, "y": 87},
-        "28": {"x": 182, "y": 82},
-        "29": {"x": 152, "y": 73},
-        "30": {"x": 122, "y": 70},
-        "31": {"x": 282, "y": 239},
-        "32": {"x": 320, "y": 245},
-        "33": {"x": 358, "y": 250},
-        "34": {"x": 393, "y": 256},
-        "35": {"x": 425, "y": 260},
-        "36": {"x": 459, "y": 264},
-        "37": {"x": 498, "y": 272},
-        "38": {"x": 532, "y": 278},
-        "39": {"x": 568, "y": 279},
-        "40": {"x": 603, "y": 285},
-        "41": {"x": 634, "y": 293},
-        "42": {"x": 675, "y": 295},
-        "43": {"x": 656, "y": 379},
-        "44": {"x": 612, "y": 379},
-        "45": {"x": 579, "y": 373},
-        "46": {"x": 546, "y": 367},
-        "47": {"x": 510, "y": 364},
-        "48": {"x": 475, "y": 358},
-        "49": {"x": 437, "y": 355},
-        "50": {"x": 407, "y": 351},
-        "51": {"x": 381, "y": 348},
-        "52": {"x": 349, "y": 343},
-        "53": {"x": 311, "y": 337},
-        "54": {"x": 268, "y": 336},
-        "55": {"x": 151, "y": 185},
-        "56": {"x": 146, "y": 217},
-        "57": {"x": 144, "y": 245},
-        "58": {"x": 142, "y": 275},
-        "59": {"x": 133, "y": 302},
-        "60": {"x": 135, "y": 336},
-        "61": {"x": 129, "y": 364},
-        "62": {"x": 126, "y": 395},
-        "63": {"x": 126, "y": 421},
-        "64": {"x": 121, "y": 449},
-        "65": {"x": 115, "y": 479},
-        "66": {"x": 112, "y": 511},
-        "67": {"x": 108, "y": 536},
-        "68": {"x": 108, "y": 568},
-        "69": {"x": 105, "y": 598},
-        "70": {"x": 99, "y": 623},
-        "71": {"x": 94, "y": 654},
-        "72": {"x": 96, "y": 683},
-        "73": {"x": 92, "y": 713},
-        "74": {"x": 88, "y": 743},
-        "75": {"x": 87, "y": 772},
-        "76": {"x": 81, "y": 803},
-        "77": {"x": 254, "y": 587},
-        "78": {"x": 262, "y": 560},
-        "79": {"x": 264, "y": 527},
-        "80": {"x": 268, "y": 500},
-        "81": {"x": 273, "y": 470},
-        "82": {"x": 277, "y": 443},
-        "83": {"x": 365, "y": 458},
-        "84": {"x": 362, "y": 489},
-        "85": {"x": 358, "y": 526},
-        "86": {"x": 359, "y": 560},
-        "87": {"x": 349, "y": 593},
-        "88": {"x": 224, "y": 688},
-        "89": {"x": 267, "y": 697},
-        "90": {"x": 301, "y": 699},
-        "91": {"x": 330, "y": 708},
-        "92": {"x": 360, "y": 711},
-        "93": {"x": 393, "y": 718},
-        "94": {"x": 427, "y": 717},
-        "95": {"x": 462, "y": 728},
-        "96": {"x": 496, "y": 734},
-        "97": {"x": 531, "y": 738},
-        "98": {"x": 566, "y": 739},
-        "99": {"x": 604, "y": 744},
-        "100": {"x": 636, "y": 751},
-        "101": {"x": 679, "y": 757},
-        "102": {"x": 704, "y": 848},
-        "103": {"x": 663, "y": 843},
-        "104": {"x": 625, "y": 835},
-        "105": {"x": 590, "y": 831},
-        "106": {"x": 555, "y": 826},
-        "107": {"x": 520, "y": 825},
-        "108": {"x": 484, "y": 819},
-        "109": {"x": 453, "y": 813},
-        "110": {"x": 416, "y": 809},
-        "111": {"x": 383, "y": 804},
-        "112": {"x": 346, "y": 798},
-        "113": {"x": 310, "y": 794},
-        "114": {"x": 274, "y": 789},
-        "115": {"x": 241, "y": 789},
-        "116": {"x": 207, "y": 782},
-        "117": {"x": 29, "y": 902},
-        "118": {"x": 58, "y": 910},
-        "119": {"x": 85, "y": 913},
-        "120": {"x": 115, "y": 920},
-        "121": {"x": 145, "y": 924},
-        "122": {"x": 174, "y": 927},
-        "123": {"x": 203, "y": 929},
-        "124": {"x": 233, "y": 933},
-        "125": {"x": 260, "y": 937},
-        "126": {"x": 288, "y": 944},
-        "127": {"x": 319, "y": 940},
-        "128": {"x": 348, "y": 952},
-        "129": {"x": 379, "y": 951},
-        "130": {"x": 406, "y": 958},
-        "131": {"x": 435, "y": 962},
-        "132": {"x": 463, "y": 962},
-        "133": {"x": 495, "y": 966},
-        "134": {"x": 524, "y": 971},
-        "135": {"x": 551, "y": 975},
-        "136": {"x": 581, "y": 980},
-        "137": {"x": 610, "y": 985},
-        "138": {"x": 638, "y": 988},
-        "139": {"x": 667, "y": 993},
-        "140": {"x": 696, "y": 996},
-        "141": {"x": 725, "y": 999},
-        "142": {"x": 768, "y": 1006},
-        "143": {"x": 901, "y": 1015},
-        "144": {"x": 893, "y": 985},
-        "145": {"x": 885, "y": 959},
-        "146": {"x": 874, "y": 930},
-        "147": {"x": 864, "y": 904},
-        "148": {"x": 859, "y": 875},
-        "149": {"x": 848, "y": 846},
-        "150": {"x": 837, "y": 813},
-        "151": {"x": 822, "y": 765},
-
+        "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
+        "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
+        "9": {"x": 827, "y": 138}, "10": {"x": 713, "y": 151}, "11": {"x": 676, "y": 143}, "12": {"x": 646, "y": 139},
+        "13": {"x": 617, "y": 141}, "14": {"x": 589, "y": 132}, "15": {"x": 560, "y": 126}, "16": {"x": 532, "y": 127},
+        "17": {"x": 503, "y": 118}, "18": {"x": 469, "y": 123}, "19": {"x": 443, "y": 115}, "20": {"x": 416, "y": 109},
+        "21": {"x": 386, "y": 108}, "22": {"x": 358, "y": 103}, "23": {"x": 327, "y": 99}, "24": {"x": 300, "y": 96},
+        "25": {"x": 270, "y": 95}, "26": {"x": 240, "y": 89}, "27": {"x": 212, "y": 87}, "28": {"x": 182, "y": 82},
+        "29": {"x": 152, "y": 73}, "30": {"x": 122, "y": 70}, "31": {"x": 282, "y": 239}, "32": {"x": 320, "y": 245},
+        "33": {"x": 358, "y": 250}, "34": {"x": 393, "y": 256}, "35": {"x": 425, "y": 260}, "36": {"x": 459, "y": 264},
+        "37": {"x": 498, "y": 272}, "38": {"x": 532, "y": 278}, "39": {"x": 568, "y": 279}, "40": {"x": 603, "y": 285},
+        "41": {"x": 634, "y": 293}, "42": {"x": 675, "y": 295}, "43": {"x": 656, "y": 379}, "44": {"x": 612, "y": 379},
+        "45": {"x": 579, "y": 373}, "46": {"x": 546, "y": 367}, "47": {"x": 510, "y": 364}, "48": {"x": 475, "y": 358},
+        "49": {"x": 437, "y": 355}, "50": {"x": 407, "y": 351}, "51": {"x": 381, "y": 348}, "52": {"x": 349, "y": 343},
+        "53": {"x": 311, "y": 337}, "54": {"x": 268, "y": 336}, "55": {"x": 151, "y": 185}, "56": {"x": 146, "y": 217},
+        "57": {"x": 144, "y": 245}, "58": {"x": 142, "y": 275}, "59": {"x": 133, "y": 302}, "60": {"x": 135, "y": 336},
+        "61": {"x": 129, "y": 364}, "62": {"x": 126, "y": 395}, "63": {"x": 126, "y": 421}, "64": {"x": 121, "y": 449},
+        "65": {"x": 115, "y": 479}, "66": {"x": 112, "y": 511}, "67": {"x": 108, "y": 536}, "68": {"x": 108, "y": 568},
+        "69": {"x": 105, "y": 598}, "70": {"x": 99, "y": 623}, "71": {"x": 94, "y": 654}, "72": {"x": 96, "y": 683},
+        "73": {"x": 92, "y": 713}, "74": {"x": 88, "y": 743}, "75": {"x": 87, "y": 772}, "76": {"x": 81, "y": 803},
+        "77": {"x": 254, "y": 587}, "78": {"x": 262, "y": 560}, "79": {"x": 264, "y": 527}, "80": {"x": 268, "y": 500},
+        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362, "y": 489},
+        "85": {"x": 358, "y": 526}, "86": {"x": 359, "y": 560}, "87": {"x": 349, "y": 593}, "88": {"x": 224, "y": 688},
+        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330, "y": 708}, "92": {"x": 360, "y": 711},
+        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462, "y": 728}, "96": {"x": 496, "y": 734},
+        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
+        "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
+        "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
+        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798},
+        "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
+        "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
+        "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
+        "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
+        "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463, "y": 962},
+        "133": {"x": 495, "y": 966}, "134": {"x": 524, "y": 971}, "135": {"x": 551, "y": 975}, "136": {"x": 581, "y": 980},
+        "137": {"x": 610, "y": 985}, "138": {"x": 638, "y": 988}, "139": {"x": 667, "y": 993}, "140": {"x": 696, "y": 996},
+        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
+        "145": {"x": 885, "y": 959}, "146": {"x": 874, "y": 930}, "147": {"x": 864, "y": 904}, "148": {"x": 859, "y": 875},
+        "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
 
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
-        df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)]
+        df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)].copy()
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            pagadas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
-            porcentaje = (pagadas / total_partidas) * 100 if total_partidas > 0 else 0
             
-            if porcentaje == 100:
+            # Ahora calculamos el avance financieramente, no solo por cantidad de partidas
+            df_lote_mapa['Total_Pagado_Real'] = pd.to_numeric(df_lote_mapa['Pago_1']) + pd.to_numeric(df_lote_mapa['Pago_2'])
+            total_precio_lote = df_lote_mapa['Precio'].sum()
+            total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
+            
+            porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
+            pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
+            
+            if porcentaje >= 99.9:
                 color_lote = "🟢 Completado"
                 hex_color = "#10B981"
             elif porcentaje > 0:
@@ -656,7 +644,7 @@ elif menu == "Mapa Interactivo":
                 "Avance": f"{porcentaje:.1f}%",
                 "Estado": color_lote,
                 "Hex": hex_color,
-                "Detalle": f"{pagadas}/{total_partidas} Partidas Libres"
+                "Detalle": f"{pagadas_completas}/{total_partidas} Partidas al 100%"
             })
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
@@ -674,13 +662,14 @@ elif menu == "Mapa Interactivo":
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
     else:
         lote_puro_kpi = str(st.session_state.lote_actual)
-        df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
+        df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi].copy()
         
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
+    df_kpi['Total_Pagado_Real'] = pd.to_numeric(df_kpi['Pago_1']) + pd.to_numeric(df_kpi['Pago_2'])
     costo_total_mapa = df_kpi['Precio'].sum()
-    pagado_mapa = df_kpi[df_kpi['Estado'] == 'Pagado']['Precio'].sum()
+    pagado_mapa = df_kpi['Total_Pagado_Real'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
 
     st.markdown(f"""
@@ -694,7 +683,7 @@ elif menu == "Mapa Interactivo":
                 <div style="font-size:24px; font-weight:bold;">${costo_total_mapa:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Total Pagado</div>
+                <div style="font-size:14px; opacity: 0.9;">Total Pagado Real</div>
                 <div style="font-size:24px; font-weight:bold;">${pagado_mapa:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
@@ -727,11 +716,13 @@ elif menu == "Mapa Interactivo":
 
         if not st.session_state.mostrar_todos_mapa:
             lote_puro_num = str(st.session_state.lote_actual)
-            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']]
+            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
             
             if not df_desglose_lote.empty:
                 def formatear_estado_icono(val):
-                    return "🟢 PAGADO" if val == "Pagado" else "⏳ PENDIENTE"
+                    if val == "Pagado": return "🟢 100% PAGADO"
+                    elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
+                    return "🔴 PENDIENTE"
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
                 
@@ -746,17 +737,21 @@ elif menu == "Mapa Interactivo":
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
         else:
-            st.markdown("**Resumen General por Lote:**")
-            df_resumen_global = df.groupby('Lote').agg(
+            st.markdown("**Resumen General por Lote (Financiero):**")
+            df_resumen_global = df.copy()
+            df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
+            
+            df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
                 Total_Partidas=('Partida', 'count'),
                 Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
-                Costo_Total=('Precio', 'sum')
+                Costo_Total=('Precio', 'sum'),
+                Pagado_Acum=('Total_Pagado_Real', 'sum')
             ).reset_index()
             
-            df_resumen_global['% Avance'] = (df_resumen_global['Pagadas'] / df_resumen_global['Total_Partidas']) * 100
-            df_resumen_global['% Avance'] = df_resumen_global['% Avance'].apply(lambda x: f"{x:.1f}%")
+            df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
+            df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
             
-            styled_global = df_resumen_global.style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+            styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
             
             st.dataframe(
                 styled_global,
@@ -810,7 +805,7 @@ elif menu == "Mapa Interactivo":
                     marker=dict(size=tamano_punto, color=item['Hex'], line=dict(width=2, color='white')),
                     text=[item['Lote']], textposition="top center",
                     textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
-                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
+                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance Financiero: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
                 ))
 
         fig_mapa.update_layout(
@@ -830,7 +825,7 @@ elif menu == "Diagrama Interactivo":
     col_texto, col_selector = st.columns([6, 4])
     with col_texto:
         st.markdown("Selecciona un lote para ver sus partidas representadas como círculos. Cada partida tiene un **color único**.")
-        st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes**.", unsafe_allow_html=True)
+        st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas al 100%**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes o parciales**.", unsafe_allow_html=True)
     
     with col_selector:
         # Aseguramos string aquí también
@@ -873,6 +868,7 @@ elif menu == "Diagrama Interactivo":
 
             estado = row.Estado
             costo = row.Precio
+            pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
             destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
             
             color_asignado = mapa_colores_partida[row.Partida]
@@ -882,18 +878,16 @@ elif menu == "Diagrama Interactivo":
                 colores_relleno.append(color_asignado)
                 colores_borde.append(color_asignado)
             else:
-                colores_relleno.append("rgba(0,0,0,0)") # Hueco (transparente)
-                colores_borde.append(color_asignado)    # El borde lleva el color identificador
+                colores_relleno.append("rgba(0,0,0,0)") # Hueco (transparente) para parcial o pendiente
+                colores_borde.append(color_asignado)
 
-            hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo:</b> ${costo:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
+            hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
             textos_hover.append(hover_text)
 
         # Calculo dinámico de la altura del gráfico para empatarlo con la leyenda
-        # Redujimos el multiplicador de 60 a 45 para juntar las esferas verticalmente
         altura_grafico = max(450, (math.ceil(num_partidas/cols) * 45))
 
         # Dividimos la pantalla: Izquierda el diagrama (60%), Derecha la Leyenda (40%)
-        # Esto comprime la tabla de burbujas y amplía la leyenda
         col_diagrama, col_leyenda = st.columns([6, 4])
         
         with col_diagrama:
@@ -902,7 +896,7 @@ elif menu == "Diagrama Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=20, # Tamaño reducido conforme a las instrucciones
+                    size=20, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=3, color=colores_borde)
@@ -919,7 +913,7 @@ elif menu == "Diagrama Interactivo":
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                height=altura_grafico, # Asignamos la altura dinámica
+                height=altura_grafico, 
                 # Ajuste del fondo negro con letras blancas en el tooltip:
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
@@ -928,7 +922,7 @@ elif menu == "Diagrama Interactivo":
             
             pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
             pendientes_diag = num_partidas - pagadas_diag
-            st.markdown(f"**🟢 Total Pagadas:** {pagadas_diag} | **🔴 Total Pendientes:** {pendientes_diag}")
+            st.markdown(f"**🟢 Total Pagadas (100%):** {pagadas_diag} | **🔴 Pendientes/Parciales:** {pendientes_diag}")
             
         with col_leyenda:
             st.markdown("### 🎨 Leyenda de Partidas")
