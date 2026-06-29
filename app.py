@@ -367,18 +367,18 @@ if menu == "Registro de Destajos":
     # MODIFICACIÓN 2: Cambio de orden lógico y visual en los pesos (Estado vs Por pagar).
     cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.2]
     h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
-    h1.markdown("<div style='font-size:11px;'>🗑️ **Partida**</div>", unsafe_allow_html=True)
-    h2.markdown("<div style='font-size:11px;'>💵 **Costo**</div>", unsafe_allow_html=True)
-    h3.markdown("<div style='font-size:11px;'>👷 **Destajista**</div>", unsafe_allow_html=True)
-    h4.markdown("<div style='font-size:11px;'>💰 **Monto a pagar**</div>", unsafe_allow_html=True)
+    h1.markdown("<div style='font-size:11px;'>🗑️ Partida</div>", unsafe_allow_html=True)
+    h2.markdown("<div style='font-size:11px;'>💵 Costo</div>", unsafe_allow_html=True)
+    h3.markdown("<div style='font-size:11px;'>👷 Destajista</div>", unsafe_allow_html=True)
+    h4.markdown("<div style='font-size:11px;'>💰 Monto a pagar</div>", unsafe_allow_html=True)
     h5.markdown("")
-    h6.markdown("<div style='font-size:11px;'>💳 **Pago 1**</div>", unsafe_allow_html=True)
-    h7.markdown("<div style='font-size:11px;'>📆 **Fecha 1**</div>", unsafe_allow_html=True)
-    h8.markdown("<div style='font-size:11px;'>💳 **Pago 2**</div>", unsafe_allow_html=True)
-    h9.markdown("<div style='font-size:11px;'>📆 **Fecha 2**</div>", unsafe_allow_html=True)
-    h10.markdown("<div style='font-size:11px;'>🚨 **Por pagar**</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
-    h11.markdown("<div style='font-size:11px;'>📊 **Estado**</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
-    h12.markdown("<div style='font-size:11px;'>👤 **Usuario**</div>", unsafe_allow_html=True)
+    h6.markdown("<div style='font-size:11px;'>💳 Pago 1</div>", unsafe_allow_html=True)
+    h7.markdown("<div style='font-size:11px;'>📆 Fecha 1</div>", unsafe_allow_html=True)
+    h8.markdown("<div style='font-size:11px;'>💳 Pago 2</div>", unsafe_allow_html=True)
+    h9.markdown("<div style='font-size:11px;'>📆 Fecha 2</div>", unsafe_allow_html=True)
+    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
+    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
+    h12.markdown("<div style='font-size:11px;'>👤 Usuario</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
     with st.container(height=550):
