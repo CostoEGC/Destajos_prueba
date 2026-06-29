@@ -889,10 +889,12 @@ elif menu == "Diagrama Interactivo":
             textos_hover.append(hover_text)
 
         # Calculo dinámico de la altura del gráfico para empatarlo con la leyenda
-        altura_grafico = max(500, (math.ceil(num_partidas/cols) * 60))
+        # Redujimos el multiplicador de 60 a 45 para juntar las esferas verticalmente
+        altura_grafico = max(450, (math.ceil(num_partidas/cols) * 45))
 
-        # Dividimos la pantalla: Izquierda el diagrama, Derecha la Leyenda
-        col_diagrama, col_leyenda = st.columns([7, 3])
+        # Dividimos la pantalla: Izquierda el diagrama (60%), Derecha la Leyenda (40%)
+        # Esto comprime la tabla de burbujas y amplía la leyenda
+        col_diagrama, col_leyenda = st.columns([6, 4])
         
         with col_diagrama:
             fig_diag = go.Figure(data=go.Scatter(
@@ -936,17 +938,9 @@ elif menu == "Diagrama Interactivo":
             html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
             html_leyenda += "<tr><th style='text-align:center; border-bottom: 2px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 2px solid #ddd; padding: 10px;'>Partida</th></tr>"
             
+            # Formato en una sola línea para evitar la indentación y el error de bloque de código Markdown
             for partida, color in mapa_colores_partida.items():
-                html_leyenda += f"""
-                <tr>
-                    <td style='text-align:center; padding: 8px; border-bottom: 1px solid #eee;'>
-                        <div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto;'></div>
-                    </td>
-                    <td style='text-align:left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px;'>
-                        {partida}
-                    </td>
-                </tr>
-                """
+                html_leyenda += f"<tr><td style='text-align:center; padding: 4px; border-bottom: 1px solid #eee;'><div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto;'></div></td><td style='text-align:left; padding: 4px; border-bottom: 1px solid #eee; font-size: 14px;'>{partida}</td></tr>"
             html_leyenda += "</table>"
 
             # Encapsulamos la leyenda en un contenedor dinámico para igualar al gráfico con scroll
