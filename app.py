@@ -11,6 +11,22 @@ import math
 from zoneinfo import ZoneInfo
 from PIL import Image
 
+
+# --- OCULTAR BARRAS DE STREAMLIT ---
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppToolbar {visibility: hidden;}
+    .stAppDeployButton {display: none;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+# -----------------------------------
+
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA
 # =========================================================================
