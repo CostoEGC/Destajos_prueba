@@ -77,6 +77,7 @@ TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
 
+# ESTILOS CSS - Se incluye la modificación #3 para el botón principal "Pagar"
 st.markdown(f"""
 <style>
     div[data-testid="stTextInput"] {{
@@ -93,6 +94,16 @@ st.markdown(f"""
         padding: 1px 5px !important;
         font-size: 5px !important;
         height: auto !important;
+    }}
+    button[kind="primary"] {{
+        background-color: #39FF14 !important; /* Verde fluorescente */
+        color: black !important;
+        border: none !important;
+        padding: 2px !important;
+        font-size: 10px !important;
+        min-height: 24px !important;
+        height: 24px !important;
+        font-weight: bold !important;
     }}
     div[data-testid="stNumberInput"] input {{
         font-size: 11px !important;
@@ -327,10 +338,18 @@ if menu == "Registro de Destajos":
     if fecha_filtro:
         df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
 
+    # --- MODIFICACIÓN 4: SUMATORIA FILTRADA VISIBLE ---
+    sum_precio = df_filtrado['Precio'].sum()
+    df_fil_temp = df_filtrado.copy()
+    df_fil_temp['Tot_Pag'] = pd.to_numeric(df_fil_temp.get('Pago_1', 0)) + pd.to_numeric(df_fil_temp.get('Pago_2', 0))
+    sum_pagado = df_fil_temp['Tot_Pag'].sum()
+    sum_pendiente = sum_precio - sum_pagado
+    
+    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 Total Filtrado ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # NUEVA ESTRUCTURA DE COLUMNAS (12 Columnas proporcionadas)
-    cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0, 1.2]
+    # MODIFICACIÓN 2: Cambio de orden lógico y visual en los pesos (Estado vs Por pagar).
+    cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.2]
     h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
     h1.markdown("<div style='font-size:11px;'>🗑️ **Partida**</div>", unsafe_allow_html=True)
     h2.markdown("<div style='font-size:11px;'>💵 **Costo**</div>", unsafe_allow_html=True)
@@ -341,8 +360,8 @@ if menu == "Registro de Destajos":
     h7.markdown("<div style='font-size:11px;'>📆 **Fecha 1**</div>", unsafe_allow_html=True)
     h8.markdown("<div style='font-size:11px;'>💳 **Pago 2**</div>", unsafe_allow_html=True)
     h9.markdown("<div style='font-size:11px;'>📆 **Fecha 2**</div>", unsafe_allow_html=True)
-    h10.markdown("<div style='font-size:11px;'>📊 **Estado**</div>", unsafe_allow_html=True)
-    h11.markdown("<div style='font-size:11px;'>🚨 **Por pagar**</div>", unsafe_allow_html=True)
+    h10.markdown("<div style='font-size:11px;'>🚨 **Por pagar**</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
+    h11.markdown("<div style='font-size:11px;'>📊 **Estado**</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
     h12.markdown("<div style='font-size:11px;'>👤 **Usuario**</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
@@ -375,11 +394,13 @@ if menu == "Registro de Destajos":
                 
                 # C4 y C5: Input Monto a Pagar y Botón
                 if por_pagar > 0:
-                    monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=0.0, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
+                    # MODIFICACIÓN 5: value=None para que se muestre vacío (en blanco).
+                    monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=None, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
                     if c5.button("💳", key=f"btn_{indice}", type="primary", use_container_width=True):
-                        if pago_1 == 0 and destajista_seleccionado == "Seleccionar...":
-                            st.error("⚠️ Debes seleccionar un destajista primero para el Pago 1.")
-                        elif monto_input <= 0:
+                        # MODIFICACIÓN 1 y 5: Validación reforzada del destajista y monto vacío/cero
+                        if destajista_seleccionado in ["Seleccionar...", "", None] or pd.isna(destajista_seleccionado):
+                            st.error("⚠️ Debes seleccionar un destajista primero.")
+                        elif monto_input is None or monto_input <= 0:
                             st.error("⚠️ El monto a pagar debe ser mayor a 0.")
                         elif monto_input > por_pagar:
                             st.error("⚠️ La cantidad supera el monto máximo a pagar o no se admiten valores negativos.")
@@ -400,7 +421,10 @@ if menu == "Registro de Destajos":
                 f2 = fila.get('Fecha_Pago_2', '-') if str(fila.get('Fecha_Pago_2', '')) != 'nan' else '-'
                 c9.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f2}</div>", unsafe_allow_html=True)
                 
-                # C10: Estado (Barra y Porcentaje)
+                # MODIFICACIÓN 2: C10 ahora es Por pagar y C11 es Estado
+                color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
+                c10.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
+
                 color_barra = "#10B981" if pct_pagado == 100 else "#3B82F6"
                 barra_html = f"""
                 <div style="width: 100%; background-color: #e5e7eb; border-radius: 4px; height: 18px; position: relative; margin-top: 2px;">
@@ -408,11 +432,7 @@ if menu == "Registro de Destajos":
                     <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; font-size: 10px; color: {'white' if pct_pagado>50 else 'black'}; font-weight: bold; line-height: 18px;">Pagado al {pct_pagado}%</div>
                 </div>
                 """
-                c10.markdown(barra_html, unsafe_allow_html=True)
-                
-                # C11: Por pagar
-                color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
-                c11.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
+                c11.markdown(barra_html, unsafe_allow_html=True)
                 
                 # C12: Usuario 1 / Usuario 2
                 u1 = str(fila.get('Usuario', ''))
