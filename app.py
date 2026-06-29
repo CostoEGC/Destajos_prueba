@@ -85,11 +85,13 @@ st.markdown(f"""
         display: flex;
         justify-content: center;
     }}
-    [data-testid="stDataFrame"] div[data-testid="stTable"] th {{
+    [data-testid="stDataFrame"] div[data-testid="stTable"] th,
+    [data-testid="stTable"] th {{
         text-align: center !important;
         justify-content: center !important;
     }}
-    [data-testid="stDataFrame"] div[data-testid="stTable"] td {{
+    [data-testid="stDataFrame"] div[data-testid="stTable"] td,
+    [data-testid="stTable"] td {{
         text-align: center !important;
     }}
 </style>
@@ -118,9 +120,9 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-# Esta variable controlará unificadamente el Lote en TODAS las pestañas.
+# Esta variable controlará unificadamente el Lote en TODAS las pestañas (se forza a string)
 if 'lote_actual' not in st.session_state:
-    st.session_state.lote_actual = df['Lote'].unique()[0] if not df.empty else "1"
+    st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
 
 # Esta variable controla si en el mapa se están viendo "Todos"
 if 'mostrar_todos_mapa' not in st.session_state:
@@ -176,6 +178,16 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Diagrama Interactivo"
 ])
 
+# Control de estado de menú para forzar acciones al cambiar de pestaña
+if 'menu_actual' not in st.session_state:
+    st.session_state.menu_actual = menu
+
+if st.session_state.menu_actual != menu:
+    if menu == "Mapa Interactivo":
+        st.session_state.mostrar_todos_mapa = True
+    st.session_state.menu_actual = menu
+    st.rerun()
+
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     with st.spinner("Sincronizando con Google..."):
         actualizar_datos_gsheet(st.session_state.df)
@@ -215,21 +227,24 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
-    lotes_unicos = list(df['Lote'].unique())
+    # Forzamos los valores a string para evitar errores de tipo al volver a la pestaña
+    lotes_unicos = [str(x) for x in df['Lote'].unique()]
     
     # Sincronización maestra: Buscamos el índice del lote actual en la memoria
-    idx_t1 = lotes_unicos.index(st.session_state.lote_actual) if st.session_state.lote_actual in lotes_unicos else 0
+    lote_memoria = str(st.session_state.lote_actual)
+    idx_t1 = lotes_unicos.index(lote_memoria) if lote_memoria in lotes_unicos else 0
     lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_t1)
     
     # Si el usuario cambia el lote aquí, actualizamos la memoria maestra y recargamos
-    if lote_activo != st.session_state.lote_actual:
-        st.session_state.lote_actual = lote_activo
+    if str(lote_activo) != lote_memoria:
+        st.session_state.lote_actual = str(lote_activo)
         st.session_state.mostrar_todos_mapa = False
         st.rerun()
     
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago (Opcional):", value=None, format="DD/MM/YYYY")
 
-    df_lote = df[df['Lote'] == lote_activo]
+    # Filtramos usando texto para asegurar que encuentre el lote correctamente
+    df_lote = df[df['Lote'].astype(str).str.strip() == str(lote_activo)]
     prototipo = df_lote['Prototipo'].iloc[0] if not df_lote.empty else "N/A"
     terreno = df_lote['Terreno_m2'].iloc[0] if not df_lote.empty else 0
     construccion = df_lote['Construccion_m2'].iloc[0] if not df_lote.empty else 0
@@ -658,7 +673,7 @@ elif menu == "Mapa Interactivo":
         df_kpi = df.copy()
         titulo_kpi = "🏠 Proyecto General (Todos los Lotes)"
     else:
-        lote_puro_kpi = st.session_state.lote_actual
+        lote_puro_kpi = str(st.session_state.lote_actual)
         df_kpi = df[df['Lote'].astype(str).str.strip() == lote_puro_kpi]
         
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
@@ -705,13 +720,13 @@ elif menu == "Mapa Interactivo":
                     st.session_state.mostrar_todos_mapa = True
                 else:
                     st.session_state.mostrar_todos_mapa = False
-                    st.session_state.lote_actual = mapa_sel.replace("Lote ", "")
+                    st.session_state.lote_actual = str(mapa_sel.replace("Lote ", ""))
                 st.rerun()
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
         if not st.session_state.mostrar_todos_mapa:
-            lote_puro_num = st.session_state.lote_actual
+            lote_puro_num = str(st.session_state.lote_actual)
             df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']]
             
             if not df_desglose_lote.empty:
@@ -777,7 +792,7 @@ elif menu == "Mapa Interactivo":
                 tamano_punto = 10
                 modo_grafico = "markers" 
             else:
-                id_buscado = st.session_state.lote_actual
+                id_buscado = str(st.session_state.lote_actual)
                 df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
                 tamano_punto = 26
                 modo_grafico = "markers+text" 
@@ -818,19 +833,21 @@ elif menu == "Diagrama Interactivo":
         st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes**.", unsafe_allow_html=True)
     
     with col_selector:
-        lotes_diag = list(df['Lote'].unique())
+        # Aseguramos string aquí también
+        lotes_diag = [str(x) for x in df['Lote'].unique()]
         
         # Sincronización maestra
-        idx_t4 = lotes_diag.index(st.session_state.lote_actual) if st.session_state.lote_actual in lotes_diag else 0
+        lote_memoria_diag = str(st.session_state.lote_actual)
+        idx_t4 = lotes_diag.index(lote_memoria_diag) if lote_memoria_diag in lotes_diag else 0
         lote_seleccionado_diag = st.selectbox("Selecciona Lote a Explorar:", lotes_diag, index=idx_t4)
         
         # Si cambiamos el lote aquí, impacta todas las pestañas
-        if lote_seleccionado_diag != st.session_state.lote_actual:
-            st.session_state.lote_actual = lote_seleccionado_diag
+        if str(lote_seleccionado_diag) != lote_memoria_diag:
+            st.session_state.lote_actual = str(lote_seleccionado_diag)
             st.session_state.mostrar_todos_mapa = False
             st.rerun()
 
-    df_lote_diag = df[df['Lote'] == lote_seleccionado_diag]
+    df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(lote_seleccionado_diag)]
 
     if not df_lote_diag.empty:
         
@@ -871,6 +888,9 @@ elif menu == "Diagrama Interactivo":
             hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo:</b> ${costo:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
             textos_hover.append(hover_text)
 
+        # Calculo dinámico de la altura del gráfico para empatarlo con la leyenda
+        altura_grafico = max(500, (math.ceil(num_partidas/cols) * 60))
+
         # Dividimos la pantalla: Izquierda el diagrama, Derecha la Leyenda
         col_diagrama, col_leyenda = st.columns([7, 3])
         
@@ -880,22 +900,24 @@ elif menu == "Diagrama Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=35,
+                    size=20, # Tamaño reducido conforme a las instrucciones
                     color=colores_relleno,
                     symbol='circle',
-                    line=dict(width=4, color=colores_borde)
+                    line=dict(width=3, color=colores_borde)
                 ),
                 text=textos_hover,
                 hoverinfo='text'
             ))
 
+            prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
+
             fig_diag.update_layout(
-                title=dict(text=f"Partidas del Lote {lote_seleccionado_diag} ({num_partidas} en total)", font=dict(size=20)),
+                title=dict(text=f"Evaluando Lote {lote_seleccionado_diag} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                height=max(500, (math.ceil(num_partidas/cols) * 60)),
+                height=altura_grafico, # Asignamos la altura dinámica
                 # Ajuste del fondo negro con letras blancas en el tooltip:
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
@@ -927,17 +949,9 @@ elif menu == "Diagrama Interactivo":
                 """
             html_leyenda += "</table>"
 
-            try:
-                st.html(html_leyenda)
-            except AttributeError:
-                # Si esto falla, es porque tu versión de Streamlit es antigua
-                with st.container(height=600):
-                    st.markdown(html_leyenda, unsafe_allow_html=True)
-            
-                      
-            # Encapsulamos la leyenda en un contenedor con scrollbar en caso de que sean 131 partidas
-            #with st.container(height=600):
-             #   st.markdown(html_leyenda, unsafe_allow_html=True)
+            # Encapsulamos la leyenda en un contenedor dinámico para igualar al gráfico con scroll
+            with st.container(height=altura_grafico):
+                st.markdown(html_leyenda, unsafe_allow_html=True)
         
     else:
         st.warning("⚠️ No hay partidas registradas para este lote.")
