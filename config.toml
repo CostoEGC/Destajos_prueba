@@ -1,6 +1,0 @@
-[theme]
-base="dark" # o "light" dependiendo de tu preferencia inicial
-primaryColor="#3f4144ee" # Color de botones y elementos principales
-backgroundColor="#030303" # Tu color de fondo deseado
-secondaryBackgroundColor="#f0f2f6bb" # Color de fondo secundario (como el sidebar)
-textColor="#21b376" # Color del texto
