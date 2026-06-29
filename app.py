@@ -361,7 +361,7 @@ if menu == "Registro de Destajos":
     sum_pagado = df_fil_temp['Tot_Pag'].sum()
     sum_pendiente = sum_precio - sum_pagado
     
-    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 Total Filtrado ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
     # MODIFICACIÓN 2: Cambio de orden lógico y visual en los pesos (Estado vs Por pagar).
