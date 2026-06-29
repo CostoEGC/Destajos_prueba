@@ -600,7 +600,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO
+# PESTAÑA 3: MAPA INTERACTIVO (CON EXPANSIÓN DE ESFERAS)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
@@ -647,6 +647,25 @@ elif menu == "Mapa Interactivo":
         "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
 
+    # --- NUEVAS FUNCIONES PARA EL MAPA INTERACTIVO ---
+    def generar_espiral_micro_coordenadas(centro_x, centro_y, total_puntos, factor_dispersion=14):
+        coordenadas = []
+        if total_puntos == 1:
+            return [(centro_x, centro_y)]
+        for i in range(total_puntos):
+            phi = i * 137.5 * (math.pi / 180)
+            radio = factor_dispersion * math.sqrt(i) if i > 0 else 0
+            mix = centro_x + radio * math.cos(phi)
+            miy = centro_y + radio * math.sin(phi)
+            coordenadas.append((mix, miy))
+        return coordenadas
+
+    # Generar Paleta de Colores Dinámica (Para hacer coincidir el mapa con el Diagrama)
+    paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+    partidas_unicas_mapa = df['Partida'].unique()
+    mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas_mapa)}
+    # ------------------------------------------------
+
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
         df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)].copy()
@@ -654,7 +673,6 @@ elif menu == "Mapa Interactivo":
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
             
-            # Ahora calculamos el avance financieramente, no solo por cantidad de partidas
             df_lote_mapa['Total_Pagado_Real'] = pd.to_numeric(df_lote_mapa['Pago_1']) + pd.to_numeric(df_lote_mapa['Pago_2'])
             total_precio_lote = df_lote_mapa['Precio'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
@@ -685,7 +703,6 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
-    # Sincronización maestra para el Mapa
     if st.session_state.mostrar_todos_mapa:
         valor_defecto_mapa = "Mostrar Todos"
     else:
@@ -739,7 +756,6 @@ elif menu == "Mapa Interactivo":
         with c_selector:
             mapa_sel = st.selectbox("Selector", opciones_selector, index=idx_t3, label_visibility="collapsed")
             
-            # Detectar cambios en el menú desplegable y actualizar la memoria global
             if mapa_sel != valor_defecto_mapa:
                 if mapa_sel == "Mostrar Todos":
                     st.session_state.mostrar_todos_mapa = True
@@ -761,15 +777,8 @@ elif menu == "Mapa Interactivo":
                     return "🔴 PENDIENTE"
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
-                
                 styled_desglose = df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-                
-                st.dataframe(
-                    styled_desglose,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=480
-                )
+                st.dataframe(styled_desglose, use_container_width=True, hide_index=True, height=480)
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
         else:
@@ -788,13 +797,7 @@ elif menu == "Mapa Interactivo":
             df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
             
             styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-            
-            st.dataframe(
-                styled_global,
-                use_container_width=True,
-                hide_index=True,
-                height=480
-            )
+            st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
 
     with col_mapa:
         fig_mapa = go.Figure()
@@ -819,38 +822,81 @@ elif menu == "Mapa Interactivo":
             df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
             
             if st.session_state.mostrar_todos_mapa:
+                # -----------------------------------------------------
+                # VISTA 1: GLOBAL (Un solo punto central de color general)
+                # -----------------------------------------------------
                 df_mostrar_puntos = df_mapa_puntos
-                tamano_punto = 10
-                modo_grafico = "markers" 
+                
+                for _, item in df_mostrar_puntos.iterrows():
+                    fig_mapa.add_trace(go.Scatter(
+                        x=[item['x']], y=[item['y']],
+                        mode="markers",
+                        marker=dict(size=12, color=item['Hex'], line=dict(width=2, color='white')),
+                        text=[item['Lote']], textposition="top center",
+                        textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
+                        hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance Financiero: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
+                    ))
             else:
+                # -----------------------------------------------------
+                # VISTA 2: ZOOM A LOTE ESPECÍFICO (Expansión de esferas)
+                # -----------------------------------------------------
                 id_buscado = str(st.session_state.lote_actual)
                 df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
-                tamano_punto = 26
-                modo_grafico = "markers+text" 
                 
                 if not df_mostrar_puntos.empty:
                     target_x = df_mostrar_puntos.iloc[0]['x']
                     target_y = df_mostrar_puntos.iloc[0]['y']
-                    fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
-                    fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) 
-
-            for _, item in df_mostrar_puntos.iterrows():
-                fig_mapa.add_trace(go.Scatter(
-                    x=[item['x']], y=[item['y']],
-                    mode=modo_grafico,
-                    marker=dict(size=tamano_punto, color=item['Hex'], line=dict(width=2, color='white')),
-                    text=[item['Lote']], textposition="top center",
-                    textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
-                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance Financiero: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
-                ))
+                    
+                    # 1. Hacemos el Zoom al área del lote seleccionado
+                    rango_zoom = 180
+                    fig_mapa.update_xaxes(range=[target_x - rango_zoom, target_x + rango_zoom])
+                    fig_mapa.update_yaxes(range=[target_y + rango_zoom, target_y - rango_zoom]) 
+                    
+                    # 2. Extraemos las partidas que le pertenecen a este lote
+                    df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_buscado].copy()
+                    
+                    # 3. Calculamos la dispersión alrededor del centro (x, y) de este lote
+                    micro_coords = generar_espiral_micro_coordenadas(target_x, target_y, len(df_lote_esferas), factor_dispersion=14)
+                    
+                    # 4. Dibujamos cada partida como una esfera independiente
+                    for idx, (_, fila_part) in enumerate(df_lote_esferas.iterrows()):
+                        partida_nombre = fila_part['Partida']
+                        estado_pago = fila_part['Estado']
+                        costo = float(fila_part['Precio'])
+                        pago_real = float(fila_part.get('Pago_1', 0)) + float(fila_part.get('Pago_2', 0))
+                        
+                        mx, my = micro_coords[idx]
+                        
+                        # Extraemos el color que le corresponde según el mapa general
+                        color_asignado = mapa_colores_partida.get(partida_nombre, '#7f8c8d')
+                        
+                        # Lógica visual de relleno igual a tu diagrama
+                        if estado_pago == "Pagado":
+                            color_relleno = color_asignado
+                            color_borde = color_asignado
+                        else:
+                            color_relleno = "rgba(0,0,0,0)"  # Transparente
+                            color_borde = color_asignado
+                            
+                        hover_text = f"<b>Lote {id_buscado}</b><br>Partida: {partida_nombre}<br>Costo: ${costo:,.2f}<br>Pagado: ${pago_real:,.2f}<br>Estado: {estado_pago}"
+                        
+                        fig_mapa.add_trace(go.Scatter(
+                            x=[mx], y=[my],
+                            mode='markers',
+                            marker=dict(size=14, color=color_relleno, line=dict(width=2, color=color_borde)),
+                            text=[hover_text],
+                            hoverinfo='text'
+                        ))
 
         fig_mapa.update_layout(
             showlegend=False,
             margin=dict(l=0, r=0, t=0, b=0),
             height=600,
-            template="plotly_white"
+            template="plotly_white",
+            hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial")
         )
         st.plotly_chart(fig_mapa, use_container_width=True)
+
 
 # =========================================================================
 # PESTAÑA 4: DIAGRAMA INTERACTIVO (CON LEYENDA Y COLORES POR PARTIDA)
