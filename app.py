@@ -778,8 +778,8 @@ elif menu == "Mapa Interactivo":
                 html_table = (
                     "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>"
                     "<table style='width: 100%; border-collapse: collapse; text-align: center;'>"
-                    #"<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
-                    "<thead style='position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;'>"
+                    "<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
+                    #"<thead style='position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;'>"
                     "<tr>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" # ELIMINADO EL TEXTO "COLOR"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;text-align: left; '>Partida</th>"
@@ -795,7 +795,7 @@ elif menu == "Mapa Interactivo":
                         # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DE LA TABLA (modifica width y height, actual 24px)
                         f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
                         f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
-                        f"<td style='padding: 8px;'>{row_lote['Estatus']}</td>"
+                        f"<td style='padding: 8px; font-size:14px; '>{row_lote['Estatus']}</td>"
                         f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
                         "</tr>"
                     )
