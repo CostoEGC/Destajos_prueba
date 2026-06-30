@@ -774,31 +774,33 @@ elif menu == "Mapa Interactivo":
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
                 
-                # CONSTRUCCIÓN DE LA TABLA HTML PARA INCLUIR LA COLUMNA DE COLOR
-                html_table = f"""
-                <div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px;'>
-                    <table style='width: 100%; border-collapse: collapse; text-align: center;'>
-                        <thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>
-                            <tr>
-                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Color</th>
-                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Partida</th>
-                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>
-                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                """
+                # CONSTRUCCIÓN DE LA TABLA HTML SOLUCIONANDO EL FORMATO DE TEXTO Y TAMAÑOS DE ESFERA
+                html_table = (
+                    "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px;'>"
+                    "<table style='width: 100%; border-collapse: collapse; text-align: center;'>"
+                    "<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
+                    "<tr>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" # ELIMINADO EL TEXTO "COLOR"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
+                    "</tr></thead><tbody>"
+                )
+                
                 for _, row_lote in df_desglose_lote.iterrows():
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
-                    html_table += f"""
-                        <tr style='border-bottom: 1px solid #eee;'>
-                            <td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>
-                            <td style='padding: 8px;'>{row_lote['Partida']}</td>
-                            <td style='padding: 8px;'>{row_lote['Estatus']}</td>
-                            <td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>
-                        </tr>
-                    """
+                    html_table += (
+                        "<tr style='border-bottom: 1px solid #eee;'>"
+                        # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DE LA TABLA (modifica width y height, actual 24px)
+                        f"<td style='padding: 8px;'><div style='width:24px; height:24px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
+                        f"<td style='padding: 8px;'>{row_lote['Partida']}</td>"
+                        f"<td style='padding: 8px;'>{row_lote['Estatus']}</td>"
+                        f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
+                        "</tr>"
+                    )
                 html_table += "</tbody></table></div>"
+                
+                # Se renderiza de forma segura y sin problemas de markdown
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
@@ -982,7 +984,8 @@ elif menu == "Mapa Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=20, 
+                    # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DEL DIAGRAMA INTERACTIVO (modifica el número 'size')
+                    size=28, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=0) # Sin contorno según la regla
@@ -990,6 +993,19 @@ elif menu == "Mapa Interactivo":
                 text=textos_hover,
                 hoverinfo='text'
             ))
+
+            # Añadir un polígono genérico simulando el terreno/lote en el fondo del diagrama
+            max_x = max(x_coords) if x_coords else 1
+            max_y = max(y_coords) if y_coords else 1
+            
+            fig_diag.add_shape(
+                type="path",
+                # Polígono irregular que envuelve la cuadrícula simulando un lote real
+                path=f"M -0.5 -0.5 L -0.2 {max_y + 0.6} L {max_x + 0.4} {max_y + 0.8} L {max_x + 0.6} -0.3 Z",
+                line=dict(color="rgba(128,128,128,0.8)", width=3),
+                fillcolor="rgba(0,0,0,0)", # Fondo transparente
+                layer="below" # Mantiene el polígono detrás de las esferas
+            )
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
