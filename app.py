@@ -613,6 +613,13 @@ elif menu == "Dashboard (Gráficos y Visor)":
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
+    # Función auxiliar para convertir HEX a RGBA para efectos de transparencia en plotly
+    def hex_to_rgba(hex_val, opacity):
+        hex_val = hex_val.lstrip('#')
+        if len(hex_val) == 6:
+            return f"rgba({int(hex_val[0:2], 16)}, {int(hex_val[2:4], 16)}, {int(hex_val[4:6], 16)}, {opacity})"
+        return "rgba(0,0,0,0)"
+
     # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
         "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
@@ -766,8 +773,33 @@ elif menu == "Mapa Interactivo":
                     return "🔴 PENDIENTE"
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
-                styled_desglose = df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-                st.dataframe(styled_desglose, use_container_width=True, hide_index=True, height=480)
+                
+                # CONSTRUCCIÓN DE LA TABLA HTML PARA INCLUIR LA COLUMNA DE COLOR
+                html_table = f"""
+                <div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px;'>
+                    <table style='width: 100%; border-collapse: collapse; text-align: center;'>
+                        <thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>
+                            <tr>
+                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Color</th>
+                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Partida</th>
+                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>
+                                <th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                """
+                for _, row_lote in df_desglose_lote.iterrows():
+                    c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
+                    html_table += f"""
+                        <tr style='border-bottom: 1px solid #eee;'>
+                            <td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>
+                            <td style='padding: 8px;'>{row_lote['Partida']}</td>
+                            <td style='padding: 8px;'>{row_lote['Estatus']}</td>
+                            <td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>
+                        </tr>
+                    """
+                html_table += "</tbody></table></div>"
+                st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
         else:
@@ -812,6 +844,13 @@ elif menu == "Mapa Interactivo":
                     
                 svg_tag = soup.find("svg")
                 
+                # Ajustamos la etiqueta SVG dinámicamente para que haga zoom out/ajuste de pantalla
+                if svg_tag:
+                    svg_tag['width'] = "100%"
+                    svg_tag['height'] = "100%"
+                    if not svg_tag.get('preserveAspectRatio'):
+                        svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                
                 # Crear un grupo especial (una capa nueva al final del SVG) para que las esferas queden encima de todo
                 esferas_group = soup.new_tag("g", id="capa_esferas")
                 if svg_tag:
@@ -837,8 +876,8 @@ elif menu == "Mapa Interactivo":
                         else:
                             lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
                             
-                            # INYECCIÓN DINÁMICA DE LAS ESFERAS 
-                            if st.session_state.mostrar_todos_mapa or id_lote == str(st.session_state.lote_actual):
+                            # INYECCIÓN DINÁMICA DE LAS ESFERAS (Solo se inyectan si NO se muestran todos)
+                            if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                 df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
                                 if not df_lote_esferas.empty:
                                     base_x = float(item["x"])
@@ -858,25 +897,32 @@ elif menu == "Mapa Interactivo":
                                         
                                         color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                         
-                                        # Relleno o Hueco según el estado exacto de la partida
+                                        # Relleno con transparencia y sin contorno
                                         if row.Estado == "Pagado":
                                             fill_style = color_burbuja
+                                            fill_opacity = "1.0"
+                                        elif row.Estado == "Pago Parcial":
+                                            fill_style = color_burbuja
+                                            fill_opacity = "0.5"
                                         else:
-                                            fill_style = "none" # Transparente/Hueco si está pendiente o parcial
+                                            fill_style = "none" # Transparente si está pendiente
+                                            fill_opacity = "0.0"
                                             
-                                        # Creamos el nodo <circle> y lo inyectamos en la capa superior
-                                        circle_tag = soup.new_tag(
-                                            "circle", 
-                                            cx=f"{cx:.2f}", 
-                                            cy=f"{cy:.2f}", 
-                                            r="9", 
-                                            style=f"fill:{fill_style};stroke:{color_burbuja};stroke-width:3.5;"
-                                        )
-                                        esferas_group.append(circle_tag)
+                                        if fill_opacity != "0.0":
+                                            # Creamos el nodo <circle> sin contorno y con las opacidades
+                                            circle_tag = soup.new_tag(
+                                                "circle", 
+                                                cx=f"{cx:.2f}", 
+                                                cy=f"{cy:.2f}", 
+                                                r="9", 
+                                                style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:none;"
+                                            )
+                                            esferas_group.append(circle_tag)
 
                 # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                st.components.v1.html(html_final, width=100, height=500, scrolling=True)
+                html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
+                st.components.v1.html(html_final, height=700, scrolling=True)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
@@ -885,6 +931,87 @@ elif menu == "Mapa Interactivo":
             st.error("⚠️ No se encontró el archivo del mapa.")
             st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
         # --- FIN DE LA INTEGRACIÓN DEL SVG ---
+
+    # --- INICIO DEL DIAGRAMA INTERACTIVO INYECTADO DEBAJO DEL MAPA ---
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("### 🔗 Diagrama Interactivo de Partidas")
+    
+    if st.session_state.mostrar_todos_mapa:
+        st.info("⚠️ Debes seleccionar un lote en el filtro para visualizar el diagrama con las esferas de colores.")
+    else:
+        df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(st.session_state.lote_actual)]
+
+        if not df_lote_diag.empty:
+            num_partidas = len(df_lote_diag)
+            cols = math.ceil(math.sqrt(num_partidas))
+
+            x_coords = []
+            y_coords = []
+            colores_relleno = []
+            textos_hover = []
+
+            for i, row in enumerate(df_lote_diag.itertuples()):
+                x = i % cols
+                y = i // cols
+                x_coords.append(x)
+                y_coords.append(y)
+
+                estado = row.Estado
+                costo = row.Precio
+                pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
+                destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
+                color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
+
+                # Lógica de relleno de transparencia sin contorno
+                if estado == "Pagado":
+                    colores_relleno.append(color_asignado)
+                elif estado == "Pago Parcial":
+                    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
+                else:
+                    colores_relleno.append("rgba(0,0,0,0)") # Hueco invisible
+
+                hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
+                textos_hover.append(hover_text)
+
+            # Calculo dinámico de la altura del gráfico 
+            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 45))
+
+            fig_diag = go.Figure(data=go.Scatter(
+                x=x_coords,
+                y=y_coords,
+                mode='markers',
+                marker=dict(
+                    size=20, 
+                    color=colores_relleno,
+                    symbol='circle',
+                    line=dict(width=0) # Sin contorno según la regla
+                ),
+                text=textos_hover,
+                hoverinfo='text'
+            ))
+
+            prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
+
+            fig_diag.update_layout(
+                title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
+                xaxis=dict(visible=False, showgrid=False, zeroline=False),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                height=altura_grafico, 
+                hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
+            )
+
+            st.plotly_chart(fig_diag, use_container_width=True)
+            
+            pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
+            pendientes_diag = num_partidas - pagadas_diag
+            st.markdown(f"**🟢 Total Pagadas (100%):** {pagadas_diag} | **🔴 Pendientes/Parciales:** {pendientes_diag}")
+            
+        else:
+            st.warning("⚠️ No hay partidas registradas para este lote.")
+    # --- FIN DEL DIAGRAMA INTERACTIVO ---
 
 # =========================================================================
 # PESTAÑA 4: DIAGRAMA INTERACTIVO (CON LEYENDA Y COLORES POR PARTIDA)
