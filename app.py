@@ -166,6 +166,11 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
+# --- PALETA DE COLORES GLOBAL PARA PARTIDAS (Compartida entre Mapa y Diagrama) ---
+partidas_unicas_global = df['Partida'].unique() if not df.empty else []
+paleta_colores_global = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_global)] for i, partida in enumerate(partidas_unicas_global)}
+
 # Esta variable controlará unificadamente el Lote en TODAS las pestañas (se forza a string)
 if 'lote_actual' not in st.session_state:
     st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
@@ -602,12 +607,12 @@ elif menu == "Dashboard (Gráficos y Visor)":
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (AHORA CON INTEGRACIÓN SVG)
+# PESTAÑA 3: MAPA INTERACTIVO (CON INTEGRACIÓN SVG Y ESFERAS INYECTADAS)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # --- ARCHIVO DE COORDENADAS INTERNO (Se conserva solo como base de IDs y listado) ---
+    # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
         "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
         "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
@@ -619,7 +624,7 @@ elif menu == "Mapa Interactivo":
         "29": {"x": 152, "y": 73}, "30": {"x": 122, "y": 70}, "31": {"x": 282, "y": 239}, "32": {"x": 320, "y": 245},
         "33": {"x": 358, "y": 250}, "34": {"x": 393, "y": 256}, "35": {"x": 425, "y": 260}, "36": {"x": 459, "y": 264},
         "37": {"x": 498, "y": 272}, "38": {"x": 532, "y": 278}, "39": {"x": 568, "y": 279}, "40": {"x": 603, "y": 285},
-        "41": {"x": 634, "y": 293}, "42": {"x": 675, "y": 295}, "43": {"x": 656, "y": 379}, "44": {"x": 612, "y": 379},
+        "41": {"x": 634, "y": 293}, "42": {"x": 675, "y": 295}, "43": {"x": 656, "379"}, "44": {"x": 612, "y": 379},
         "45": {"x": 579, "y": 373}, "46": {"x": 546, "y": 367}, "47": {"x": 510, "y": 364}, "48": {"x": 475, "y": 358},
         "49": {"x": 437, "y": 355}, "50": {"x": 407, "y": 351}, "51": {"x": 381, "y": 348}, "52": {"x": 349, "y": 343},
         "53": {"x": 311, "y": 337}, "54": {"x": 268, "y": 336}, "55": {"x": 151, "y": 185}, "56": {"x": 146, "y": 217},
@@ -628,12 +633,12 @@ elif menu == "Mapa Interactivo":
         "65": {"x": 115, "y": 479}, "66": {"x": 112, "y": 511}, "67": {"x": 108, "y": 536}, "68": {"x": 108, "y": 568},
         "69": {"x": 105, "y": 598}, "70": {"x": 99, "y": 623}, "71": {"x": 94, "y": 654}, "72": {"x": 96, "y": 683},
         "73": {"x": 92, "y": 713}, "74": {"x": 88, "y": 743}, "75": {"x": 87, "y": 772}, "76": {"x": 81, "y": 803},
-        "77": {"x": 254, "y": 587}, "78": {"x": 262, "y": 560}, "79": {"x": 264, "y": 527}, "80": {"x": 268, "y": 500},
-        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362, "y": 489},
+        "77": {"x": 254, "y": 587}, "78": {"x": 262, "y": 560}, "79": {"x": 264, "y": 527}, "80": {"x": 268", "y": 500},
+        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362", "y": 489},
         "85": {"x": 358, "y": 526}, "86": {"x": 359, "y": 560}, "87": {"x": 349, "y": 593}, "88": {"x": 224, "y": 688},
-        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330, "y": 708}, "92": {"x": 360, "y": 711},
-        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462, "y": 728}, "96": {"x": 496, "y": 734},
-        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
+        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330, "y": 708}, "92": {"x": 360", "y": 711},
+        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462", "y": 728}, "96": {"x": 496", "y": 734},
+        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604", "y": 744}, "100": {"x": 636", "y": 751},
         "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
         "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
         "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798},
@@ -641,18 +646,13 @@ elif menu == "Mapa Interactivo":
         "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
         "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
         "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
-        "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463, "y": 962},
+        "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463", "y": 962},
         "133": {"x": 495, "y": 966}, "134": {"x": 524, "y": 971}, "135": {"x": 551, "y": 975}, "136": {"x": 581, "y": 980},
-        "137": {"x": 610, "y": 985}, "138": {"x": 638, "y": 988}, "139": {"x": 667, "y": 993}, "140": {"x": 696, "y": 996},
-        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
+        "137": {"x": 610, "y": 1985}, "138": {"x": 638, "y": 1988}, "139": {"x": 667, "y": 1993}, "140": {"x": 696, "y": 1996},
+        "141": {"x": 725, "y": 1999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
         "145": {"x": 885, "y": 959}, "146": {"x": 874, "y": 930}, "147": {"x": 864, "y": 904}, "148": {"x": 859, "y": 875},
         "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
-
-    # Generar Paleta de Colores Dinámica
-    paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
-    partidas_unicas_mapa = df['Partida'].unique()
-    mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas_mapa)}
 
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
@@ -788,13 +788,13 @@ elif menu == "Mapa Interactivo":
             st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
 
     with col_mapa:
-        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO ---
+        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
         try:
-            # Leemos el archivo de prueba actual
             with open("SVGsembrado_1_LOTE-Model.TXT", "r", encoding="utf-8") as f:
                 svg_content = f.read()
 
             soup = BeautifulSoup(svg_content, "html.parser")
+            svg_tag = soup.find("svg")
 
             # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
             for item in lotes_datos_mapa:
@@ -805,7 +805,6 @@ elif menu == "Mapa Interactivo":
                 id_busqueda = f"Lote-{int(id_lote):02d}" 
                 lote_path = soup.find(id=id_busqueda)
                 
-                # Si no lo encuentra, intentamos con el número directo
                 if not lote_path:
                     lote_path = soup.find(id=id_lote)
 
@@ -815,8 +814,46 @@ elif menu == "Mapa Interactivo":
                         lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
                     else:
                         lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+                        
+                        # INYECCIÓN DINÁMICA DE LAS ESFERAS (Solo para el lote activo o todos si está la vista global)
+                        if st.session_state.mostrar_todos_mapa or id_lote == str(st.session_state.lote_actual):
+                            df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
+                            if not df_lote_esferas.empty:
+                                base_x = float(item["x"])
+                                base_y = float(item["y"])
+                                
+                                # Matriz de distribución compacta de esferas (cuadrícula de 4 columnas)
+                                cols_grid = 4
+                                spacing = 22  # Espaciado ideal en píxeles para mantenerse dentro del polígono
+                                
+                                for idx, row in enumerate(df_lote_esferas.itertuples()):
+                                    r = idx // cols_grid
+                                    c = idx % cols_grid
+                                    
+                                    # Posicionamos calculando desde el centro coordenado del lote
+                                    cx = base_x + (c - (cols_grid - 1) / 2) * spacing
+                                    cy = base_y + (r - 1) * spacing
+                                    
+                                    color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
+                                    
+                                    # Relleno o Hueco según el estado exacto de la partida
+                                    if row.Estado == "Pagado":
+                                        fill_style = color_burbuja
+                                    else:
+                                        fill_style = "none" # Transparente/Hueco si está pendiente o parcial
+                                        
+                                    # Creamos el nodo <circle> de SVG
+                                    circle_tag = soup.new_tag(
+                                        "circle", 
+                                        cx=f"{cx:.2f}", 
+                                        cy=f"{cy:.2f}", 
+                                        r="9", 
+                                        style=f"fill:{fill_style};stroke:{color_burbuja};stroke-width:3.5;"
+                                    )
+                                    if svg_tag:
+                                        svg_tag.append(circle_tag)
 
-            # Renderizamos el SVG HTML directamente
+            # Renderizamos el SVG HTML directamente con las esferas inyectadas
             st.components.v1.html(str(soup), width=1000, height=700, scrolling=True)
             
         except Exception as e:
@@ -837,7 +874,6 @@ elif menu == "Diagrama Interactivo":
         st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas al 100%**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes o parciales**.", unsafe_allow_html=True)
     
     with col_selector:
-        # Aseguramos string aquí también
         lotes_diag = [str(x) for x in df['Lote'].unique()]
         
         # Sincronización maestra
@@ -854,12 +890,6 @@ elif menu == "Diagrama Interactivo":
     df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(lote_seleccionado_diag)]
 
     if not df_lote_diag.empty:
-        
-        # Generar Paleta de Colores Dinámica para cada partida distinta
-        paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
-        partidas_unicas = df_lote_diag['Partida'].unique()
-        mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas)}
-
         num_partidas = len(df_lote_diag)
         cols = math.ceil(math.sqrt(num_partidas))
 
@@ -880,7 +910,7 @@ elif menu == "Diagrama Interactivo":
             pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
             destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
             
-            color_asignado = mapa_colores_partida[row.Partida]
+            color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
 
             # Relleno vs Hueco según estado
             if estado == "Pagado":
@@ -923,7 +953,6 @@ elif menu == "Diagrama Interactivo":
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
-                # Ajuste del fondo negro con letras blancas en el tooltip:
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
@@ -941,12 +970,10 @@ elif menu == "Diagrama Interactivo":
             html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
             html_leyenda += "<tr><th style='text-align:center; border-bottom: 2px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 2px solid #ddd; padding: 10px;'>Partida</th></tr>"
             
-            # Formato en una sola línea para evitar la indentación y el error de bloque de código Markdown
             for partida, color in mapa_colores_partida.items():
                 html_leyenda += f"<tr><td style='text-align:center; padding: 4px; border-bottom: 1px solid #eee;'><div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto;'></div></td><td style='text-align:left; padding: 4px; border-bottom: 1px solid #eee; font-size: 14px;'>{partida}</td></tr>"
             html_leyenda += "</table>"
 
-            # Encapsulamos la leyenda en un contenedor dinámico para igualar al gráfico con scroll
             with st.container(height=altura_grafico):
                 st.markdown(html_leyenda, unsafe_allow_html=True)
         
