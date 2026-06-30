@@ -876,7 +876,7 @@ elif menu == "Mapa Interactivo":
 
                 # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                st.components.v1.html(html_final, width=1000, height=700, scrolling=True)
+                st.components.v1.html(html_final, width=100, height=500, scrolling=True)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
