@@ -10,6 +10,8 @@ import json
 import math
 from zoneinfo import ZoneInfo
 from PIL import Image
+from bs4 import BeautifulSoup
+
 
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
