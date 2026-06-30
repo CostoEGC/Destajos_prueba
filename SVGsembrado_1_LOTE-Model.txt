@@ -1,0 +1,881 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="2304"
+   height="3456"
+   viewBox="0 0 2304 3456"
+   sodipodi:docname="SVGsembrado-Model_plano.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.41984465"
+     inkscape:cx="1073.0159"
+     inkscape:cy="2080.5314"
+     inkscape:window-width="1920"
+     inkscape:window-height="1027"
+     inkscape:window-x="1358"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer-oc6">
+    <inkscape:page
+       x="0"
+       y="0"
+       inkscape:label="[1] Model"
+       id="page1"
+       width="2304"
+       height="3456"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  <g
+     id="layer-oc1"
+     inkscape:groupmode="layer"
+     inkscape:label="5">
+    <path
+       id="lote-5"
+       d="m 12385,14948 -1407,215 -63,-414 1407,-215 63,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc2"
+     inkscape:groupmode="layer"
+     inkscape:label="6">
+    <path
+       id="lote-6"
+       d="m 12448,15361 -1407,216 -63,-414 1407,-215 63,413"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc3"
+     inkscape:groupmode="layer"
+     inkscape:label="7">
+    <path
+       id="lote-7"
+       d="m 12512,15775 -1407,216 -64,-414 1407,-216 64,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc4"
+     inkscape:groupmode="layer"
+     inkscape:label="8">
+    <path
+       id="lote-8"
+       d="m 12575,16189 -1407,215 -63,-413 1407,-216 63,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc5"
+     inkscape:groupmode="layer"
+     inkscape:label="9">
+    <path
+       id="lote-9"
+       d="m 12638,16603 -1407,215 -63,-414 1407,-215 63,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc6"
+     inkscape:groupmode="layer"
+     inkscape:label="GV_MUROS_BC">
+    <path
+       id="lote-103"
+       d="m 10514,5695 -901,118 20,154 116,883 28,208 -498,66 -28,-207 -82,-623 -54,-415 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path7"
+       d="m 10514.626,5695.4346 c 56.497,-7.4419 112.9,14.3501 149.719,57.8432 36.817,43.4932 48.998,102.7212 32.33,157.2134"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-102"
+       d="m 10696,5910 -328,1071 -591,77"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-116"
+       d="m 3302,7911 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-115"
+       d="m 3800,7845 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-114"
+       d="m 4298,7780 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-113"
+       d="m 4796,7714 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-112"
+       d="m 5294,7649 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-111"
+       d="m 5792,7583 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-110"
+       d="m 6290,7518 -498,65 -164,-1245 498,-66 164,1246"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-109"
+       d="m 6788,7452 -498,66 -164,-1246 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-108"
+       d="m 7286,7386 -498,66 -164,-1245 499,-66 163,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-107"
+       d="m 7784,7321 -498,65 -163,-1245 498,-65 163,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-106"
+       d="m 8283,7255 -499,66 -163,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-105"
+       d="m 8781,7190 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-104"
+       d="m 9279,7124 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-90"
+       d="m 4645,9128 -415,54 -181,-1369 415,-55 181,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-91"
+       d="m 5060,9073 -415,55 -181,-1370 415,-55 181,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-92"
+       d="m 5475,9018 -415,55 -181,-1370 415,-54 181,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-58"
+       d="m 1278,14849 -46,-416 1551,-205 55,415 -1560,206"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-57"
+       d="m 1324,15265 -46,-416 1560,-206 54,415 -1568,207"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-65"
+       d="m 980,11932 -35,-417 1456,-192 54,415 -1475,194"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-64"
+       d="m 1016,12350 -36,-418 1475,-194 55,415 -1494,197"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-69"
+       d="m 822,10264 -46,-416 1406,-185 55,415 -1415,186"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-73"
+       d="m 593,8183 46,417 1379,-182 -55,-415 -1370,180"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-76"
+       d="m 1854,7173 -1382,182 -80,-538 1391,-184 71,540"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-75"
+       d="m 1909,7588 -1376,181 -61,-414 1382,-182 55,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-74"
+       d="m 589,8144 -56,-375 1376,-181 54,415 -1370,180 -4,-39"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-72"
+       d="m 684,9016 1389,-183 -55,-415 -1379,182 45,416"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-71"
+       d="m 730,9432 1397,-184 -54,-415 -1389,183 46,416"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-70"
+       d="m 776,9848 1406,-185 -55,-415 -1397,184 46,416"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-68"
+       d="m 868,10681 -46,-417 1415,-186 54,415 -1423,188"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-67"
+       d="m 909,11097 -17,-195 -24,-221 1423,-188 55,415 -1437,189"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-66"
+       d="m 945,11515 -36,-418 1437,-189 55,415 -1456,192"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-63"
+       d="m 1052,12767 -36,-417 1494,-197 54,415 -1512,199"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-62"
+       d="m 1094,13184 -29,-272 -13,-145 1512,-199 55,415 -1525,201"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-61"
+       d="m 1140,13600 -46,-416 1525,-201 55,415 -1534,202"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-60"
+       d="m 1186,14016 -46,-416 1534,-202 54,415 -1542,203"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-59"
+       d="m 1232,14433 -31,-278 -15,-139 1542,-203 55,415 -1551,205"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-56"
+       d="m 1371,15681 -47,-416 1568,-207 55,415 -1576,208"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-55"
+       d="m 1431,16222 -60,-541 1576,-208 71,540 -1587,209"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-143"
+       d="m 12285,3575 1435,414 -129,433 -1431,-438 125,-409"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-144"
+       d="m 12160,3984 1431,438 -126,399 -1427,-437 122,-400"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-145"
+       d="m 12038,4384 1427,437 -132,397 -1418,-433 123,-401"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-146"
+       d="m 11915,4785 1418,433 -48,140 -96,254 -1396,-427 122,-400"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-88"
+       d="m 3607,9264 -622,82 -181,-1369 498,-66 125,-16 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-89"
+       d="m 4230,9182 -623,82 -180,-1369 373,-50 249,-32 181,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-52"
+       d="m 5317,14232 -415,55 -180,-1369 415,-55 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-51"
+       d="m 5732,14178 -415,54 -180,-1369 415,-55 180,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-50"
+       d="m 6147,14123 -415,55 -180,-1370 415,-54 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-54"
+       d="m 4279,14369 -622,82 -180,-1370 498,-65 124,-16 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-53"
+       d="m 4902,14287 -623,82 -180,-1369 374,-50 249,-32 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-11"
+       d="m 9398,15806 415,-55 164,1246 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-12"
+       d="m 8983,15861 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-13"
+       d="m 8568,15915 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-14"
+       d="m 8153,15970 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-15"
+       d="m 7738,16025 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-16"
+       d="m 7323,16079 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-17"
+       d="m 6908,16134 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-18"
+       d="m 6493,16189 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-19"
+       d="m 6078,16243 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-20"
+       d="m 5663,16298 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-21"
+       d="m 5248,16353 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-22"
+       d="m 4833,16407 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-23"
+       d="m 4418,16462 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-24"
+       d="m 4003,16517 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-25"
+       d="m 3588,16571 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-26"
+       d="m 3173,16626 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-27"
+       d="m 2758,16681 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-28"
+       d="m 2343,16735 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-29"
+       d="m 1928,16790 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-30"
+       d="m 1501,16846 427,-56 164,1245 -448,59 -143,-1248"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-141"
+       d="m 10110,3637 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-118"
+       d="m 565,4894 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-119"
+       d="m 980,4839 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-120"
+       d="m 1395,4785 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-121"
+       d="m 1810,4730 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-122"
+       d="m 2225,4675 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-123"
+       d="m 2640,4621 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path85"
+       d="m 3055,4566 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-124"
+       d="m 3470,4511 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-125"
+       d="m 3885,4457 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-126"
+       d="m 4300,4402 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-127"
+       d="m 4715,4347 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-128"
+       d="m 5130,4293 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-129"
+       d="m 5545,4238 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-130"
+       d="m 5960,4183 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-131"
+       d="m 6375,4129 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-132"
+       d="m 6790,4074 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-133"
+       d="m 7205,4019 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path96"
+       d="m 7620,3965 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-134"
+       d="m 8035,3910 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-135"
+       d="m 8450,3855 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-136"
+       d="m 8865,3801 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-137"
+       d="m 9280,3746 415,-55 164,1245 -415,55 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-138"
+       d="m 9695,3691 415,-54 164,1245 -415,54 -164,-1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-117"
+       d="M 150,4948 565,4894 729,6139 303,6195 150,4948"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-32"
+       d="m 4954,15547 -498,66 -164,-1246 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-33"
+       d="m 5452,15481 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-34"
+       d="m 5950,15416 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-35"
+       d="m 6448,15350 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-36"
+       d="m 6946,15285 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-37"
+       d="m 7444,15219 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-38"
+       d="m 7942,15153 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-39"
+       d="m 8440,15088 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-40"
+       d="m 8938,15022 -498,66 -164,-1245 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-41"
+       d="m 9436,14957 -498,65 -164,-1245 498,-65 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path113"
+       d="m 9977,16997 -27,-206 -95,-726 -2,-8 -40,-306 589,-77"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path114"
+       d="m 10403.486,15673.903 c 15.788,22.942 26.178,49.159 30.391,76.686"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-10"
+       d="m 10433,15750 178,1163 -634,84"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path116"
+       d="m 4530,11465 -1245,164 -54,-415 1245,-164 54,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-77"
+       d="m 4366,10220 -1245,164 -54,-415 1245,-164 54,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-78"
+       d="m 4421,10635 -1245,164 -55,-415 1245,-164 55,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-79"
+       d="m 4476,11050 -1245,164 -55,-415 1245,-164 55,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-81"
+       d="m 4585,11880 -1245,164 -55,-415 1245,-164 55,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-82"
+       d="m 4640,12295 -1245,164 -55,-415 1245,-164 55,415"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-87"
+       d="m 5747,10122 -1370,181 -65,-498 1369,-181 66,498"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-86"
+       d="m 5812,10621 -1369,180 -66,-498 1370,-181 65,499"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-83"
+       d="m 6009,12115 -1369,180 -66,-498 1370,-180 65,498"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-49"
+       d="m 6465,12688 180,1370 -498,65 -180,-1369 498,-66"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-94"
+       d="m 6290,7518 181,1369 -498,66 -181,-1370 498,-65"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-95"
+       d="m 6788,7452 181,1370 -498,65 -181,-1369 498,-66"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-98"
+       d="m 8283,7255 180,1370 -498,65 -181,-1369 499,-66"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-99"
+       d="m 8781,7190 180,1369 -498,66 -180,-1370 498,-65"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-93"
+       d="m 5973,8953 -498,65 -181,-1369 498,-66 181,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-96"
+       d="m 7467,8756 -498,66 -181,-1370 498,-66 181,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-97"
+       d="m 7965,8690 -498,66 -181,-1370 498,-65 181,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-100"
+       d="m 9459,8494 -498,65 -180,-1369 498,-66 180,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-46"
+       d="m 7959,12491 180,1370 -498,65 -180,-1369 498,-66"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-45"
+       d="m 8457,12426 180,1369 -498,66 -180,-1370 498,-65"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-47"
+       d="m 7641,13926 -498,66 -180,-1370 498,-65 180,1369"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-48"
+       d="m 7143,13992 -498,66 -180,-1370 498,-66 180,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-85"
+       d="m 4508,11299 -65,-498 1369,-180 66,498 -1370,180"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-84"
+       d="m 4574,11797 -66,-498 1370,-180 66,498 -1370,180"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-44"
+       d="m 9135,13730 -498,65 -180,-1369 498,-66 180,1370"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-43"
+       d="m 9896,13629 -761,101 -180,-1370 732,-96 209,1365"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-101"
+       d="m 9948,8356 9,72 -498,66 -32,-244 -148,-1126 498,-66 591,-77 -420,1375"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-142"
+       d="m 11269,4751 -580,76 -40,-305 -1,-9 -96,-725 -27,-206 1148,-151 -404,1320"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-31"
+       d="m 4419,15336 37,277 -635,83 -164,-1245 622,-82 13,-2 33,249 94,720"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-42"
+       d="m 10002,14882 -566,75 -164,-1245 624,-83 177,1158"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path146"
+       d="m 10074.039,14786.868 c 3.396,22.19 -2.286,44.813 -15.764,62.764 -13.477,17.952 -33.615,29.722 -55.871,32.653"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-147"
+       d="m 13047,6006 -1377,-421 123,-400 1396,427 -142,394"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-148"
+       d="m 11548,5985 122,-400 1377,421 -134,397 -1365,-418"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-149"
+       d="m 12913,6403 -77,239 -74,240 -1361,-416 147,-481 1365,418"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-150"
+       d="m 12762,6882 -71,241 -69,242 -1368,-419 147,-480 1361,416"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-151"
+       d="m 12568,7564 -104,407 -1200,158"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path156"
+       d="m 11264.344,8129.8462 c -84.829,11.1733 -169.52,-21.5464 -224.801,-86.8516 -55.282,-65.3047 -73.57,-154.2348 -48.545,-236.0547"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path157"
+       d="m 10991,7807 263,-861 1368,419 -54,199"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc7"
+     inkscape:groupmode="layer"
+     inkscape:label="3">
+    <path
+       id="lote-3"
+       d="m 12258,14120 -1407,215 -63,-413 1407,-216 63,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc8"
+     inkscape:groupmode="layer"
+     inkscape:label="4">
+    <path
+       id="lote-4"
+       d="m 12322,14534 -1407,215 -64,-414 1407,-215 64,414"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc9"
+     inkscape:groupmode="layer"
+     inkscape:label="1">
+    <path
+       id="lote-1"
+       d="m 12119,13210 -1407,215 -76,-497 1407,-215 76,497"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+  <g
+     id="layer-oc10"
+     inkscape:groupmode="layer"
+     inkscape:label="2">
+    <path
+       id="lote-2"
+       d="m 12195,13706 -1407,216 -76,-497 1407,-215 76,496"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+  </g>
+</svg>
