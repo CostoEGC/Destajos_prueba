@@ -757,21 +757,44 @@ elif menu == "Mapa Interactivo":
 
         if not st.session_state.mostrar_todos_mapa:
             lote_puro_num = str(st.session_state.lote_actual)
-            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
+            df_desglose = df[df['Lote'].astype(str).str.strip() == lote_puro_num].copy()
             
-            if not df_desglose_lote.empty:
+            if not df_desglose.empty:
                 def formatear_estado_icono(val):
                     if val == "Pagado": return "🟢 100% PAGADO"
                     elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
                     return "🔴 PENDIENTE"
                     
-                df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
-                styled_desglose = df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+                df_desglose['Estatus'] = df_desglose['Estado'].apply(formatear_estado_icono)
+                styled_desglose = df_desglose[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
                 st.dataframe(styled_desglose, use_container_width=True, hide_index=True, height=480)
+                
+                # Construcción de tabla HTML manual con columna de color
+                html_tabla = "<table style='width:100%; border-collapse: collapse; font-size: 12px;'>"
+                html_tabla += "<tr style='border-bottom: 1px solid #ddd;'>"
+                html_tabla += "<th></th><th>Partida</th><th>Estado</th><th>$</th></tr>"
+
+                for _, row in df_desglose.iterrows():
+                    color = mapa_colores_partida.get(row['Partida'], "#3B82F6")
+                    html_tabla += "<tr>"
+                    # Columna de esfera (el color)
+                    html_tabla += f"<td style='padding:5px;'><div style='width:12px; height:12px; background-color:{color}; border-radius:50%;'></div></td>"
+                    html_tabla += f"<td style='padding:5px;'>{row['Partida']}</td>"
+                    html_tabla += f"<td style='padding:5px;'>{row['Estado']}</td>"
+                    html_tabla += f"<td style='padding:5px;'>${float(row['Precio']):,.0f}</td>"
+                    html_tabla += "</tr>"
+                html_tabla += "</table>"
+
+                st.markdown(html_tabla, unsafe_allow_html=True)
             else:
-                st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
-        else:
-            st.markdown("**Resumen General por Lote (Financiero):**")
+                st.info("No hay partidas registradas.")
+        else:  
+            # Mantiene la tabla original cuando "Mostrar todos"
+            st.markdown("**Resumen General por Lote:**")          
+
+
+
+
             df_resumen_global = df.copy()
             df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
             
@@ -838,41 +861,39 @@ elif menu == "Mapa Interactivo":
                             lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
                             
                             # INYECCIÓN DINÁMICA DE LAS ESFERAS 
-                            if st.session_state.mostrar_todos_mapa or id_lote == str(st.session_state.lote_actual):
+                            if not st.session_state.mostrar_todos_mapa:
                                 df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
-                                if not df_lote_esferas.empty:
-                                    base_x = float(item["x"])
-                                    base_y = float(item["y"])
+                                base_x = float(item["x"])
+                                base_y = float(item["y"])
                                     
                                     # Matriz de distribución compacta de esferas (cuadrícula de 4 columnas)
-                                    cols_grid = 4
-                                    spacing = 22  
+                                cols_grid = 4
+                                spacing = 18  #esferas mas juntas  
                                     
-                                    for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                        r = idx // cols_grid
-                                        c = idx % cols_grid
+                                for idx, row in enumerate(df_lote_esferas.itertuples()):
+                                    r = idx // cols_grid
+                                    c = idx % cols_grid                                        
+                                    # Posicionamos calculando desde el centro coordenado del lote
+                                    cx = base_x + (c - 1.5) * spacing
+                                    cy = base_y + (r - 1) * spacing
                                         
-                                        # Posicionamos calculando desde el centro coordenado del lote
-                                        cx = base_x + (c - (cols_grid - 1) / 2) * spacing
-                                        cy = base_y + (r - 1) * spacing
+                                    color_partida = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                         
-                                        color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
-                                        
-                                        # Relleno o Hueco según el estado exacto de la partida
-                                        if row.Estado == "Pagado":
-                                            fill_style = color_burbuja
-                                        else:
-                                            fill_style = "none" # Transparente/Hueco si está pendiente o parcial
-                                            
+                                    # Relleno o Hueco según el estado exacto de la partida
+                                    if row.Estado == "Pagado":
+                                        opacity_fill = 1.0
+                                    else:
+                                        opacity_fill = 0.4 # mas tenue para pagos parciales
+
                                         # Creamos el nodo <circle> y lo inyectamos en la capa superior
-                                        circle_tag = soup.new_tag(
-                                            "circle", 
-                                            cx=f"{cx:.2f}", 
-                                            cy=f"{cy:.2f}", 
-                                            r="9", 
-                                            style=f"fill:{fill_style};stroke:{color_burbuja};stroke-width:3.5;"
-                                        )
-                                        esferas_group.append(circle_tag)
+                                    circle_tag = soup.new_tag(
+                                        "circle", 
+                                        cx=f"{cx:.2f}", 
+                                        cy=f"{cy:.2f}", 
+                                        r="6", 
+                                        style=f"fill:{color_partida};fill-opacity:{opacity_fill};stroke:none;"
+                                    )
+                                    esferas_group.append(circle_tag)
 
                 # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
                 html_final = str(soup).replace("viewbox=", "viewBox=")
