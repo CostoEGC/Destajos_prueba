@@ -776,12 +776,13 @@ elif menu == "Mapa Interactivo":
                 
                 # CONSTRUCCIÓN DE LA TABLA HTML SOLUCIONANDO EL FORMATO DE TEXTO Y TAMAÑOS DE ESFERA
                 html_table = (
-                    "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px;'>"
+                    "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>"
                     "<table style='width: 100%; border-collapse: collapse; text-align: center;'>"
-                    "<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
+                    #"<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
+                    "<thead style='position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;'>"
                     "<tr>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" # ELIMINADO EL TEXTO "COLOR"
-                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;text-align: left; '>Partida</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
                     "</tr></thead><tbody>"
@@ -792,8 +793,8 @@ elif menu == "Mapa Interactivo":
                     html_table += (
                         "<tr style='border-bottom: 1px solid #eee;'>"
                         # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DE LA TABLA (modifica width y height, actual 24px)
-                        f"<td style='padding: 8px;'><div style='width:24px; height:24px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
-                        f"<td style='padding: 8px;'>{row_lote['Partida']}</td>"
+                        f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
+                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
                         f"<td style='padding: 8px;'>{row_lote['Estatus']}</td>"
                         f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
                         "</tr>"
@@ -995,16 +996,30 @@ elif menu == "Mapa Interactivo":
             ))
 
             # Añadir un polígono genérico simulando el terreno/lote en el fondo del diagrama
-            max_x = max(x_coords) if x_coords else 1
-            max_y = max(y_coords) if y_coords else 1
+            #max_x = max(x_coords) if x_coords else 1
+            #max_y = max(y_coords) if y_coords else 1
             
+            # Calculamos las coordenadas del rectángulo basado en la cantidad de columnas
+            cols_max = cols - 0.5
+            y_max = max(y_coords) + 0.5
+
+
             fig_diag.add_shape(
                 type="path",
                 # Polígono irregular que envuelve la cuadrícula simulando un lote real
-                path=f"M -0.5 -0.5 L -0.2 {max_y + 0.6} L {max_x + 0.4} {max_y + 0.8} L {max_x + 0.6} -0.3 Z",
-                line=dict(color="rgba(128,128,128,0.8)", width=3),
-                fillcolor="rgba(0,0,0,0)", # Fondo transparente
-                layer="below" # Mantiene el polígono detrás de las esferas
+                #path=f"M -0.5 -0.5 L -0.2 {max_y + 0.6} L {max_x + 0.4} {max_y + 0.8} L {max_x + 0.6} -0.3 Z",
+                #line=dict(color="rgba(128,128,128,0.8)", width=3),
+                #fillcolor="rgba(0,0,0,0)", # Fondo transparente
+                #layer="below" # Mantiene el polígono detrás de las esferas
+
+                # Esto dibuja un rectángulo perfecto (M = inicio, L = líneas)
+                path=f"M -0.5 -0.5 L -0.5 {y_max} L {cols_max} {y_max} L {cols_max} -0.5 Z",
+                # MODIFICACIÓN: width=5 lo hace más grueso
+                line=dict(color="rgba(14,232,144,0.8)", width=8), 
+                fillcolor="rgba(0,0,0,0)",
+                layer="below"
+
+
             )
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
