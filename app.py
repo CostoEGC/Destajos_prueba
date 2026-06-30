@@ -760,38 +760,37 @@ elif menu == "Mapa Interactivo":
             df_desglose = df[df['Lote'].astype(str).str.strip() == lote_puro_num].copy()
             
             if not df_desglose.empty:
-                def formatear_estado_icono(val):
-                    if val == "Pagado": return "🟢 100% PAGADO"
-                    elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
-                    return "🔴 PENDIENTE"
+                #def formatear_estado_icono(val):
+                 #   if val == "Pagado": return "🟢 100% PAGADO"
+                  #  elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
+                  #  return "🔴 PENDIENTE"
                     
-                df_desglose['Estatus'] = df_desglose['Estado'].apply(formatear_estado_icono)
-                styled_desglose = df_desglose[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-                st.dataframe(styled_desglose, use_container_width=True, hide_index=True, height=480)
+                #df_desglose['Estatus'] = df_desglose['Estado'].apply(formatear_estado_icono)
+                #styled_desglose = df_desglose[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+                #st.dataframe(styled_desglose, use_container_width=True, hide_index=True, height=480)
                 
-                # Construcción de tabla HTML manual con columna de color
-                html_tabla = "<table style='width:100%; border-collapse: collapse; font-size: 12px;'>"
-                html_tabla += "<tr style='border-bottom: 1px solid #ddd;'>"
-                html_tabla += "<th></th><th>Partida</th><th>Estado</th><th>$</th></tr>"
+                # Preparamos los datos
+                df_viz = df_desglose[['Partida', 'Estado', 'Precio']].copy()
+                # Insertamos la columna de color al principio basándonos en tu mapa global
+                df_viz.insert(0, 'Color', df_viz['Partida'].map(mapa_colores_partida))
+                
+                 # Aplicamos estilo para mostrar el círculo de color
+                def color_mark(color_hex):
+                    return f"background-color: {color_hex}; border-radius: 50%; width: 20px; height: 20px; display: block; margin: auto;"
 
-                for _, row in df_desglose.iterrows():
-                    color = mapa_colores_partida.get(row['Partida'], "#3B82F6")
-                    html_tabla += "<tr>"
-                    # Columna de esfera (el color)
-                    html_tabla += f"<td style='padding:5px;'><div style='width:12px; height:12px; background-color:{color}; border-radius:50%;'></div></td>"
-                    html_tabla += f"<td style='padding:5px;'>{row['Partida']}</td>"
-                    html_tabla += f"<td style='padding:5px;'>{row['Estado']}</td>"
-                    html_tabla += f"<td style='padding:5px;'>${float(row['Precio']):,.0f}</td>"
-                    html_tabla += "</tr>"
-                html_tabla += "</table>"
-
-                st.markdown(html_tabla, unsafe_allow_html=True)
-            else:
-                st.info("No hay partidas registradas.")
-        else:  
-            # Mantiene la tabla original cuando "Mostrar todos"
-            st.markdown("**Resumen General por Lote:**")          
-
+                # Renderizamos con estilo
+                st.dataframe(
+                    df_viz.style.map(color_mark, subset=['Color']),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Color": st.column_config.Column("Color", width="small"),
+                        "Precio": st.column_config.NumberColumn("Precio", format="$%.0f")
+                    }
+                )
+             
+            else:  
+                st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
 
 
 
@@ -897,7 +896,7 @@ elif menu == "Mapa Interactivo":
 
                 # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                st.components.v1.html(html_final, width=1000, height=700, scrolling=True)
+                st.components.v1.html(html_final, width=None, height=700, scrolling=False)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
