@@ -606,6 +606,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
             else:
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
+
 # =========================================================================
 # PESTAÑA 3: MAPA INTERACTIVO (CON INTEGRACIÓN SVG Y ESFERAS INYECTADAS)
 # =========================================================================
@@ -648,8 +649,8 @@ elif menu == "Mapa Interactivo":
         "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
         "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463, "y": 962},
         "133": {"x": 495, "y": 966}, "134": {"x": 524, "y": 971}, "135": {"x": 551, "y": 975}, "136": {"x": 581, "y": 980},
-        "137": {"x": 610, "y": 1985}, "138": {"x": 638, "y": 1988}, "139": {"x": 667, "y": 1993}, "140": {"x": 696, "y": 1996},
-        "141": {"x": 725, "y": 1999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
+        "137": {"x": 610, "y": 985}, "138": {"x": 638, "y": 988}, "139": {"x": 667, "y": 993}, "140": {"x": 696, "y": 996},
+        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
         "145": {"x": 885, "y": 959}, "146": {"x": 874, "y": 930}, "147": {"x": 864, "y": 904}, "148": {"x": 859, "y": 875},
         "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
@@ -789,77 +790,100 @@ elif menu == "Mapa Interactivo":
 
     with col_mapa:
         # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
-        try:
-            with open("SVGsembrado_1_LOTE-Model.TXT", "r", encoding="utf-8") as f:
-                svg_content = f.read()
-
-            soup = BeautifulSoup(svg_content, "html.parser")
-            svg_tag = soup.find("svg")
-
-            # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
-            for item in lotes_datos_mapa:
-                id_lote = str(item["Lote_Id"])
-                hex_color = item["Hex"]
+        # Buscador de archivos inteligente:
+        nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
+        archivo_encontrado = None
+        
+        for nombre in nombres_posibles:
+            if os.path.exists(nombre):
+                archivo_encontrado = nombre
+                break
                 
-                # Tu archivo de prueba usa el formato Lote-01, Lote-02, etc.
-                id_busqueda = f"Lote-{int(id_lote):02d}" 
-                lote_path = soup.find(id=id_busqueda)
-                
-                if not lote_path:
-                    lote_path = soup.find(id=id_lote)
+        if archivo_encontrado:
+            try:
+                with open(archivo_encontrado, "r", encoding="utf-8") as f:
+                    svg_content = f.read()
 
-                if lote_path:
-                    # Lógica visual: Si hay un lote en específico seleccionado, atenuamos los demás
-                    if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
-                        lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
-                    else:
-                        lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
-                        
-                        # INYECCIÓN DINÁMICA DE LAS ESFERAS (Solo para el lote activo o todos si está la vista global)
-                        if st.session_state.mostrar_todos_mapa or id_lote == str(st.session_state.lote_actual):
-                            df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
-                            if not df_lote_esferas.empty:
-                                base_x = float(item["x"])
-                                base_y = float(item["y"])
-                                
-                                # Matriz de distribución compacta de esferas (cuadrícula de 4 columnas)
-                                cols_grid = 4
-                                spacing = 22  # Espaciado ideal en píxeles para mantenerse dentro del polígono
-                                
-                                for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                    r = idx // cols_grid
-                                    c = idx % cols_grid
+                # Usamos el parser robusto que mantiene las minúsculas y mayúsculas si existe lxml
+                try:
+                    soup = BeautifulSoup(svg_content, "xml")
+                except:
+                    soup = BeautifulSoup(svg_content, "html.parser")
+                    
+                svg_tag = soup.find("svg")
+                
+                # Crear un grupo especial (una capa nueva al final del SVG) para que las esferas queden encima de todo
+                esferas_group = soup.new_tag("g", id="capa_esferas")
+                if svg_tag:
+                    svg_tag.append(esferas_group)
+
+                # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
+                for item in lotes_datos_mapa:
+                    id_lote = str(item["Lote_Id"])
+                    hex_color = item["Hex"]
+                    
+                    # Inkscape guarda en minúsculas y tu archivo actual usa el formato lote-1, lote-2, etc.
+                    id_busqueda = f"lote-{id_lote}" 
+                    lote_path = soup.find(id=id_busqueda)
+                    
+                    if not lote_path:
+                        # Respaldo en caso de que en el futuro nombren los IDs de otra forma
+                        lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
+
+                    if lote_path:
+                        # Lógica visual: Si hay un lote en específico seleccionado, atenuamos los demás
+                        if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
+                            lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
+                        else:
+                            lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+                            
+                            # INYECCIÓN DINÁMICA DE LAS ESFERAS 
+                            if st.session_state.mostrar_todos_mapa or id_lote == str(st.session_state.lote_actual):
+                                df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
+                                if not df_lote_esferas.empty:
+                                    base_x = float(item["x"])
+                                    base_y = float(item["y"])
                                     
-                                    # Posicionamos calculando desde el centro coordenado del lote
-                                    cx = base_x + (c - (cols_grid - 1) / 2) * spacing
-                                    cy = base_y + (r - 1) * spacing
+                                    # Matriz de distribución compacta de esferas (cuadrícula de 4 columnas)
+                                    cols_grid = 4
+                                    spacing = 22  
                                     
-                                    color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
-                                    
-                                    # Relleno o Hueco según el estado exacto de la partida
-                                    if row.Estado == "Pagado":
-                                        fill_style = color_burbuja
-                                    else:
-                                        fill_style = "none" # Transparente/Hueco si está pendiente o parcial
+                                    for idx, row in enumerate(df_lote_esferas.itertuples()):
+                                        r = idx // cols_grid
+                                        c = idx % cols_grid
                                         
-                                    # Creamos el nodo <circle> de SVG
-                                    circle_tag = soup.new_tag(
-                                        "circle", 
-                                        cx=f"{cx:.2f}", 
-                                        cy=f"{cy:.2f}", 
-                                        r="9", 
-                                        style=f"fill:{fill_style};stroke:{color_burbuja};stroke-width:3.5;"
-                                    )
-                                    if svg_tag:
-                                        svg_tag.append(circle_tag)
+                                        # Posicionamos calculando desde el centro coordenado del lote
+                                        cx = base_x + (c - (cols_grid - 1) / 2) * spacing
+                                        cy = base_y + (r - 1) * spacing
+                                        
+                                        color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
+                                        
+                                        # Relleno o Hueco según el estado exacto de la partida
+                                        if row.Estado == "Pagado":
+                                            fill_style = color_burbuja
+                                        else:
+                                            fill_style = "none" # Transparente/Hueco si está pendiente o parcial
+                                            
+                                        # Creamos el nodo <circle> y lo inyectamos en la capa superior
+                                        circle_tag = soup.new_tag(
+                                            "circle", 
+                                            cx=f"{cx:.2f}", 
+                                            cy=f"{cy:.2f}", 
+                                            r="9", 
+                                            style=f"fill:{fill_style};stroke:{color_burbuja};stroke-width:3.5;"
+                                        )
+                                        esferas_group.append(circle_tag)
 
-            # Renderizamos el SVG HTML directamente con las esferas inyectadas
-            st.components.v1.html(str(soup), width=1000, height=700, scrolling=True)
-            
-        except Exception as e:
-            st.error("⚠️ No se encontró el archivo SVG de prueba.")
-            st.info("Asegúrate de tener el archivo 'SVGsembrado_1_LOTE-Model.TXT' en la misma carpeta que app.py.")
-            st.write(f"Detalle del error técnico: {e}")
+                # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
+                html_final = str(soup).replace("viewbox=", "viewBox=")
+                st.components.v1.html(html_final, width=1000, height=700, scrolling=True)
+                
+            except Exception as e:
+                st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
+                st.write(f"Detalle del error técnico: {e}")
+        else:
+            st.error("⚠️ No se encontró el archivo del mapa.")
+            st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
         # --- FIN DE LA INTEGRACIÓN DEL SVG ---
 
 # =========================================================================
