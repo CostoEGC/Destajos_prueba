@@ -602,12 +602,12 @@ elif menu == "Dashboard (Gráficos y Visor)":
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (CON EXPANSIÓN DE ESFERAS)
+# PESTAÑA 3: MAPA INTERACTIVO (AHORA CON INTEGRACIÓN SVG)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # --- ARCHIVO DE COORDENADAS INTERNO ---
+    # --- ARCHIVO DE COORDENADAS INTERNO (Se conserva solo como base de IDs y listado) ---
     COORDENADAS_LOTES = {
         "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
         "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
@@ -649,24 +649,10 @@ elif menu == "Mapa Interactivo":
         "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
 
-    # --- NUEVAS FUNCIONES PARA EL MAPA INTERACTIVO ---
-    def generar_espiral_micro_coordenadas(centro_x, centro_y, total_puntos, factor_dispersion=14):
-        coordenadas = []
-        if total_puntos == 1:
-            return [(centro_x, centro_y)]
-        for i in range(total_puntos):
-            phi = i * 137.5 * (math.pi / 180)
-            radio = factor_dispersion * math.sqrt(i) if i > 0 else 0
-            mix = centro_x + radio * math.cos(phi)
-            miy = centro_y + radio * math.sin(phi)
-            coordenadas.append((mix, miy))
-        return coordenadas
-
-    # Generar Paleta de Colores Dinámica (Para hacer coincidir el mapa con el Diagrama)
+    # Generar Paleta de Colores Dinámica
     paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
     partidas_unicas_mapa = df['Partida'].unique()
     mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas_mapa)}
-    # ------------------------------------------------
 
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
@@ -802,103 +788,42 @@ elif menu == "Mapa Interactivo":
             st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
 
     with col_mapa:
-        fig_mapa = go.Figure()
-        
-        if os.path.exists("plano.png"):
-            img_plano = Image.open("plano.png")
-            ancho_img, alto_img = img_plano.size
-            fig_mapa.add_layout_image(
-                dict(
-                    source=img_plano, xref="x", yref="y", x=0, y=0,
-                    sizex=ancho_img, sizey=alto_img,
-                    sizing="stretch", opacity=0.85, layer="below"
-                )
-            )
-            fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
-            fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
-        else:
-            fig_mapa.update_xaxes(range=[0, 1000], visible=False)
-            fig_mapa.update_yaxes(range=[1000, 0], visible=False, scaleanchor="x")
+        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO ---
+        try:
+            # Leemos el archivo de prueba actual
+            with open("SVGsembrado_1_LOTE-Model.TXT", "r", encoding="utf-8") as f:
+                svg_content = f.read()
 
-        if lotes_datos_mapa:
-            df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
+            soup = BeautifulSoup(svg_content, "html.parser")
+
+            # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
+            for item in lotes_datos_mapa:
+                id_lote = str(item["Lote_Id"])
+                hex_color = item["Hex"]
+                
+                # Tu archivo de prueba usa el formato Lote-01, Lote-02, etc.
+                id_busqueda = f"Lote-{int(id_lote):02d}" 
+                lote_path = soup.find(id=id_busqueda)
+                
+                # Si no lo encuentra, intentamos con el número directo
+                if not lote_path:
+                    lote_path = soup.find(id=id_lote)
+
+                if lote_path:
+                    # Lógica visual: Si hay un lote en específico seleccionado, atenuamos los demás
+                    if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
+                        lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
+                    else:
+                        lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+
+            # Renderizamos el SVG HTML directamente
+            st.components.v1.html(str(soup), width=1000, height=700, scrolling=True)
             
-            if st.session_state.mostrar_todos_mapa:
-                # -----------------------------------------------------
-                # VISTA 1: GLOBAL (Un solo punto central de color general)
-                # -----------------------------------------------------
-                df_mostrar_puntos = df_mapa_puntos
-                
-                for _, item in df_mostrar_puntos.iterrows():
-                    fig_mapa.add_trace(go.Scatter(
-                        x=[item['x']], y=[item['y']],
-                        mode="markers",
-                        marker=dict(size=12, color=item['Hex'], line=dict(width=2, color='white')),
-                        text=[item['Lote']], textposition="top center",
-                        textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
-                        hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance Financiero: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
-                    ))
-            else:
-                # -----------------------------------------------------
-                # VISTA 2: ZOOM A LOTE ESPECÍFICO (Expansión de esferas)
-                # -----------------------------------------------------
-                id_buscado = str(st.session_state.lote_actual)
-                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
-                
-                if not df_mostrar_puntos.empty:
-                    target_x = df_mostrar_puntos.iloc[0]['x']
-                    target_y = df_mostrar_puntos.iloc[0]['y']
-                    
-                    # 1. Hacemos el Zoom al área del lote seleccionado
-                    rango_zoom = 180
-                    fig_mapa.update_xaxes(range=[target_x - rango_zoom, target_x + rango_zoom])
-                    fig_mapa.update_yaxes(range=[target_y + rango_zoom, target_y - rango_zoom]) 
-                    
-                    # 2. Extraemos las partidas que le pertenecen a este lote
-                    df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_buscado].copy()
-                    
-                    # 3. Calculamos la dispersión alrededor del centro (x, y) de este lote
-                    micro_coords = generar_espiral_micro_coordenadas(target_x, target_y, len(df_lote_esferas), factor_dispersion=14)
-                    
-                    # 4. Dibujamos cada partida como una esfera independiente
-                    for idx, (_, fila_part) in enumerate(df_lote_esferas.iterrows()):
-                        partida_nombre = fila_part['Partida']
-                        estado_pago = fila_part['Estado']
-                        costo = float(fila_part['Precio'])
-                        pago_real = float(fila_part.get('Pago_1', 0)) + float(fila_part.get('Pago_2', 0))
-                        
-                        mx, my = micro_coords[idx]
-                        
-                        # Extraemos el color que le corresponde según el mapa general
-                        color_asignado = mapa_colores_partida.get(partida_nombre, '#7f8c8d')
-                        
-                        # Lógica visual de relleno igual a tu diagrama
-                        if estado_pago == "Pagado":
-                            color_relleno = color_asignado
-                            color_borde = color_asignado
-                        else:
-                            color_relleno = "rgba(0,0,0,0)"  # Transparente
-                            color_borde = color_asignado
-                            
-                        hover_text = f"<b>Lote {id_buscado}</b><br>Partida: {partida_nombre}<br>Costo: ${costo:,.2f}<br>Pagado: ${pago_real:,.2f}<br>Estado: {estado_pago}"
-                        
-                        fig_mapa.add_trace(go.Scatter(
-                            x=[mx], y=[my],
-                            mode='markers',
-                            marker=dict(size=14, color=color_relleno, line=dict(width=2, color=color_borde)),
-                            text=[hover_text],
-                            hoverinfo='text'
-                        ))
-
-        fig_mapa.update_layout(
-            showlegend=False,
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=600,
-            template="plotly_white",
-            hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial")
-        )
-        st.plotly_chart(fig_mapa, use_container_width=True)
-
+        except Exception as e:
+            st.error("⚠️ No se encontró el archivo SVG de prueba.")
+            st.info("Asegúrate de tener el archivo 'SVGsembrado_1_LOTE-Model.TXT' en la misma carpeta que app.py.")
+            st.write(f"Detalle del error técnico: {e}")
+        # --- FIN DE LA INTEGRACIÓN DEL SVG ---
 
 # =========================================================================
 # PESTAÑA 4: DIAGRAMA INTERACTIVO (CON LEYENDA Y COLORES POR PARTIDA)
