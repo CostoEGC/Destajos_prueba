@@ -983,7 +983,7 @@ elif menu == "Mapa Interactivo":
             # --- AQUI ESTÁ EL CAMBIO ---
             # Aumenta estos valores si quieres más separación
             espaciado_x = 3.0  # <-- Aumenta este número para separar más horizontalmente
-            espaciado_y = 2.5  # <-- Aumenta este número para separar más verticalmente
+            espaciado_y = 2.0  # <-- Aumenta este número para separar más verticalmente
 
             # Factor para separar las esferas (aumenta o disminuye para juntar/separar)
             #espaciado = 1.5 
@@ -1021,7 +1021,7 @@ elif menu == "Mapa Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=40, 
+                    size=60, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=0) 
