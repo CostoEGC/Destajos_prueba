@@ -982,7 +982,7 @@ elif menu == "Mapa Interactivo":
 
             # --- AQUI ESTÁ EL CAMBIO ---
             # Aumenta estos valores si quieres más separación
-            espaciado_x = 3.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_x = 4.0  # <-- Aumenta este número para separar más horizontalmente
             espaciado_y = 2.0  # <-- Aumenta este número para separar más verticalmente
 
             # Factor para separar las esferas (aumenta o disminuye para juntar/separar)
