@@ -980,13 +980,18 @@ elif menu == "Mapa Interactivo":
             colores_relleno = []
             textos_hover = []
 
+            # --- AQUI ESTÁ EL CAMBIO ---
+            # Aumenta estos valores si quieres más separación
+            espaciado_x = 3.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_y = 2.5  # <-- Aumenta este número para separar más verticalmente
+
             # Factor para separar las esferas (aumenta o disminuye para juntar/separar)
-            espaciado = 1.5 
+            #espaciado = 1.5 
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
-                x = (i % cols) * espaciado
-                y = (i // cols) * espaciado
+                x = (i % cols) * espaciado_x
+                y = (i // cols) * espaciado_y
                     
                 x_coords.append(x)
                 y_coords.append(y)
@@ -1009,7 +1014,7 @@ elif menu == "Mapa Interactivo":
                 textos_hover.append(hover_text)
 
             # Calculo dinámico de la altura del gráfico 
-            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 45))
+            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
 
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
@@ -1025,9 +1030,10 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
-            # RESTAURADO: Polígono grande con margen de seguridad para no tocar las líneas
-            margen = 1.0 # <--- Ajusta este número para alejar o acercar el borde verde de las esferas
-            x_max = (cols - 1) * espaciado + margen
+            # AJUSTE AUTOMÁTICO DEL POLÍGONO
+            # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
+            margen = 1.5 # <--- Ajusta este número para alejar o acercar el borde verde de las esferas
+            x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
             y_min = -margen
