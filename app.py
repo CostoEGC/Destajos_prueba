@@ -236,6 +236,9 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, 
     if col2.button("❌ CANCELAR"):
         st.rerun()
 
+def clave_ordenamiento(val):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
+
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
@@ -268,9 +271,6 @@ if 'df_original' in st.session_state:
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
-
-def clave_ordenamiento(val):
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏗️ Resumen Total")
@@ -745,8 +745,8 @@ elif menu == "Mapa Interactivo":
     st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas Pagados)")
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    partidas_unicas_filtro = sorted([str(p) for p in df['Partida'].dropna().unique() if str(p).strip()])
-    destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()])
+    partidas_unicas_filtro = sorted([str(p) for p in df['Partida'].dropna().unique() if str(p).strip()], key=clave_ordenamiento)
+    destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
     
     filtro_partidas_mapa = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_unicas_filtro)
     filtro_destajistas_mapa = f_col_mapa2.multiselect("Filtrar por Destajista:", options=destajistas_unicos_filtro)
@@ -910,32 +910,6 @@ elif menu == "Mapa Interactivo":
                 if svg_tag:
                     svg_tag.append(esferas_group)
 
-                def obtener_centro_svg(elemento_svg):
-                    import re
-                    try:
-                        xs, ys = [], []
-                        if elemento_svg.name == 'polygon' and elemento_svg.get('points'):
-                            pts = elemento_svg.get('points').strip().split()
-                            for p in pts:
-                                if ',' in p:
-                                    x, y = map(float, p.split(','))
-                                    xs.append(x); ys.append(y)
-                        elif elemento_svg.name == 'path' and elemento_svg.get('d'):
-                            d = elemento_svg.get('d')
-                            numeros = list(map(float, re.findall(r'-?\d+\.?\d*', d)))
-                            for i in range(0, len(numeros)-1, 2):
-                                xs.append(numeros[i])
-                                ys.append(numeros[i+1])
-                        
-                        if xs and ys:
-                            cx = sum(xs) / len(xs)
-                            cy = sum(ys) / len(ys)
-                            radio = min(max(xs) - min(xs), max(ys) - min(ys)) / 2
-                            return cx, cy, radio
-                    except:
-                        pass
-                    return None, None, None
-
                 # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
                 for item in lotes_datos_mapa:
                     id_lote = str(item["Lote_Id"])
@@ -967,16 +941,12 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
+                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS NO DESAPAREZCAN
                         if not df_lote_esferas.empty:
-                            cx_real, cy_real, radio_real = obtener_centro_svg(lote_path)
-                            
-                            if cx_real is not None:
-                                base_x, base_y = cx_real, cy_real
-                                radio_disp = max(5, radio_real * 0.6)
-                            else:
-                                base_x = float(item["x"])
-                                base_y = float(item["y"])
-                                radio_disp = 20
+                            # Utilizamos estrictamente las coordenadas manuales que tú mapeaste en COORDENADAS_LOTES
+                            base_x = float(item["x"])
+                            base_y = float(item["y"])
+                            radio_disp = 12 # Radio de dispersión ajustado para que quepan bien dentro del lote
                             
                             num_esferas = len(df_lote_esferas)
                             r_esfera = 8 if num_esferas < 10 else 5
