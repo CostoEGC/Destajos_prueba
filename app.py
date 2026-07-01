@@ -774,15 +774,14 @@ elif menu == "Mapa Interactivo":
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
                 
-                # CONSTRUCCIÓN DE LA TABLA HTML SOLUCIONANDO EL FORMATO DE TEXTO Y TAMAÑOS DE ESFERA
+                # --- PUNTOS 1.1, 1.2, 1.3, 1.4: TABLA DESGLOSE ---
                 html_table = (
-                    "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>"
-                    "<table style='width: 100%; border-collapse: collapse; text-align: center;'>"
-                    "<thead style='position: sticky; top: 0; background-color: rgba(128, 128, 128, 0.1); z-index: 10;'>"
-                    #"<thead style='position: sticky; top: 0; background-color: #f8f9fa; z-index: 10;'>"
+                    "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
+                    "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
+                    "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
                     "<tr>"
-                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" # ELIMINADO EL TEXTO "COLOR"
-                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;text-align: left; '>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
                     "</tr></thead><tbody>"
@@ -792,16 +791,14 @@ elif menu == "Mapa Interactivo":
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
                     html_table += (
                         "<tr style='border-bottom: 1px solid #eee;'>"
-                        # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DE LA TABLA (modifica width y height, actual 24px)
                         f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
                         f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
-                        f"<td style='padding: 8px; font-size:14px; '>{row_lote['Estatus']}</td>"
+                        f"<td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td>"
                         f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
                         "</tr>"
                     )
                 html_table += "</tbody></table></div>"
                 
-                # Se renderiza de forma segura y sin problemas de markdown
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
@@ -839,68 +836,104 @@ elif menu == "Mapa Interactivo":
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
                     svg_content = f.read()
 
-                # Usamos el parser robusto que mantiene las minúsculas y mayúsculas si existe lxml
                 try:
                     soup = BeautifulSoup(svg_content, "xml")
                 except:
                     soup = BeautifulSoup(svg_content, "html.parser")
                     
+                # --- PUNTO 5: REPARACIÓN DE LÍNEAS Y RELLENOS DIAGONALES EN EL SVG ---
+                for path_elem in soup.find_all(['path', 'polygon']):
+                    path_elem['fill-rule'] = "evenodd"
+                    if 'style' in path_elem.attrs:
+                        if 'fill-rule' not in path_elem['style']:
+                            path_elem['style'] += ";fill-rule:evenodd;"
+                    else:
+                        path_elem['style'] = "fill-rule:evenodd;"
+                
                 svg_tag = soup.find("svg")
                 
-                # Ajustamos la etiqueta SVG dinámicamente para que haga zoom out/ajuste de pantalla
                 if svg_tag:
                     svg_tag['width'] = "100%"
                     svg_tag['height'] = "100%"
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                 
-                # Crear un grupo especial (una capa nueva al final del SVG) para que las esferas queden encima de todo
                 esferas_group = soup.new_tag("g", id="capa_esferas")
                 if svg_tag:
                     svg_tag.append(esferas_group)
+
+                # --- PUNTO 4: FUNCIÓN MATEMÁTICA PARA ENCONTRAR EL CENTRO IDEAL DEL LOTE ---
+                def obtener_centro_svg(elemento_svg):
+                    import re
+                    try:
+                        xs, ys = [], []
+                        if elemento_svg.name == 'polygon' and elemento_svg.get('points'):
+                            pts = elemento_svg.get('points').strip().split()
+                            for p in pts:
+                                if ',' in p:
+                                    x, y = map(float, p.split(','))
+                                    xs.append(x); ys.append(y)
+                        elif elemento_svg.name == 'path' and elemento_svg.get('d'):
+                            d = elemento_svg.get('d')
+                            numeros = list(map(float, re.findall(r'-?\d+\.?\d*', d)))
+                            for i in range(0, len(numeros)-1, 2):
+                                xs.append(numeros[i])
+                                ys.append(numeros[i+1])
+                        
+                        if xs and ys:
+                            cx = sum(xs) / len(xs)
+                            cy = sum(ys) / len(ys)
+                            radio = min(max(xs) - min(xs), max(ys) - min(ys)) / 2
+                            return cx, cy, radio
+                    except:
+                        pass
+                    return None, None, None
 
                 # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
                 for item in lotes_datos_mapa:
                     id_lote = str(item["Lote_Id"])
                     hex_color = item["Hex"]
                     
-                    # Inkscape guarda en minúsculas y tu archivo actual usa el formato lote-1, lote-2, etc.
                     id_busqueda = f"lote-{id_lote}" 
                     lote_path = soup.find(id=id_busqueda)
                     
                     if not lote_path:
-                        # Respaldo en caso de que en el futuro nombren los IDs de otra forma
                         lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
 
                     if lote_path:
-                        # Lógica visual: Si hay un lote en específico seleccionado, atenuamos los demás
                         if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
                             lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
                         else:
                             lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
                             
-                            # INYECCIÓN DINÁMICA DE LAS ESFERAS (Solo se inyectan si NO se muestran todos)
                             if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                 df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
                                 if not df_lote_esferas.empty:
-                                    base_x = float(item["x"])
-                                    base_y = float(item["y"])
+                                    # --- PUNTOS 2 y 4: CÁLCULO DE POSICIÓN ROTADA Y SEPARACIÓN ---
+                                    cx_real, cy_real, radio_real = obtener_centro_svg(lote_path)
                                     
-                                    # Matriz de distribución compacta de esferas (cuadrícula de 4 columnas)
-                                    cols_grid = 4
-                                    spacing = 22  
+                                    if cx_real is not None:
+                                        base_x, base_y = cx_real, cy_real
+                                        radio_disp = max(5, radio_real * 0.6) # Colchón de 40% interno para no tocar líneas
+                                    else:
+                                        base_x = float(item["x"])
+                                        base_y = float(item["y"])
+                                        radio_disp = 20
+                                    
+                                    num_esferas = len(df_lote_esferas)
+                                    r_esfera = 8 if num_esferas < 10 else 5 # Autoajuste de tamaño
                                     
                                     for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                        r = idx // cols_grid
-                                        c = idx % cols_grid
-                                        
-                                        # Posicionamos calculando desde el centro coordenado del lote
-                                        cx = base_x + (c - (cols_grid - 1) / 2) * spacing
-                                        cy = base_y + (r - 1) * spacing
+                                        # Lógica concéntrica
+                                        if num_esferas == 1:
+                                            cx, cy = base_x, base_y
+                                        else:
+                                            angulo = (2 * math.pi * idx) / num_esferas
+                                            cx = base_x + radio_disp * math.cos(angulo)
+                                            cy = base_y + radio_disp * math.sin(angulo)
                                         
                                         color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                         
-                                        # Relleno con transparencia y sin contorno
                                         if row.Estado == "Pagado":
                                             fill_style = color_burbuja
                                             fill_opacity = "1.0"
@@ -908,21 +941,19 @@ elif menu == "Mapa Interactivo":
                                             fill_style = color_burbuja
                                             fill_opacity = "0.5"
                                         else:
-                                            fill_style = "none" # Transparente si está pendiente
+                                            fill_style = "none" 
                                             fill_opacity = "0.0"
                                             
                                         if fill_opacity != "0.0":
-                                            # Creamos el nodo <circle> sin contorno y con las opacidades
                                             circle_tag = soup.new_tag(
                                                 "circle", 
                                                 cx=f"{cx:.2f}", 
                                                 cy=f"{cy:.2f}", 
-                                                r="9", 
+                                                r=str(r_esfera), 
                                                 style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:none;"
                                             )
                                             esferas_group.append(circle_tag)
 
-                # Aseguramos que el SVG se redimensione bien convirtiendo el parámetro viewBox
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
                 st.components.v1.html(html_final, height=700, scrolling=True)
@@ -946,16 +977,22 @@ elif menu == "Mapa Interactivo":
 
         if not df_lote_diag.empty:
             num_partidas = len(df_lote_diag)
-            cols = math.ceil(math.sqrt(num_partidas))
-
+            
             x_coords = []
             y_coords = []
             colores_relleno = []
             textos_hover = []
 
             for i, row in enumerate(df_lote_diag.itertuples()):
-                x = i % cols
-                y = i // cols
+                # --- PUNTO 2: LÓGICA CIRCULAR PARA EVITAR TRASLAPES AL AMPLIAR ---
+                if num_partidas == 1:
+                    x, y = 0, 0
+                else:
+                    angulo = (2 * math.pi * i) / num_partidas
+                    radio = 1
+                    x = radio * math.cos(angulo)
+                    y = radio * math.sin(angulo)
+                    
                 x_coords.append(x)
                 y_coords.append(y)
 
@@ -966,71 +1003,49 @@ elif menu == "Mapa Interactivo":
                 
                 color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
 
-                # Lógica de relleno de transparencia sin contorno
                 if estado == "Pagado":
                     colores_relleno.append(color_asignado)
                 elif estado == "Pago Parcial":
                     colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
                 else:
-                    colores_relleno.append("rgba(0,0,0,0)") # Hueco invisible
+                    colores_relleno.append("rgba(0,0,0,0)")
 
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
-
-            # Calculo dinámico de la altura del gráfico 
-            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 45))
 
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DEL DIAGRAMA INTERACTIVO (modifica el número 'size')
                     size=40, 
                     color=colores_relleno,
                     symbol='circle',
-                    line=dict(width=0) # Sin contorno según la regla
+                    line=dict(width=0) 
                 ),
                 text=textos_hover,
                 hoverinfo='text'
             ))
 
-            # Añadir un polígono genérico simulando el terreno/lote en el fondo del diagrama
-            #max_x = max(x_coords) if x_coords else 1
-            #max_y = max(y_coords) if y_coords else 1
-            
-            # Calculamos las coordenadas del rectángulo basado en la cantidad de columnas
-            cols_max = cols - 0.5
-            y_max = max(y_coords) + 0.5
-
-
+            # --- PUNTO 3: POLÍGONO SEGURO CON MARGEN PARA NO TOCAR LAS LÍNEAS ---
             fig_diag.add_shape(
                 type="path",
-                # Polígono irregular que envuelve la cuadrícula simulando un lote real
-                #path=f"M -0.5 -0.5 L -0.2 {max_y + 0.6} L {max_x + 0.4} {max_y + 0.8} L {max_x + 0.6} -0.3 Z",
-                #line=dict(color="rgba(128,128,128,0.8)", width=3),
-                #fillcolor="rgba(0,0,0,0)", # Fondo transparente
-                #layer="below" # Mantiene el polígono detrás de las esferas
-
-                # Esto dibuja un rectángulo perfecto (M = inicio, L = líneas)
-                path=f"M -0.5 -0.5 L -0.5 {y_max} L {cols_max} {y_max} L {cols_max} -0.5 Z",
-                # MODIFICACIÓN: width=5 lo hace más grueso
+                path="M -1.8 -1.8 L -1.8 1.8 L 1.8 1.8 L 1.8 -1.8 Z",
                 line=dict(color="rgba(14,232,144,0.8)", width=8), 
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
-
-
             )
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
-                xaxis=dict(visible=False, showgrid=False, zeroline=False),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                # Se establecen rangos fijos y el scaleanchor="x" para evitar distorsiones y traslapes
+                xaxis=dict(visible=False, showgrid=False, zeroline=False, range=[-2, 2]),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", range=[-2, 2], scaleanchor="x", scaleratio=1),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                height=altura_grafico, 
+                height=450, 
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
@@ -1073,7 +1088,6 @@ elif menu == "Diagrama Interactivo":
 
     if not df_lote_diag.empty:
         num_partidas = len(df_lote_diag)
-        cols = math.ceil(math.sqrt(num_partidas))
 
         x_coords = []
         y_coords = []
@@ -1082,8 +1096,15 @@ elif menu == "Diagrama Interactivo":
         textos_hover = []
 
         for i, row in enumerate(df_lote_diag.itertuples()):
-            x = i % cols
-            y = i // cols
+            # Se replica la lógica circular para la pestaña 4 por consistencia visual
+            if num_partidas == 1:
+                x, y = 0, 0
+            else:
+                angulo = (2 * math.pi * i) / num_partidas
+                radio = 1
+                x = radio * math.cos(angulo)
+                y = radio * math.sin(angulo)
+                
             x_coords.append(x)
             y_coords.append(y)
 
@@ -1099,16 +1120,14 @@ elif menu == "Diagrama Interactivo":
                 colores_relleno.append(color_asignado)
                 colores_borde.append(color_asignado)
             else:
-                colores_relleno.append("rgba(0,0,0,0)") # Hueco (transparente) para parcial o pendiente
+                colores_relleno.append("rgba(0,0,0,0)") 
                 colores_borde.append(color_asignado)
 
             hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
             textos_hover.append(hover_text)
 
-        # Calculo dinámico de la altura del gráfico para empatarlo con la leyenda
-        altura_grafico = max(450, (math.ceil(num_partidas/cols) * 45))
+        altura_grafico = 450
 
-        # Dividimos la pantalla: Izquierda el diagrama (60%), Derecha la Leyenda (40%)
         col_diagrama, col_leyenda = st.columns([6, 4])
         
         with col_diagrama:
@@ -1130,8 +1149,8 @@ elif menu == "Diagrama Interactivo":
 
             fig_diag.update_layout(
                 title=dict(text=f"Evaluando Lote {lote_seleccionado_diag} – Prototipo {prototipo_diag}", font=dict(size=20)),
-                xaxis=dict(visible=False, showgrid=False, zeroline=False),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                xaxis=dict(visible=False, showgrid=False, zeroline=False, range=[-2, 2]),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", range=[-2, 2], scaleanchor="x", scaleratio=1),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
@@ -1148,7 +1167,6 @@ elif menu == "Diagrama Interactivo":
             st.markdown("### 🎨 Leyenda de Partidas")
             st.markdown("Identifica cada burbuja por el color asignado a su partida correspondiente.", unsafe_allow_html=True)
             
-            # Tabla de leyenda construida con HTML puro para que las esferas queden perfectas
             html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
             html_leyenda += "<tr><th style='text-align:center; border-bottom: 2px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 2px solid #ddd; padding: 10px;'>Partida</th></tr>"
             
