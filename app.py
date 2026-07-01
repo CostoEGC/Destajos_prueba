@@ -1063,8 +1063,8 @@ elif menu == "Mapa Interactivo":
 
             # --- AQUI ESTÁ EL CAMBIO ---
             # Aumenta estos valores si quieres más separación
-            espaciado_x = 12.0  # <-- Aumenta este número para separar más horizontalmente
-            espaciado_y = 1.0  # <-- Aumenta este número para separar más verticalmente
+            espaciado_x = 1.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_y = 1.5  # <-- Aumenta este número para separar más verticalmente
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
@@ -1110,7 +1110,7 @@ elif menu == "Mapa Interactivo":
 
             # AJUSTE AUTOMÁTICO DEL POLÍGONO
             # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
-            margen = 1.5 
+            margen = 3.5 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
