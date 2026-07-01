@@ -1023,9 +1023,11 @@ elif menu == "Mapa Interactivo":
                                         "circle", 
                                         cx=f"{cx:.2f}", 
                                         cy=f"{cy:.2f}", 
-                                        r=str(r_esfera_dinamico), 
+                                        #r=str(r_esfera_dinamico), 
+                                        r=50, #radio para purebas
                                         # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
-                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
+                                        #style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
+                                        style="fill:red; stroke:yellow; stroke-width:10px; fill-opacity:1.0;"
                                     )
                                     lote_path.insert_after(circle_tag)
 
