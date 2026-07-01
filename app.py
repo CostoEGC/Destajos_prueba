@@ -1110,7 +1110,7 @@ elif menu == "Mapa Interactivo":
 
             # AJUSTE AUTOMÁTICO DEL POLÍGONO
             # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
-            margen = 1.5 
+            margen = 2.5 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
