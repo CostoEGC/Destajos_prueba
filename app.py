@@ -1063,7 +1063,7 @@ elif menu == "Mapa Interactivo":
 
             # --- AQUI ESTÁ EL CAMBIO ---
             # Aumenta estos valores si quieres más separación
-            espaciado_x = 7.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_x = 12.0  # <-- Aumenta este número para separar más horizontalmente
             espaciado_y = 2.0  # <-- Aumenta este número para separar más verticalmente
 
             for i, row in enumerate(df_lote_diag.itertuples()):
