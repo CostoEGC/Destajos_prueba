@@ -25,15 +25,14 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="1.1875"
-     inkscape:cx="1541.8947"
-     inkscape:cy="2325.8947"
-     inkscape:window-width="1589"
-     inkscape:window-height="738"
-     inkscape:window-x="1613"
-     inkscape:window-y="279"
-     inkscape:window-maximized="0"
-     inkscape:current-layer="layer-oc6"
-     showguides="true">
+     inkscape:cx="1624"
+     inkscape:cy="903.1579"
+     inkscape:window-width="1920"
+     inkscape:window-height="1027"
+     inkscape:window-x="1358"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer-oc6">
     <inkscape:page
        x="0"
        y="0"
@@ -98,6 +97,21 @@
      id="layer-oc6"
      inkscape:groupmode="layer"
      inkscape:label="GV_MUROS_BC">
+    <path
+       id="lote-103"
+       d="m 10514,5695 -901,118 20,154 116,883 28,208 -498,66 -28,-207 -82,-623 -54,-415 498,-66 164,1245"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path7"
+       d="m 10514.626,5695.4346 c 56.497,-7.4419 112.9,14.3501 149.719,57.8432 36.817,43.4932 48.998,102.7212 32.33,157.2134"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="lote-102"
+       d="m 10696,5910 -328,1071 -591,77"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
     <path
        id="lote-116"
        d="m 3302,7911 -498,66 -164,-1245 498,-66 164,1245"
@@ -619,20 +633,10 @@
        style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
        transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
     <path
-       id="path113"
-       d="m 9977,16997 -27,-206 -95,-726 -2,-8 -40,-306 589,-77"
-       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
-    <path
-       id="path114"
-       d="m 10403.486,15673.903 c 15.788,22.942 26.178,49.159 30.391,76.686"
-       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
-    <path
        id="lote-10"
-       d="m 10433,15750 178,1163 -634,84"
        style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)"
+       d="m 10433,15750 178,1163 -634,84 m 426.486,-1323.097 c 15.788,22.942 26.178,49.159 30.391,76.686 M 9977,16997 l -27,-206 -95,-726 -2,-8 -40,-306 589,-77" />
     <path
        id="lote-80"
        d="m 4530,11465 -1245,164 -54,-415 1245,-164 54,415"
@@ -810,21 +814,19 @@
        transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
     <path
        id="lote-151"
+       d="m 12568,7564 -104,407 -1200,158"
        style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       transform="matrix(0.16,0,0,-0.16,18.666667,3392)"
-       d="m 11039.543,8042.9946 c -55.282,-65.3047 -73.57,-154.2348 -48.544,-236.0246 L 11254,6946 l 1368,419 -54,199 -104,407 -1199.828,158.4231 c -84.657,11.5964 -169.348,-21.1233 -224.629,-86.4285 z"
-       sodipodi:nodetypes="sccccccs" />
-    <path
-       id="path2"
-       d="m 9777,7058 -498,66 -28,-207 -82,-623 -54,-415 550.6316,-66 L 9777,7058"
-       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       sodipodi:nodetypes="ccccccc"
        transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
     <path
-       id="lote-102"
+       id="path156"
+       d="m 11264.344,8129.8462 c -84.829,11.1733 -169.52,-21.5464 -224.801,-86.8516 -55.282,-65.3047 -73.57,-154.2348 -48.545,-236.0547"
        style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
-       transform="matrix(0.16,0,0,-0.16,18.666667,3392)"
-       d="m 10514.626,5695.4346 c 120.406,-15.8601 -640.3237,88.3991 -839.0036,125.5829 198.6799,-37.1838 959.4096,-141.443 839.0036,-125.5829 z m 0,0 c 120.406,-15.8601 217.571,98.9254 182.049,215.0566 35.522,-116.1312 -61.643,-230.9167 -182.049,-215.0566 z M 10368,6981 l 328,-1071 -328,1071 -591,77 z" />
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
+    <path
+       id="path157"
+       d="m 10991,7807 263,-861 1368,419 -54,199"
+       style="fill:none;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;stroke-dasharray:none;stroke-opacity:1"
+       transform="matrix(0.16,0,0,-0.16,18.666667,3392)" />
   </g>
   <g
      id="layer-oc7"
