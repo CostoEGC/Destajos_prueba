@@ -944,9 +944,7 @@ elif menu == "Mapa Interactivo":
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                 
-                esferas_group = soup.new_tag("g", id="capa_esferas")
-                if svg_tag:
-                    svg_tag.append(esferas_group)
+               
 
                 # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
                 for item in lotes_datos_mapa:
@@ -1016,14 +1014,20 @@ elif menu == "Mapa Interactivo":
                                     fill_opacity = "0.0"
                                     
                                 if fill_opacity != "0.0":
+                                    # 💡 TIP: Si tras este cambio las ves muy pequeñas, sube este valor base de r_esfera (ej. a 20 o 50)
+                                     # dependiendo de la escala general de tu ViewBox en el SVG.
+                                    r_esfera_dinamico = r_esfera
+
+
                                     circle_tag = soup.new_tag(
                                         "circle", 
                                         cx=f"{cx:.2f}", 
                                         cy=f"{cy:.2f}", 
-                                        r=str(r_esfera), 
-                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:none;"
+                                        r=str(r_esfera_dinamico), 
+                                        # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
+                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
                                     )
-                                    esferas_group.append(circle_tag)
+                                    lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
