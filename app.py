@@ -745,10 +745,22 @@ elif menu == "Mapa Interactivo":
     st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas Pagados)")
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    partidas_unicas_filtro = sorted([str(p) for p in df['Partida'].dropna().unique() if str(p).strip()], key=clave_ordenamiento)
+    # --- MODIFICACIÓN 1: Ordenar las partidas respecto a su número inicial (orden original) ---
+    partidas_ordenadas = []
+    for p in df['Partida'].dropna().unique():
+        if str(p).strip() and str(p) not in partidas_ordenadas:
+            partidas_ordenadas.append(str(p))
+            
+    # Creamos la visualización con "1.- Cisterna", etc.
+    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
+    
     destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
     
-    filtro_partidas_mapa = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_unicas_filtro)
+    filtro_partidas_mapa_display = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_display)
+    
+    # Limpiamos el texto seleccionado de vuelta a su nombre original para usarlo en el dataframe
+    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
+    
     filtro_destajistas_mapa = f_col_mapa2.multiselect("Filtrar por Destajista:", options=destajistas_unicos_filtro)
     
     filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
@@ -897,6 +909,32 @@ elif menu == "Mapa Interactivo":
                             path_elem['style'] += ";fill-rule:evenodd;"
                     else:
                         path_elem['style'] = "fill-rule:evenodd;"
+
+                # --- MODIFICACIÓN 2: Nueva función para obtener centroide y radio visual en base a SVG ---
+                def calcular_centro_poligono(elemento):
+                    coords_x, coords_y = [], []
+                    try:
+                        if elemento.name in ['polygon', 'polyline']:
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('points', ''))
+                            coords_x = [float(pts[i]) for i in range(0, len(pts), 2)]
+                            coords_y = [float(pts[i+1]) for i in range(0, len(pts), 2)]
+                        elif elemento.name == 'path':
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('d', ''))
+                            if len(pts) >= 2:
+                                coords_x = [float(pts[i]) for i in range(0, len(pts)-1, 2)]
+                                coords_y = [float(pts[i+1]) for i in range(0, len(pts)-1, 2)]
+                        
+                        if coords_x and coords_y:
+                            min_x, max_x = min(coords_x), max(coords_x)
+                            min_y, max_y = min(coords_y), max(coords_y)
+                            cx = (min_x + max_x) / 2.0
+                            cy = (min_y + max_y) / 2.0
+                            radio_disp = min(max_x - min_x, max_y - min_y) * 0.30 
+                            return cx, cy, radio_disp
+                    except:
+                        pass
+                    return None, None, None
+                # -----------------------------------------------------------------------------------------
                 
                 svg_tag = soup.find("svg")
                 
@@ -941,12 +979,18 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS NO DESAPAREZCAN
+                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS ESTÉN DENTRO DEL POLÍGONO
                         if not df_lote_esferas.empty:
-                            # Utilizamos estrictamente las coordenadas manuales que tú mapeaste en COORDENADAS_LOTES
-                            base_x = float(item["x"])
-                            base_y = float(item["y"])
-                            radio_disp = 12 # Radio de dispersión ajustado para que quepan bien dentro del lote
+                            cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
+                            
+                            if cx_auto is not None and cy_auto is not None:
+                                base_x, base_y = cx_auto, cy_auto
+                                radio_disp = max(r_auto, 5) # Aseguramos un mínimo para el radio de dispersión
+                            else:
+                                # Fallback a coordenadas manuales si el SVG no proporciona buenos puntos
+                                base_x = float(item["x"])
+                                base_y = float(item["y"])
+                                radio_disp = 12 
                             
                             num_esferas = len(df_lote_esferas)
                             r_esfera = 8 if num_esferas < 10 else 5
@@ -1016,9 +1060,6 @@ elif menu == "Mapa Interactivo":
             espaciado_x = 7.0  # <-- Aumenta este número para separar más horizontalmente
             espaciado_y = 2.0  # <-- Aumenta este número para separar más verticalmente
 
-            # Factor para separar las esferas (aumenta o disminuye para juntar/separar)
-            #espaciado = 1.5 
-
             for i, row in enumerate(df_lote_diag.itertuples()):
                 # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
                 x = (i % cols) * espaciado_x
@@ -1063,7 +1104,7 @@ elif menu == "Mapa Interactivo":
 
             # AJUSTE AUTOMÁTICO DEL POLÍGONO
             # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
-            margen = 1.5 # <--- Ajusta este número para alejar o acercar el borde verde de las esferas
+            margen = 1.5 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
