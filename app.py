@@ -10,6 +10,8 @@ import json
 import math
 from zoneinfo import ZoneInfo
 from PIL import Image
+from bs4 import BeautifulSoup
+
 
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
@@ -164,6 +166,11 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
+# --- PALETA DE COLORES GLOBAL PARA PARTIDAS (Compartida entre Mapa y Diagrama) ---
+partidas_unicas_global = df['Partida'].unique() if not df.empty else []
+paleta_colores_global = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_global)] for i, partida in enumerate(partidas_unicas_global)}
+
 # Esta variable controlará unificadamente el Lote en TODAS las pestañas (se forza a string)
 if 'lote_actual' not in st.session_state:
     st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
@@ -229,13 +236,15 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, 
     if col2.button("❌ CANCELAR"):
         st.rerun()
 
+def clave_ordenamiento(val):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
+
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
     "Dashboard (Gráficos y Visor)", 
-    "Mapa Interactivo",
-    "Diagrama Interactivo"
+    "Mapa Interactivo"
 ])
 
 # Control de estado de menú para forzar acciones al cambiar de pestaña
@@ -262,9 +271,6 @@ if 'df_original' in st.session_state:
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
-
-def clave_ordenamiento(val):
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🏗️ Resumen Total")
@@ -599,11 +605,19 @@ elif menu == "Dashboard (Gráficos y Visor)":
             else:
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
+
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO
+# PESTAÑA 3: MAPA INTERACTIVO (CON INTEGRACIÓN SVG Y ESFERAS INYECTADAS)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
+
+    # Función auxiliar para convertir HEX a RGBA para efectos de transparencia en plotly
+    def hex_to_rgba(hex_val, opacity):
+        hex_val = hex_val.lstrip('#')
+        if len(hex_val) == 6:
+            return f"rgba({int(hex_val[0:2], 16)}, {int(hex_val[2:4], 16)}, {int(hex_val[4:6], 16)}, {opacity})"
+        return "rgba(0,0,0,0)"
 
     # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
@@ -634,8 +648,7 @@ elif menu == "Mapa Interactivo":
         "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
         "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
         "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
-        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798},
-        "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
+        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798}, "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
         "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
         "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
         "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
@@ -654,7 +667,6 @@ elif menu == "Mapa Interactivo":
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
             
-            # Ahora calculamos el avance financieramente, no solo por cantidad de partidas
             df_lote_mapa['Total_Pagado_Real'] = pd.to_numeric(df_lote_mapa['Pago_1']) + pd.to_numeric(df_lote_mapa['Pago_2'])
             total_precio_lote = df_lote_mapa['Precio'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
@@ -685,7 +697,6 @@ elif menu == "Mapa Interactivo":
 
     opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
 
-    # Sincronización maestra para el Mapa
     if st.session_state.mostrar_todos_mapa:
         valor_defecto_mapa = "Mostrar Todos"
     else:
@@ -730,6 +741,36 @@ elif menu == "Mapa Interactivo":
     </div>
     """, unsafe_allow_html=True)
 
+    # --- NUEVOS FILTROS DINÁMICOS DE ESFERAS EN EL MAPA ---
+    st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas Pagados)")
+    f_col_mapa1, f_col_mapa2 = st.columns(2)
+    
+    # --- MODIFICACIÓN 1: Ordenar las partidas respecto a su número inicial (orden original) ---
+    partidas_ordenadas = []
+    for p in df['Partida'].dropna().unique():
+        if str(p).strip() and str(p) not in partidas_ordenadas:
+            partidas_ordenadas.append(str(p))
+            
+    # Creamos la visualización con "1.- Cisterna", etc.
+    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
+    
+    destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
+    
+    filtro_partidas_mapa_display = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_display)
+    
+    # Limpiamos el texto seleccionado de vuelta a su nombre original para usarlo en el dataframe
+    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
+    
+    filtro_destajistas_mapa = f_col_mapa2.multiselect("Filtrar por Destajista:", options=destajistas_unicos_filtro)
+    
+    filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
+    
+    df_filtered = df[df['Estado'] == 'Pagado'].copy()
+    if filtro_partidas_mapa:
+        df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
+    if filtro_destajistas_mapa:
+        df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
+
     col_mapa, col_info_lote = st.columns([5, 3])
 
     with col_info_lote:
@@ -739,7 +780,6 @@ elif menu == "Mapa Interactivo":
         with c_selector:
             mapa_sel = st.selectbox("Selector", opciones_selector, index=idx_t3, label_visibility="collapsed")
             
-            # Detectar cambios en el menú desplegable y actualizar la memoria global
             if mapa_sel != valor_defecto_mapa:
                 if mapa_sel == "Mostrar Todos":
                     st.session_state.mostrar_todos_mapa = True
@@ -750,207 +790,349 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
-        if not st.session_state.mostrar_todos_mapa:
-            lote_puro_num = str(st.session_state.lote_actual)
-            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
-            
-            if not df_desglose_lote.empty:
-                def formatear_estado_icono(val):
-                    if val == "Pagado": return "🟢 100% PAGADO"
-                    elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
-                    return "🔴 PENDIENTE"
-                    
-                df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
-                
-                styled_desglose = df_desglose_lote[['Partida', 'Estatus', 'Precio']].style.format({'Precio': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-                
-                st.dataframe(
-                    styled_desglose,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=480
+        # --- LÓGICA DE LA TABLA (SE ACTIVA SI HAY FILTROS) ---
+        if filtros_activos:
+            st.markdown("**Desglose de Filtros Activos (Pagados):**")
+            if not df_filtered.empty:
+                html_table = (
+                    "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
+                    "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
+                    "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
+                    "<tr>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Lote</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Destajista</th>"
+                    "</tr></thead><tbody>"
                 )
+                
+                for _, row_lote in df_filtered.iterrows():
+                    c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
+                    destajista_str = row_lote['Destajista'] if pd.notna(row_lote['Destajista']) and row_lote['Destajista'] != "" else "Sin Asignar"
+                    html_table += (
+                        "<tr style='border-bottom: 1px solid #eee;'>"
+                        f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
+                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Lote']}</td>"
+                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
+                        f"<td style='padding: 8px; text-align: left;'>{destajista_str}</td>"
+                        "</tr>"
+                    )
+                html_table += "</tbody></table></div>"
+                
+                st.markdown(html_table, unsafe_allow_html=True)
             else:
-                st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
+                st.info("No se encontraron partidas pagadas que coincidan con los filtros seleccionados.")
         else:
-            st.markdown("**Resumen General por Lote (Financiero):**")
-            df_resumen_global = df.copy()
-            df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
-            
-            df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
-                Total_Partidas=('Partida', 'count'),
-                Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
-                Costo_Total=('Precio', 'sum'),
-                Pagado_Acum=('Total_Pagado_Real', 'sum')
-            ).reset_index()
-            
-            df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
-            df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
-            
-            styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-            
-            st.dataframe(
-                styled_global,
-                use_container_width=True,
-                hide_index=True,
-                height=480
-            )
+            if not st.session_state.mostrar_todos_mapa:
+                lote_puro_num = str(st.session_state.lote_actual)
+                df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
+                
+                if not df_desglose_lote.empty:
+                    def formatear_estado_icono(val):
+                        if val == "Pagado": return "🟢 100% PAGADO"
+                        elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
+                        return "🔴 PENDIENTE"
+                        
+                    df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
+                    
+                    # --- PUNTOS 1.1, 1.2, 1.3, 1.4: TABLA DESGLOSE ---
+                    html_table = (
+                        "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
+                        "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
+                        "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
+                        "<tr>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
+                        "</tr></thead><tbody>"
+                    )
+                    
+                    for _, row_lote in df_desglose_lote.iterrows():
+                        c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
+                        html_table += (
+                            "<tr style='border-bottom: 1px solid #eee;'>"
+                            f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
+                            f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
+                            f"<td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td>"
+                            f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
+                            "</tr>"
+                        )
+                    html_table += "</tbody></table></div>"
+                    
+                    st.markdown(html_table, unsafe_allow_html=True)
+                else:
+                    st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
+            else:
+                st.markdown("**Resumen General por Lote (Financiero):**")
+                df_resumen_global = df.copy()
+                df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
+                
+                df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
+                    Total_Partidas=('Partida', 'count'),
+                    Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
+                    Costo_Total=('Precio', 'sum'),
+                    Pagado_Acum=('Total_Pagado_Real', 'sum')
+                ).reset_index()
+                
+                df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
+                df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
+                
+                styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+                st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
 
     with col_mapa:
-        fig_mapa = go.Figure()
+        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
+        nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
+        archivo_encontrado = None
         
-        if os.path.exists("plano.png"):
-            img_plano = Image.open("plano.png")
-            ancho_img, alto_img = img_plano.size
-            fig_mapa.add_layout_image(
-                dict(
-                    source=img_plano, xref="x", yref="y", x=0, y=0,
-                    sizex=ancho_img, sizey=alto_img,
-                    sizing="stretch", opacity=0.85, layer="below"
-                )
-            )
-            fig_mapa.update_xaxes(range=[0, ancho_img], visible=False)
-            fig_mapa.update_yaxes(range=[alto_img, 0], visible=False, scaleanchor="x")
-        else:
-            fig_mapa.update_xaxes(range=[0, 1000], visible=False)
-            fig_mapa.update_yaxes(range=[1000, 0], visible=False, scaleanchor="x")
-
-        if lotes_datos_mapa:
-            df_mapa_puntos = pd.DataFrame(lotes_datos_mapa)
-            
-            if st.session_state.mostrar_todos_mapa:
-                df_mostrar_puntos = df_mapa_puntos
-                tamano_punto = 10
-                modo_grafico = "markers" 
-            else:
-                id_buscado = str(st.session_state.lote_actual)
-                df_mostrar_puntos = df_mapa_puntos[df_mapa_puntos['Lote_Id'] == id_buscado]
-                tamano_punto = 26
-                modo_grafico = "markers+text" 
+        for nombre in nombres_posibles:
+            if os.path.exists(nombre):
+                archivo_encontrado = nombre
+                break
                 
-                if not df_mostrar_puntos.empty:
-                    target_x = df_mostrar_puntos.iloc[0]['x']
-                    target_y = df_mostrar_puntos.iloc[0]['y']
-                    fig_mapa.update_xaxes(range=[target_x - 180, target_x + 180])
-                    fig_mapa.update_yaxes(range=[target_y + 180, target_y - 180]) 
+        if archivo_encontrado:
+            try:
+                with open(archivo_encontrado, "r", encoding="utf-8") as f:
+                    svg_content = f.read()
 
-            for _, item in df_mostrar_puntos.iterrows():
-                fig_mapa.add_trace(go.Scatter(
-                    x=[item['x']], y=[item['y']],
-                    mode=modo_grafico,
-                    marker=dict(size=tamano_punto, color=item['Hex'], line=dict(width=2, color='white')),
-                    text=[item['Lote']], textposition="top center",
-                    textfont=dict(size=14, color='black' if os.path.exists("plano.png") else 'white'),
-                    hovertemplate=f"<b>{item['Lote']}</b><br>Estado: {item['Estado']}<br>Avance Financiero: {item['Avance']}<br>{item['Detalle']}<extra></extra>"
-                ))
+                try:
+                    soup = BeautifulSoup(svg_content, "xml")
+                except:
+                    soup = BeautifulSoup(svg_content, "html.parser")
+                    
+                # --- PUNTO 5: REPARACIÓN DE LÍNEAS Y RELLENOS DIAGONALES EN EL SVG ---
+                for path_elem in soup.find_all(['path', 'polygon']):
+                    path_elem['fill-rule'] = "evenodd"
+                    if 'style' in path_elem.attrs:
+                        if 'fill-rule' not in path_elem['style']:
+                            path_elem['style'] += ";fill-rule:evenodd;"
+                    else:
+                        path_elem['style'] = "fill-rule:evenodd;"
 
-        fig_mapa.update_layout(
-            showlegend=False,
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=600,
-            template="plotly_white"
-        )
-        st.plotly_chart(fig_mapa, use_container_width=True)
+                # --- MODIFICACIÓN 2: Nueva función para obtener centroide y radio visual en base a SVG ---
+                def calcular_centro_poligono(elemento):
+                    coords_x, coords_y = [], []
+                    try:
+                        if elemento.name in ['polygon', 'polyline']:
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('points', ''))
+                            coords_x = [float(pts[i]) for i in range(0, len(pts), 2)]
+                            coords_y = [float(pts[i+1]) for i in range(0, len(pts), 2)]
+                        elif elemento.name == 'path':
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('d', ''))
+                            if len(pts) >= 2:
+                                coords_x = [float(pts[i]) for i in range(0, len(pts)-1, 2)]
+                                coords_y = [float(pts[i+1]) for i in range(0, len(pts)-1, 2)]
+                        
+                        if coords_x and coords_y:
+                            min_x, max_x = min(coords_x), max(coords_x)
+                            min_y, max_y = min(coords_y), max(coords_y)
+                            cx = (min_x + max_x) / 2.0
+                            cy = (min_y + max_y) / 2.0
+                            radio_disp = min(max_x - min_x, max_y - min_y) * 0.30 
+                            return cx, cy, radio_disp
+                    except:
+                        pass
+                    return None, None, None
+                # -----------------------------------------------------------------------------------------
+                
+                svg_tag = soup.find("svg")
+                
+                if svg_tag:
+                    svg_tag['width'] = "100%"
+                    svg_tag['height'] = "100%"
+                    if not svg_tag.get('preserveAspectRatio'):
+                        svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                
+               
 
-# =========================================================================
-# PESTAÑA 4: DIAGRAMA INTERACTIVO (CON LEYENDA Y COLORES POR PARTIDA)
-# =========================================================================
-elif menu == "Diagrama Interactivo":
-    mostrar_cabecera_con_logo("🔗 Diagrama Interactivo de Partidas", "Explora visualmente el avance financiero asignado por colores.")
+                # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
+                for item in lotes_datos_mapa:
+                    id_lote = str(item["Lote_Id"])
+                    hex_color = item["Hex"]
+                    
+                    id_busqueda = f"lote-{id_lote}" 
+                    lote_path = soup.find(id=id_busqueda)
+                    
+                    if not lote_path:
+                        lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
+
+                    if lote_path:
+                        df_lote_esferas = pd.DataFrame()
+                        
+                        # NUEVA LOGICA DE PINTADO SEGUN FILTROS
+                        if filtros_activos:
+                            df_lote_match = df_filtered[df_filtered['Lote'].astype(str).str.strip() == id_lote]
+                            if not df_lote_match.empty:
+                                lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+                                df_lote_esferas = df_lote_match
+                            else:
+                                lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
+                        else:
+                            if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
+                                lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
+                            else:
+                                lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+                                
+                                if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
+                                    df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
+
+                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS ESTÉN DENTRO DEL POLÍGONO
+                        if not df_lote_esferas.empty:
+                            cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
+                            
+                            if cx_auto is not None and cy_auto is not None:
+                                base_x, base_y = cx_auto, cy_auto
+                                radio_disp = max(r_auto, 5) # Aseguramos un mínimo para el radio de dispersión
+                            else:
+                                # Fallback a coordenadas manuales si el SVG no proporciona buenos puntos
+                                base_x = float(item["x"])
+                                base_y = float(item["y"])
+                                radio_disp = 12 
+                            
+                            num_esferas = len(df_lote_esferas)
+                            r_esfera = 50 if num_esferas < 10 else 5
+                            
+                            for idx, row in enumerate(df_lote_esferas.itertuples()):
+                                if num_esferas == 1:
+                                    cx, cy = base_x, base_y
+                                else:
+                                    angulo = (2 * math.pi * idx) / num_esferas
+                                    cx = base_x + radio_disp * math.cos(angulo)
+                                    cy = base_y + radio_disp * math.sin(angulo)
+                                
+                                color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
+                                
+                                if row.Estado == "Pagado":
+                                    fill_style = color_burbuja
+                                    fill_opacity = "1.0"
+                                elif row.Estado == "Pago Parcial":
+                                    fill_style = color_burbuja
+                                    fill_opacity = "0.5"
+                                else:
+                                    fill_style = "none" 
+                                    fill_opacity = "0.0"
+                                    
+                                if fill_opacity != "0.0":
+                                    # 💡 TIP: Si tras este cambio las ves muy pequeñas, sube este valor base de r_esfera (ej. a 20 o 50)
+                                     # dependiendo de la escala general de tu ViewBox en el SVG.
+                                    r_esfera_dinamico = r_esfera
+
+
+                                    circle_tag = soup.new_tag(
+                                        "circle", 
+                                        cx=f"{cx:.2f}", 
+                                        cy=f"{cy:.2f}", 
+                                        r=str(r_esfera_dinamico), 
+                                        #r=50, #radio para purebas
+                                        # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
+                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
+                                        #style="fill:red; stroke:yellow; stroke-width:10px; fill-opacity:1.0;"
+                                    )
+                                    lote_path.insert_after(circle_tag)
+
+                html_final = str(soup).replace("viewbox=", "viewBox=")
+                html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
+                st.components.v1.html(html_final, height=700, scrolling=True)
+                
+            except Exception as e:
+                st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
+                st.write(f"Detalle del error técnico: {e}")
+        else:
+            st.error("⚠️ No se encontró el archivo del mapa.")
+            st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
+        # --- FIN DE LA INTEGRACIÓN DEL SVG ---
+
+    # --- INICIO DEL DIAGRAMA INTERACTIVO INYECTADO DEBAJO DEL MAPA ---
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("### 🔗 Diagrama Interactivo de Partidas")
     
-    col_texto, col_selector = st.columns([6, 4])
-    with col_texto:
-        st.markdown("Selecciona un lote para ver sus partidas representadas como círculos. Cada partida tiene un **color único**.")
-        st.markdown("👉 Los **círculos rellenos** representan partidas **pagadas al 100%**. <br>👉 Los **círculos huecos (solo con borde)** representan partidas **pendientes o parciales**.", unsafe_allow_html=True)
-    
-    with col_selector:
-        # Aseguramos string aquí también
-        lotes_diag = [str(x) for x in df['Lote'].unique()]
-        
-        # Sincronización maestra
-        lote_memoria_diag = str(st.session_state.lote_actual)
-        idx_t4 = lotes_diag.index(lote_memoria_diag) if lote_memoria_diag in lotes_diag else 0
-        lote_seleccionado_diag = st.selectbox("Selecciona Lote a Explorar:", lotes_diag, index=idx_t4)
-        
-        # Si cambiamos el lote aquí, impacta todas las pestañas
-        if str(lote_seleccionado_diag) != lote_memoria_diag:
-            st.session_state.lote_actual = str(lote_seleccionado_diag)
-            st.session_state.mostrar_todos_mapa = False
-            st.rerun()
+    if st.session_state.mostrar_todos_mapa:
+        st.info("⚠️ Debes seleccionar un lote en el filtro para visualizar el diagrama con las esferas de colores.")
+    else:
+        df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(st.session_state.lote_actual)]
 
-    df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(lote_seleccionado_diag)]
-
-    if not df_lote_diag.empty:
-        
-        # Generar Paleta de Colores Dinámica para cada partida distinta
-        paleta_colores = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
-        partidas_unicas = df_lote_diag['Partida'].unique()
-        mapa_colores_partida = {partida: paleta_colores[i % len(paleta_colores)] for i, partida in enumerate(partidas_unicas)}
-
-        num_partidas = len(df_lote_diag)
-        cols = math.ceil(math.sqrt(num_partidas))
-
-        x_coords = []
-        y_coords = []
-        colores_relleno = []
-        colores_borde = []
-        textos_hover = []
-
-        for i, row in enumerate(df_lote_diag.itertuples()):
-            x = i % cols
-            y = i // cols
-            x_coords.append(x)
-            y_coords.append(y)
-
-            estado = row.Estado
-            costo = row.Precio
-            pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
-            destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+        if not df_lote_diag.empty:
+            num_partidas = len(df_lote_diag)
+            cols = math.ceil(math.sqrt(num_partidas))
             
-            color_asignado = mapa_colores_partida[row.Partida]
+            x_coords = []
+            y_coords = []
+            colores_relleno = []
+            textos_hover = []
 
-            # Relleno vs Hueco según estado
-            if estado == "Pagado":
-                colores_relleno.append(color_asignado)
-                colores_borde.append(color_asignado)
-            else:
-                colores_relleno.append("rgba(0,0,0,0)") # Hueco (transparente) para parcial o pendiente
-                colores_borde.append(color_asignado)
+            # --- AQUI ESTÁ EL CAMBIO ---
+            # Aumenta estos valores si quieres más separación
+            espaciado_x = 7.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_y = 2.0  # <-- Aumenta este número para separar más verticalmente
 
-            hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
-            textos_hover.append(hover_text)
+            for i, row in enumerate(df_lote_diag.itertuples()):
+                # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
+                x = (i % cols) * espaciado_x
+                y = (i // cols) * espaciado_y
+                    
+                x_coords.append(x)
+                y_coords.append(y)
 
-        # Calculo dinámico de la altura del gráfico para empatarlo con la leyenda
-        altura_grafico = max(450, (math.ceil(num_partidas/cols) * 45))
+                estado = row.Estado
+                costo = row.Precio
+                pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
+                destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
+                color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
 
-        # Dividimos la pantalla: Izquierda el diagrama (60%), Derecha la Leyenda (40%)
-        col_diagrama, col_leyenda = st.columns([6, 4])
-        
-        with col_diagrama:
+                if estado == "Pagado":
+                    colores_relleno.append(color_asignado)
+                elif estado == "Pago Parcial":
+                    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
+                else:
+                    colores_relleno.append("rgba(0,0,0,0)")
+
+                hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
+                textos_hover.append(hover_text)
+
+            # Calculo dinámico de la altura del gráfico 
+            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
+
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=20, 
+                    size=60, 
                     color=colores_relleno,
                     symbol='circle',
-                    line=dict(width=3, color=colores_borde)
+                    line=dict(width=0) 
                 ),
                 text=textos_hover,
                 hoverinfo='text'
             ))
 
+            # AJUSTE AUTOMÁTICO DEL POLÍGONO
+            # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
+            margen = 1.5 
+            x_max = (cols - 1) * espaciado_x + margen
+            y_max = max(y_coords) + margen if y_coords else margen
+            x_min = -margen
+            y_min = -margen
+
+            fig_diag.add_shape(
+                type="path",
+                path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
+                line=dict(color="rgba(14,232,144,0.8)", width=8), 
+                fillcolor="rgba(0,0,0,0)",
+                layer="below"
+            )
+
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
             fig_diag.update_layout(
-                title=dict(text=f"Evaluando Lote {lote_seleccionado_diag} – Prototipo {prototipo_diag}", font=dict(size=20)),
+                title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
-                # Ajuste del fondo negro con letras blancas en el tooltip:
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
@@ -960,22 +1142,6 @@ elif menu == "Diagrama Interactivo":
             pendientes_diag = num_partidas - pagadas_diag
             st.markdown(f"**🟢 Total Pagadas (100%):** {pagadas_diag} | **🔴 Pendientes/Parciales:** {pendientes_diag}")
             
-        with col_leyenda:
-            st.markdown("### 🎨 Leyenda de Partidas")
-            st.markdown("Identifica cada burbuja por el color asignado a su partida correspondiente.", unsafe_allow_html=True)
-            
-            # Tabla de leyenda construida con HTML puro para que las esferas queden perfectas
-            html_leyenda = "<table style='width:100%; border-collapse: collapse;'>"
-            html_leyenda += "<tr><th style='text-align:center; border-bottom: 2px solid #ddd; padding: 10px;'>Color</th><th style='text-align:left; border-bottom: 2px solid #ddd; padding: 10px;'>Partida</th></tr>"
-            
-            # Formato en una sola línea para evitar la indentación y el error de bloque de código Markdown
-            for partida, color in mapa_colores_partida.items():
-                html_leyenda += f"<tr><td style='text-align:center; padding: 4px; border-bottom: 1px solid #eee;'><div style='width:20px; height:20px; border-radius:50%; background-color:{color}; margin:auto;'></div></td><td style='text-align:left; padding: 4px; border-bottom: 1px solid #eee; font-size: 14px;'>{partida}</td></tr>"
-            html_leyenda += "</table>"
-
-            # Encapsulamos la leyenda en un contenedor dinámico para igualar al gráfico con scroll
-            with st.container(height=altura_grafico):
-                st.markdown(html_leyenda, unsafe_allow_html=True)
-        
-    else:
-        st.warning("⚠️ No hay partidas registradas para este lote.")
+        else:
+            st.warning("⚠️ No hay partidas registradas para este lote.")
+    # --- FIN DEL DIAGRAMA INTERACTIVO ---
