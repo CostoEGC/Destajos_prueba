@@ -986,7 +986,7 @@ elif menu == "Mapa Interactivo":
                 mode='markers',
                 marker=dict(
                     # 🟢 AQUÍ PUEDES CAMBIAR EL TAMAÑO DE LAS ESFERAS DEL DIAGRAMA INTERACTIVO (modifica el número 'size')
-                    size=28, 
+                    size=40, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=0) # Sin contorno según la regla
