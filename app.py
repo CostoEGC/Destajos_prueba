@@ -1034,6 +1034,8 @@ elif menu == "Mapa Interactivo":
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
                 st.components.v1.html(html_final, height=700, scrolling=True)
+                st.text("Aquí está el código del SVG generado (busca si hay <circle> dentro):")     
+                st.code(str(soup)[:2000]) # Esto mostrará los primeros 2000 caracteres del código en pantalla
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
