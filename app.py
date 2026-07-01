@@ -771,6 +771,15 @@ elif menu == "Mapa Interactivo":
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
+    # Para esferas en el mapa: al filtrar por partida incluye Pagado (100%) y Pago Parcial (50%)
+    if filtro_partidas_mapa:
+        df_filtered_esferas = df[df['Estado'].isin(['Pagado', 'Pago Parcial'])].copy()
+        df_filtered_esferas = df_filtered_esferas[df_filtered_esferas['Partida'].isin(filtro_partidas_mapa)]
+        if filtro_destajistas_mapa:
+            df_filtered_esferas = df_filtered_esferas[df_filtered_esferas['Destajista'].isin(filtro_destajistas_mapa)]
+    else:
+        df_filtered_esferas = df_filtered.copy()
+
     col_mapa, col_info_lote = st.columns([5, 3])
 
     with col_info_lote:
@@ -962,7 +971,7 @@ elif menu == "Mapa Interactivo":
                         
                         # NUEVA LOGICA DE PINTADO SEGUN FILTROS
                         if filtros_activos:
-                            df_lote_match = df_filtered[df_filtered['Lote'].astype(str).str.strip() == id_lote]
+                            df_lote_match = df_filtered_esferas[df_filtered_esferas['Lote'].astype(str).str.strip() == id_lote]
                             if not df_lote_match.empty:
                                 lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
                                 df_lote_esferas = df_lote_match
@@ -977,30 +986,81 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS ESTÉN DENTRO DEL POLÍGONO
+                        # POSICIONAMIENTO DE ESFERAS EN GRILLA DENTRO DEL BOUNDING BOX DEL POLÍGONO
                         if not df_lote_esferas.empty:
-                            cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
-                            
-                            if cx_auto is not None and cy_auto is not None:
-                                base_x, base_y = cx_auto, cy_auto
-                                radio_disp = max(r_auto, 5) # Aseguramos un mínimo para el radio de dispersión
-                            else:
-                                # Fallback a coordenadas manuales si el SVG no proporciona buenos puntos
-                                base_x = float(item["x"])
-                                base_y = float(item["y"])
-                                radio_disp = 12 
-                            
                             num_esferas = len(df_lote_esferas)
-                            r_esfera = 50 if num_esferas < 10 else 5
+                            
+                            # Extraer coordenadas del polígono para calcular su bounding box real
+                            coords_x_p, coords_y_p = [], []
+                            try:
+                                if lote_path.name in ['polygon', 'polyline']:
+                                    pts_p = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', lote_path.get('points', ''))
+                                    coords_x_p = [float(pts_p[i]) for i in range(0, len(pts_p), 2)]
+                                    coords_y_p = [float(pts_p[i+1]) for i in range(0, len(pts_p), 2)]
+                                elif lote_path.name == 'path':
+                                    pts_p = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', lote_path.get('d', ''))
+                                    if len(pts_p) >= 4:
+                                        coords_x_p = [float(pts_p[i]) for i in range(0, len(pts_p)-1, 2)]
+                                        coords_y_p = [float(pts_p[i+1]) for i in range(0, len(pts_p)-1, 2)]
+                            except:
+                                pass
+                            
+                            if coords_x_p and coords_y_p:
+                                min_xp = min(coords_x_p)
+                                max_xp = max(coords_x_p)
+                                min_yp = min(coords_y_p)
+                                max_yp = max(coords_y_p)
+                                w_p = max_xp - min_xp
+                                h_p = max_yp - min_yp
+                                
+                                # Grilla proporcional al aspecto del polígono para que las esferas se ajusten
+                                if num_esferas == 1:
+                                    cols_g = 1
+                                else:
+                                    aspect = w_p / max(h_p, 1.0)
+                                    cols_g = max(1, round(math.sqrt(num_esferas * aspect)))
+                                rows_g = math.ceil(num_esferas / max(cols_g, 1))
+                                
+                                # Margen interior del 8% y tamaño de celda
+                                mg_x = w_p * 0.08
+                                mg_y = h_p * 0.08
+                                cell_w = (w_p - 2 * mg_x) / max(cols_g, 1)
+                                cell_h = (h_p - 2 * mg_y) / max(rows_g, 1)
+                                r_esfera = max(min(cell_w, cell_h) * 0.38, 3.0)
+                                
+                                # Precalcular posiciones en grilla
+                                posiciones = []
+                                for idx_p in range(num_esferas):
+                                    col_i = idx_p % cols_g
+                                    row_i = idx_p // cols_g
+                                    if num_esferas == 1:
+                                        px_s = min_xp + w_p / 2.0
+                                        py_s = min_yp + h_p / 2.0
+                                    else:
+                                        px_s = min_xp + mg_x + (col_i + 0.5) * cell_w
+                                        py_s = min_yp + mg_y + (row_i + 0.5) * cell_h
+                                    posiciones.append((px_s, py_s))
+                            else:
+                                # Fallback circular si el SVG no entrega coordenadas utilizables
+                                cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
+                                if cx_auto is not None and cy_auto is not None:
+                                    base_x, base_y = cx_auto, cy_auto
+                                    radio_disp = max(r_auto, 5)
+                                else:
+                                    base_x = float(item["x"])
+                                    base_y = float(item["y"])
+                                    radio_disp = 12
+                                r_esfera = 50 if num_esferas < 10 else 5
+                                posiciones = []
+                                for idx_p in range(num_esferas):
+                                    if num_esferas == 1:
+                                        posiciones.append((base_x, base_y))
+                                    else:
+                                        ang = (2 * math.pi * idx_p) / num_esferas
+                                        posiciones.append((base_x + radio_disp * math.cos(ang), base_y + radio_disp * math.sin(ang)))
                             
                             for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                if num_esferas == 1:
-                                    cx, cy = base_x, base_y
-                                else:
-                                    angulo = (2 * math.pi * idx) / num_esferas
-                                    cx = base_x + radio_disp * math.cos(angulo)
-                                    cy = base_y + radio_disp * math.sin(angulo)
-                                
+                                cx, cy = posiciones[idx]
                                 color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                 
                                 if row.Estado == "Pagado":
@@ -1010,24 +1070,16 @@ elif menu == "Mapa Interactivo":
                                     fill_style = color_burbuja
                                     fill_opacity = "0.5"
                                 else:
-                                    fill_style = "none" 
+                                    fill_style = "none"
                                     fill_opacity = "0.0"
-                                    
+                                
                                 if fill_opacity != "0.0":
-                                    # 💡 TIP: Si tras este cambio las ves muy pequeñas, sube este valor base de r_esfera (ej. a 20 o 50)
-                                     # dependiendo de la escala general de tu ViewBox en el SVG.
-                                    r_esfera_dinamico = r_esfera
-
-
                                     circle_tag = soup.new_tag(
-                                        "circle", 
-                                        cx=f"{cx:.2f}", 
-                                        cy=f"{cy:.2f}", 
-                                        r=str(r_esfera_dinamico), 
-                                        #r=50, #radio para purebas
-                                        # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
+                                        "circle",
+                                        cx=f"{cx:.2f}",
+                                        cy=f"{cy:.2f}",
+                                        r=str(r_esfera),
                                         style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
-                                        #style="fill:red; stroke:yellow; stroke-width:10px; fill-opacity:1.0;"
                                     )
                                     lote_path.insert_after(circle_tag)
 
