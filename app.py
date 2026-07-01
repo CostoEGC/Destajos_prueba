@@ -822,7 +822,6 @@ elif menu == "Mapa Interactivo":
 
     with col_mapa:
         # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
-        # Buscador de archivos inteligente:
         nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
         archivo_encontrado = None
         
@@ -862,7 +861,6 @@ elif menu == "Mapa Interactivo":
                 if svg_tag:
                     svg_tag.append(esferas_group)
 
-                # --- PUNTO 4: FUNCIÓN MATEMÁTICA PARA ENCONTRAR EL CENTRO IDEAL DEL LOTE ---
                 def obtener_centro_svg(elemento_svg):
                     import re
                     try:
@@ -909,22 +907,20 @@ elif menu == "Mapa Interactivo":
                             if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                 df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
                                 if not df_lote_esferas.empty:
-                                    # --- PUNTOS 2 y 4: CÁLCULO DE POSICIÓN ROTADA Y SEPARACIÓN ---
                                     cx_real, cy_real, radio_real = obtener_centro_svg(lote_path)
                                     
                                     if cx_real is not None:
                                         base_x, base_y = cx_real, cy_real
-                                        radio_disp = max(5, radio_real * 0.6) # Colchón de 40% interno para no tocar líneas
+                                        radio_disp = max(5, radio_real * 0.6)
                                     else:
                                         base_x = float(item["x"])
                                         base_y = float(item["y"])
                                         radio_disp = 20
                                     
                                     num_esferas = len(df_lote_esferas)
-                                    r_esfera = 8 if num_esferas < 10 else 5 # Autoajuste de tamaño
+                                    r_esfera = 8 if num_esferas < 10 else 5
                                     
                                     for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                        # Lógica concéntrica
                                         if num_esferas == 1:
                                             cx, cy = base_x, base_y
                                         else:
@@ -977,21 +973,20 @@ elif menu == "Mapa Interactivo":
 
         if not df_lote_diag.empty:
             num_partidas = len(df_lote_diag)
+            cols = math.ceil(math.sqrt(num_partidas))
             
             x_coords = []
             y_coords = []
             colores_relleno = []
             textos_hover = []
 
+            # Factor para separar las esferas (aumenta o disminuye para juntar/separar)
+            espaciado = 1.5 
+
             for i, row in enumerate(df_lote_diag.itertuples()):
-                # --- PUNTO 2: LÓGICA CIRCULAR PARA EVITAR TRASLAPES AL AMPLIAR ---
-                if num_partidas == 1:
-                    x, y = 0, 0
-                else:
-                    angulo = (2 * math.pi * i) / num_partidas
-                    radio = 1
-                    x = radio * math.cos(angulo)
-                    y = radio * math.sin(angulo)
+                # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
+                x = (i % cols) * espaciado
+                y = (i // cols) * espaciado
                     
                 x_coords.append(x)
                 y_coords.append(y)
@@ -1013,6 +1008,9 @@ elif menu == "Mapa Interactivo":
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
+            # Calculo dinámico de la altura del gráfico 
+            altura_grafico = max(350, (math.ceil(num_partidas/cols) * 45))
+
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
                 y=y_coords,
@@ -1027,10 +1025,16 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
-            # --- PUNTO 3: POLÍGONO SEGURO CON MARGEN PARA NO TOCAR LAS LÍNEAS ---
+            # RESTAURADO: Polígono grande con margen de seguridad para no tocar las líneas
+            margen = 1.0 # <--- Ajusta este número para alejar o acercar el borde verde de las esferas
+            x_max = (cols - 1) * espaciado + margen
+            y_max = max(y_coords) + margen if y_coords else margen
+            x_min = -margen
+            y_min = -margen
+
             fig_diag.add_shape(
                 type="path",
-                path="M -1.8 -1.8 L -1.8 1.8 L 1.8 1.8 L 1.8 -1.8 Z",
+                path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
                 line=dict(color="rgba(14,232,144,0.8)", width=8), 
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
@@ -1040,12 +1044,11 @@ elif menu == "Mapa Interactivo":
 
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
-                # Se establecen rangos fijos y el scaleanchor="x" para evitar distorsiones y traslapes
-                xaxis=dict(visible=False, showgrid=False, zeroline=False, range=[-2, 2]),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", range=[-2, 2], scaleanchor="x", scaleratio=1),
+                xaxis=dict(visible=False, showgrid=False, zeroline=False),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                height=450, 
+                height=altura_grafico, 
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
@@ -1088,6 +1091,7 @@ elif menu == "Diagrama Interactivo":
 
     if not df_lote_diag.empty:
         num_partidas = len(df_lote_diag)
+        cols = math.ceil(math.sqrt(num_partidas))
 
         x_coords = []
         y_coords = []
@@ -1095,15 +1099,12 @@ elif menu == "Diagrama Interactivo":
         colores_borde = []
         textos_hover = []
 
+        espaciado = 1.5 # Mismo factor de separación para mantener la simetría con la pestaña 3
+
         for i, row in enumerate(df_lote_diag.itertuples()):
-            # Se replica la lógica circular para la pestaña 4 por consistencia visual
-            if num_partidas == 1:
-                x, y = 0, 0
-            else:
-                angulo = (2 * math.pi * i) / num_partidas
-                radio = 1
-                x = radio * math.cos(angulo)
-                y = radio * math.sin(angulo)
+            # RESTAURADO: Acomodo en Cuadrícula 
+            x = (i % cols) * espaciado
+            y = (i // cols) * espaciado
                 
             x_coords.append(x)
             y_coords.append(y)
@@ -1149,8 +1150,8 @@ elif menu == "Diagrama Interactivo":
 
             fig_diag.update_layout(
                 title=dict(text=f"Evaluando Lote {lote_seleccionado_diag} – Prototipo {prototipo_diag}", font=dict(size=20)),
-                xaxis=dict(visible=False, showgrid=False, zeroline=False, range=[-2, 2]),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", range=[-2, 2], scaleanchor="x", scaleratio=1),
+                xaxis=dict(visible=False, showgrid=False, zeroline=False),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
