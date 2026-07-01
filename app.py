@@ -991,7 +991,7 @@ elif menu == "Mapa Interactivo":
                                 radio_disp = 12 
                             
                             num_esferas = len(df_lote_esferas)
-                            r_esfera = 20 if num_esferas < 10 else 5
+                            r_esfera = 50 if num_esferas < 10 else 5
                             
                             for idx, row in enumerate(df_lote_esferas.itertuples()):
                                 if num_esferas == 1:
