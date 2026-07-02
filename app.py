@@ -109,7 +109,7 @@ def calcular_centro_lote(id_lote_buscado, ruta_svg):
         ys = [p[1] for p in puntos]
         return min(xs), max(xs), min(ys), max(ys)
     except Exception as e:
-        print(f"Error procesando el lote {id_lote_buscado}: {e}")
+        #print(f"Error procesando el lote {id_lote_buscado}: {e}")
         return None
         
         d_str = path_element.get("d", "")
@@ -1299,7 +1299,7 @@ elif menu == "Mapa Interactivo":
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
