@@ -1114,7 +1114,7 @@ elif menu == "Mapa Interactivo":
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
             espaciado_x = 7.0 
-            espaciado_y = 1.5  
+            espaciado_y = 2
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
