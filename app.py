@@ -1111,6 +1111,7 @@ elif menu == "Mapa Interactivo":
             y_coords = []
             colores_relleno = []
             textos_hover = []
+            yy_coords = []
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
             espaciado_base = 10.0 
@@ -1122,9 +1123,11 @@ elif menu == "Mapa Interactivo":
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
                 y = (i // cols) * espaciado_y 
+                yy = (i // cols) * (espaciado_y+2)
                     
                 x_coords.append(x)
                 y_coords.append(y) 
+                yy_coords.append(yy)
 
                 estado = row.Estado
                 costo = row.Precio
@@ -1147,7 +1150,7 @@ elif menu == "Mapa Interactivo":
 
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
-                y=(y_coords+3),
+                y=yy_coords,
                 mode='markers',
                 marker=dict(
                     size=50, 
