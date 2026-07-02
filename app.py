@@ -1121,7 +1121,7 @@ elif menu == "Mapa Interactivo":
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
-                y = (i // cols) * (espaciado_y + 3)
+                y = (i // cols) * espaciado_y 
                     
                 x_coords.append(x)
                 y_coords.append(y) 
@@ -1147,7 +1147,7 @@ elif menu == "Mapa Interactivo":
 
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
-                y=y_coords,
+                y=y_coords+3,
                 mode='markers',
                 marker=dict(
                     size=50, 
