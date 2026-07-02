@@ -1152,7 +1152,7 @@ elif menu == "Mapa Interactivo":
                 marker=dict(
                     size=50, 
                     color=colores_relleno,
-                    symbol='rectangle',
+                    symbol='circle',
                     line=dict(width=0) 
                 ),
                 text=textos_hover,
