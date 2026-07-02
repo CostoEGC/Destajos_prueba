@@ -1121,7 +1121,7 @@ elif menu == "Mapa Interactivo":
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
-                y = (i // cols) * espaciado_y
+                y = (i // cols) * (espaciado_y + 3)
                     
                 x_coords.append(x)
                 y_coords.append(y) 
