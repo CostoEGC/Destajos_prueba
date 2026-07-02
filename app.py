@@ -1161,17 +1161,17 @@ elif menu == "Mapa Interactivo":
 
             margen = 2.5 
             #margen = espaciado_base /5.0
-            #x_max = (cols - 1) * espaciado_x + margen
-            #y_max = max(y_coords) + margen if y_coords else margen
-            #x_min = -margen
-            #y_min = -margen
+            x_max = (cols - 1) * espaciado_x + margen
+            y_max = max(y_coords) + margen if y_coords else margen
+            x_min = -margen
+            y_min = -margen
 
             
 
             fig_diag.add_shape(
                 type="path",
-                path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
-                line=dict(color="rgba(14,232,144,0.8)", width=8), 
+               # path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
+                line=dict(color="rgba(14,232,144,0.8)", width=4), 
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
             )
