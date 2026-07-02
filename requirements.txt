@@ -2,8 +2,4 @@ streamlit
 pandas
 plotly
 requests
-Pillow
 beautifulsoup4
-lxml
-numpy
-shapely
