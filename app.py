@@ -1121,7 +1121,7 @@ elif menu == "Mapa Interactivo":
                 y = (i // cols) * espaciado_y
                     
                 x_coords.append(x)
-                y_coords.append(y * 2) 
+                y_coords.append(y) 
 
                 estado = row.Estado
                 costo = row.Precio
