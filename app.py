@@ -12,70 +12,6 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
 
-# --- IMPORTACIÓN CONDICIONAL DE GEOMETRÍA ---
-# Si las librerías no están instaladas, el mapa no se romperá, 
-# simplemente usará la lógica original de tu código.
-try:
-    from shapely.geometry import Polygon, Point
-    from shapely.affinity import rotate
-    import numpy as np
-    SHAPELY_INSTALLED = True
-except ImportError:
-    SHAPELY_INSTALLED = False
-
-def get_packed_circles_shapely(pts, num_circles, matrix):
-    """ Función matemática aislada para empaquetar círculos sin romper el SVG """
-    a, b, c_mat, d_mat, e, f_mat = matrix
-    global_pts = [(a * p[0] + c_mat * p[1] + e, b * p[0] + d_mat * p[1] + f_mat) for p in pts]
-    
-    poly = Polygon(global_pts)
-    if not poly.is_valid:
-        poly = poly.buffer(0)
-        
-    if num_circles == 1:
-        return [(poly.centroid.x, poly.centroid.y, 10.0)]
-        
-    area = poly.area
-    if area <= 0: raise ValueError("Área inválida")
-        
-    R = math.sqrt(area / (num_circles * 3.464)) * 0.95 
-    
-    mrr = poly.minimum_rotated_rectangle
-    mrr_coords = list(mrr.exterior.coords)
-    dists = [Point(mrr_coords[i]).distance(Point(mrr_coords[i+1])) for i in range(len(mrr_coords)-1)]
-    max_idx = dists.index(max(dists))
-    p1, p2 = mrr_coords[max_idx], mrr_coords[max_idx+1]
-    angle_deg = math.degrees(math.atan2(p2[1] - p1[1], p2[0] - p1[0]))
-    
-    poly_rot = rotate(poly, -angle_deg, origin=poly.centroid)
-    rminx, rminy, rmaxx, rmaxy = poly_rot.bounds
-    
-    for _ in range(25):
-        if R < 1.0: break
-        circles = []
-        dx, dy = 2 * R, math.sqrt(3) * R
-        y = rminy + R
-        row = 0
-        while y < rmaxy:
-            x = rminx + R + (R if row % 2 == 1 else 0)
-            while x < rmaxx:
-                p = Point(x, y)
-                if poly_rot.contains(p): circles.append((x, y))
-                x += dx
-            y += dy
-            row += 1
-            
-        if len(circles) >= num_circles:
-            cx, cy = poly_rot.centroid.x, poly_rot.centroid.y
-            circles.sort(key=lambda pt: (pt[0]-cx)**2 + (pt[1]-cy)**2)
-            final_circles = []
-            for pt in circles[:num_circles]:
-                p_rot = rotate(Point(pt[0], pt[1]), angle_deg, origin=poly.centroid)
-                final_circles.append((p_rot.x, p_rot.y, R * 0.9))
-            return final_circles
-        R *= 0.85
-        
-    raise ValueError("El empaquetamiento falló por geometría compleja")
 
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
@@ -91,6 +27,9 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+
+
 
 # -----------------------------------
 # --- FUNCIÓN PARA POSICIONAMIENTO AUTOMÁTICO ---
@@ -600,7 +539,6 @@ if menu == "Registro de Destajos":
                 else: user_display = "-"
                 c12.markdown(f"<div style='font-size: 9px; text-align:center; margin-top:2px;'>{user_display}</div>", unsafe_allow_html=True)
 
-
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
 # =========================================================================
@@ -1053,6 +991,8 @@ elif menu == "Mapa Interactivo":
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
 
+                    # --- CREACIÓN DE LA CAPA MAESTRA DE ESFERAS ---
+                    # Al inyectarla al final, garantizamos que floten sobre cualquier polígono
                     capa_esferas = soup.new_tag("g", id="capa_maestra_esferas")
                     svg_tag.append(capa_esferas)
 
@@ -1086,8 +1026,10 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # --- INYECCIÓN DE ESFERAS Y EXTRACCIÓN DE PATH ---
+                        # --- INYECCIÓN DE ESFERAS CON COORDENADAS DINÁMICAS DESDE SVG ---
                         if not df_lote_esferas.empty:
+                            
+                            # Extraemos las coordenadas directamente del polígono SVG del lote
                             d_str = lote_path.get("d", "")
                             t_str = lote_path.get("transform", "")
                             
@@ -1140,10 +1082,9 @@ elif menu == "Mapa Interactivo":
                                 nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
                                 pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
                             
-                            # CÁLCULOS ORIGINALES PREVIOS (BASE DE SEGURIDAD)
                             if pts:
-                                cx_calc = sum(p[0] for p in pts) / len(pts)
-                                cy_calc = sum(p[1] for p in pts) / len(pts)
+                                cx = sum(p[0] for p in pts) / len(pts)
+                                cy = sum(p[1] for p in pts) / len(pts)
                                 
                                 matrix = [1, 0, 0, 1, 0, 0]
                                 if t_str:
@@ -1153,52 +1094,28 @@ elif menu == "Mapa Interactivo":
                                         if len(vals) == 6: matrix = vals
                                         
                                 a, b, c_mat, d_mat, e, f_mat = matrix
-                                base_x = a * cx_calc + c_mat * cy_calc + e
-                                base_y = b * cx_calc + d_mat * cy_calc + f_mat
+                                base_x = a * cx + c_mat * cy + e
+                                base_y = b * cx + d_mat * cy + f_mat
                             else:
+                                # Fallback por si la lectura del path fallara
                                 base_x = float(item["x"])
                                 base_y = float(item["y"])
-                                matrix = [1, 0, 0, 1, 0, 0]
                             
                             num_esferas = len(df_lote_esferas)
-                            circles_data = []
-                            usar_espiral_original = True
                             
-                            # 1. INTENTAR SHAPELY DE FORMA AISLADA Y SEGURA
-                            if SHAPELY_INSTALLED and pts and num_esferas > 0:
-                                try:
-                                    circles_data = get_packed_circles_shapely(pts, num_esferas, matrix)
-                                    usar_espiral_original = False
-                                except Exception:
-                                    # Si hay el más mínimo error de cálculo, abortar Shapely silenciosamente.
-                                    usar_espiral_original = True
+                            # Control dinámico: Radio delimitado entre 6px y 18px (Garantiza visibilidad siempre)
+                            r_esfera_dinamico = max(6.0, min(18.0, 60.0 / math.sqrt(num_esferas)))
                             
-                            # 2. RESPALDO INFALIBLE (TU LÓGICA ORIGINAL EXACTA)
-                            if usar_espiral_original and num_esferas > 0:
-                                circles_data = []
-                                r_esfera_dinamico = max(6.0, min(18.0, 60.0 / math.sqrt(num_esferas)))
-                                golden_angle = math.pi * (3 - math.sqrt(5)) 
-                                
-                                for idx in range(num_esferas):
-                                    if num_esferas == 1:
-                                        circles_data.append((base_x, base_y, r_esfera_dinamico))
-                                    else:
-                                        r_disp = (r_esfera_dinamico * 1.1) * math.sqrt(idx)
-                                        theta = idx * golden_angle
-                                        cx_fb = base_x + r_disp * math.cos(theta)
-                                        cy_fb = base_y + r_disp * math.sin(theta)
-                                        circles_data.append((cx_fb, cy_fb, r_esfera_dinamico))
-
-                            # 3. DIBUJO PROTEGIDO EN EL SVG
+                            golden_angle = math.pi * (3 - math.sqrt(5)) 
+                            
                             for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                if idx < len(circles_data):
-                                    cx, cy, r_esfera = circles_data[idx]
+                                if num_esferas == 1:
+                                    cx, cy = base_x, base_y
                                 else:
-                                    cx, cy, r_esfera = base_x, base_y, 6.0
-                                
-                                # SEGURIDAD CRÍTICA: Bloquear variables 'NaN' que corrompen la pantalla
-                                if math.isnan(cx) or math.isnan(cy) or math.isnan(r_esfera):
-                                    cx, cy, r_esfera = base_x, base_y, 6.0
+                                    r_disp = (r_esfera_dinamico * 1.1) * math.sqrt(idx)
+                                    theta = idx * golden_angle
+                                    cx = base_x + r_disp * math.cos(theta)
+                                    cy = base_y + r_disp * math.sin(theta)
                                 
                                 color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                 
@@ -1209,15 +1126,17 @@ elif menu == "Mapa Interactivo":
                                     fill_style = color_burbuja
                                     fill_opacity = "0.5"
                                 else:
-                                    continue # Salta las no pagadas (optimiza memoria)
+                                    continue # Optimizamos memoria saltando las partidas no pagadas
                                     
                                 circle_tag = soup.new_tag(
                                     "circle", 
                                     cx=f"{cx:.2f}", 
                                     cy=f"{cy:.2f}", 
-                                    r=f"{r_esfera:.2f}", 
+                                    r=f"{r_esfera_dinamico:.2f}", 
                                     style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
                                 )
+                                
+                                # Lo depositamos en la capa maestra del Z-Index superior
                                 capa_esferas.append(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
