@@ -1114,8 +1114,8 @@ elif menu == "Mapa Interactivo":
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
             espaciado_base = 10.0 
-            espaciado_x = espaciado_base
-            espaciado_y = espaciado_base
+            espaciado_x = espaciado_base-3
+            espaciado_y = espaciado_base-8
             #espaciado_x = 7.0 
             #espaciado_y = 2
 
@@ -1150,7 +1150,7 @@ elif menu == "Mapa Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=40, 
+                    size=60, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=0) 
