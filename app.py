@@ -48,7 +48,7 @@ def obtener_datos_gsheet():
 
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
         
-        # INICIALIZACIÓN DE NUEVAS COLUMNAS (Compatibilidad con base de datos existente)
+        # INICIALIZACIÓN DE NUEVAS COLUMNAS
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
         if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
         if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
@@ -57,7 +57,6 @@ def obtener_datos_gsheet():
         df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
         df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
         
-        # Migración automática de datos viejos: Si estaba "Pagado" pero no tiene valor en Pago_1, se lo asignamos.
         df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
         return df
@@ -90,12 +89,12 @@ ANCHO_LOGIN_ENTRADAS = "200px"
 ESPACIO_ENTRE_RENGLONES = "8px"
 TAMANO_LETRA_PAGADO = "14px"
 GROSOR_ETIQUETA_PAGADO = "2px -25px"
-TAMANO_LETRA_TABLA = "11px" # Reducido ligeramente para acomodar más columnas
+TAMANO_LETRA_TABLA = "11px" 
 TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
 
-# ESTILOS CSS - Se incluye la modificación #3 para el botón principal "Pagar"
+# ESTILOS CSS
 st.markdown(f"""
 <style>
     div[data-testid="stTextInput"] {{
@@ -114,7 +113,7 @@ st.markdown(f"""
         height: auto !important;
     }}
     button[kind="primary"] {{
-        background-color: #39FF14 !important; /* Verde fluorescente */
+        background-color: #39FF14 !important;
         color: black !important;
         border: none !important;
         padding: 2px !important;
@@ -166,16 +165,14 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-# --- PALETA DE COLORES GLOBAL PARA PARTIDAS (Compartida entre Mapa y Diagrama) ---
+# --- PALETA DE COLORES GLOBAL ---
 partidas_unicas_global = df['Partida'].unique() if not df.empty else []
 paleta_colores_global = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
 mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_global)] for i, partida in enumerate(partidas_unicas_global)}
 
-# Esta variable controlará unificadamente el Lote en TODAS las pestañas (se forza a string)
 if 'lote_actual' not in st.session_state:
     st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
 
-# Esta variable controla si en el mapa se están viendo "Todos"
 if 'mostrar_todos_mapa' not in st.session_state:
     st.session_state.mostrar_todos_mapa = False
 
@@ -221,7 +218,7 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, 
             st.session_state.df.at[indice, 'Usuario'] = usuario_actual
             st.session_state.df.at[indice, 'Destajista'] = destajista
         
-        # Recalcular Estado Global
+        # Recalcular Estado
         fila = st.session_state.df.loc[indice]
         pagado_tot = float(fila.get('Pago_1', 0)) + float(fila.get('Pago_2', 0))
         costo_tot = float(fila['Precio'])
@@ -247,7 +244,6 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Mapa Interactivo"
 ])
 
-# Control de estado de menú para forzar acciones al cambiar de pestaña
 if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
@@ -293,15 +289,12 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
-    # Forzamos los valores a string para evitar errores de tipo al volver a la pestaña
     lotes_unicos = [str(x) for x in df['Lote'].unique()]
     
-    # Sincronización maestra: Buscamos el índice del lote actual en la memoria
     lote_memoria = str(st.session_state.lote_actual)
     idx_t1 = lotes_unicos.index(lote_memoria) if lote_memoria in lotes_unicos else 0
     lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_t1)
     
-    # Si el usuario cambia el lote aquí, actualizamos la memoria maestra y recargamos
     if str(lote_activo) != lote_memoria:
         st.session_state.lote_actual = str(lote_activo)
         st.session_state.mostrar_todos_mapa = False
@@ -309,7 +302,6 @@ if menu == "Registro de Destajos":
     
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago 1 (Opcional):", value=None, format="DD/MM/YYYY")
 
-    # Filtramos usando texto para asegurar que encuentre el lote correctamente
     df_lote = df[df['Lote'].astype(str).str.strip() == str(lote_activo)]
     prototipo = df_lote['Prototipo'].iloc[0] if not df_lote.empty else "N/A"
     terreno = df_lote['Terreno_m2'].iloc[0] if not df_lote.empty else 0
@@ -360,7 +352,6 @@ if menu == "Registro de Destajos":
     if fecha_filtro:
         df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
 
-    # --- MODIFICACIÓN 4: SUMATORIA FILTRADA VISIBLE ---
     sum_precio = df_filtrado['Precio'].sum()
     df_fil_temp = df_filtrado.copy()
     df_fil_temp['Tot_Pag'] = pd.to_numeric(df_fil_temp.get('Pago_1', 0)) + pd.to_numeric(df_fil_temp.get('Pago_2', 0))
@@ -370,7 +361,6 @@ if menu == "Registro de Destajos":
     st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # MODIFICACIÓN 2: Cambio de orden lógico y visual en los pesos (Estado vs Por pagar).
     cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.2]
     h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
     h1.markdown("<div style='font-size:11px;'>🗑️ Partida</div>", unsafe_allow_html=True)
@@ -382,8 +372,8 @@ if menu == "Registro de Destajos":
     h7.markdown("<div style='font-size:11px;'>📆 Fecha 1</div>", unsafe_allow_html=True)
     h8.markdown("<div style='font-size:11px;'>💳 Pago 2</div>", unsafe_allow_html=True)
     h9.markdown("<div style='font-size:11px;'>📆 Fecha 2</div>", unsafe_allow_html=True)
-    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
-    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
+    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True)
+    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True)
     h12.markdown("<div style='font-size:11px;'>👤 Usuario</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
@@ -401,12 +391,9 @@ if menu == "Registro de Destajos":
                 por_pagar = precio - total_pagado
                 pct_pagado = min(100, int((total_pagado / precio) * 100)) if precio > 0 else 0
                 
-                # C1: Partida
                 c1.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{numero}.- {fila['Partida']}</div>", unsafe_allow_html=True)
-                # C2: Costo
                 c2.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${precio:,.2f}</div>", unsafe_allow_html=True)
                 
-                # C3: Destajista
                 dest_val = fila.get('Destajista', '')
                 if pago_1 > 0:
                     c3.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{dest_val}</div>", unsafe_allow_html=True)
@@ -414,12 +401,9 @@ if menu == "Registro de Destajos":
                 else:
                     destajista_seleccionado = c3.selectbox("Destajista", ["Seleccionar..."] + LISTA_DESTAJISTAS, key=f"sel_{indice}", label_visibility="collapsed")
                 
-                # C4 y C5: Input Monto a Pagar y Botón
                 if por_pagar > 0:
-                    # MODIFICACIÓN 5: value=None para que se muestre vacío (en blanco).
                     monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=None, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
                     if c5.button("💳", key=f"btn_{indice}", type="primary", use_container_width=True):
-                        # MODIFICACIÓN 1 y 5: Validación reforzada del destajista y monto vacío/cero
                         if destajista_seleccionado in ["Seleccionar...", "", None] or pd.isna(destajista_seleccionado):
                             st.error("⚠️ Debes seleccionar un destajista primero.")
                         elif monto_input is None or monto_input <= 0:
@@ -433,17 +417,14 @@ if menu == "Registro de Destajos":
                     c4.markdown(f"<div style='text-align:center; color:gray; font-size:{TAMANO_LETRA_TABLA};'>Completado</div>", unsafe_allow_html=True)
                     c5.markdown("")
                 
-                # C6 y C7: Pago 1 y Fecha
                 c6.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_1:,.2f}</div>", unsafe_allow_html=True)
                 f1 = fila.get('Fecha_Pago', '-') if str(fila.get('Fecha_Pago', '')) != 'nan' else '-'
                 c7.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f1}</div>", unsafe_allow_html=True)
                 
-                # C8 y C9: Pago 2 y Fecha
                 c8.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_2:,.2f}</div>", unsafe_allow_html=True)
                 f2 = fila.get('Fecha_Pago_2', '-') if str(fila.get('Fecha_Pago_2', '')) != 'nan' else '-'
                 c9.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f2}</div>", unsafe_allow_html=True)
                 
-                # MODIFICACIÓN 2: C10 ahora es Por pagar y C11 es Estado
                 color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
                 c10.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
 
@@ -456,7 +437,6 @@ if menu == "Registro de Destajos":
                 """
                 c11.markdown(barra_html, unsafe_allow_html=True)
                 
-                # C12: Usuario 1 / Usuario 2
                 u1 = str(fila.get('Usuario', ''))
                 u2 = str(fila.get('Usuario_2', ''))
                 if u1 == 'nan': u1 = ''
@@ -506,7 +486,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
         monto_pagado = df_dash['Total_Pagado_Real'].sum()
         monto_pendiente = monto_total - monto_pagado
         
-        df_pagados = df_dash[df_dash['Estado'] == 'Pagado'] # Solo las que llegaron al 100%
+        df_pagados = df_dash[df_dash['Estado'] == 'Pagado'] 
         df_pendientes = df_dash[df_dash['Estado'] != 'Pagado']
         
         st.markdown("<br>", unsafe_allow_html=True)
@@ -556,7 +536,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf1:
             g_col1, g_col2 = st.columns(2)
             
-            # Gráfico con los 3 Estados Actualizados
             df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
             fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
                                title="Comportamiento Financiero por Prototipo",
@@ -581,7 +560,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf2:
             g_col3, g_col4 = st.columns(2)
             
-            # Pie Chart ahora suma el Total Pagado Real
             df_pagos_efectivos = df_dash[df_dash['Total_Pagado_Real'] > 0]
             if not df_pagos_efectivos.empty:
                 df_dest = df_pagos_efectivos.groupby('Destajista')['Total_Pagado_Real'].sum().reset_index()
@@ -612,7 +590,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # Función auxiliar para convertir HEX a RGBA para efectos de transparencia en plotly
     def hex_to_rgba(hex_val, opacity):
         hex_val = hex_val.lstrip('#')
         if len(hex_val) == 6:
@@ -666,7 +643,6 @@ elif menu == "Mapa Interactivo":
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            
             df_lote_mapa['Total_Pagado_Real'] = pd.to_numeric(df_lote_mapa['Pago_1']) + pd.to_numeric(df_lote_mapa['Pago_2'])
             total_precio_lote = df_lote_mapa['Precio'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
@@ -694,15 +670,6 @@ elif menu == "Mapa Interactivo":
                 "Hex": hex_color,
                 "Detalle": f"{pagadas_completas}/{total_partidas} Partidas al 100%"
             })
-
-    opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
-
-    if st.session_state.mostrar_todos_mapa:
-        valor_defecto_mapa = "Mostrar Todos"
-    else:
-        valor_defecto_mapa = f"Lote {st.session_state.lote_actual}"
-        
-    idx_t3 = opciones_selector.index(valor_defecto_mapa) if valor_defecto_mapa in opciones_selector else 0
 
     if st.session_state.mostrar_todos_mapa:
         df_kpi = df.copy()
@@ -743,46 +710,34 @@ elif menu == "Mapa Interactivo":
 
     # --- NUEVOS FILTROS DINÁMICOS DE ESFERAS EN EL MAPA ---
     st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas)")
-    
-    # LÓGICA DE BLOQUEO DE FILTROS CRUZADOS (Garantizando la selección lógica de 1 elemento)
-    bloquear_filtros = not st.session_state.mostrar_todos_mapa
-    if bloquear_filtros:
-        st.info("⚠️ Deberás mostrar todos los lotes (en el selector derecho de Desglose) para usar estos filtros.")
         
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    # --- MODIFICACIÓN 1: Ordenar las partidas respecto a su número inicial (orden original) ---
     partidas_ordenadas = []
     for p in df['Partida'].dropna().unique():
         if str(p).strip() and str(p) not in partidas_ordenadas:
             partidas_ordenadas.append(str(p))
             
-    # Creamos la visualización con "1.- Cisterna", etc.
     partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
-    
     destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
     
-    # Inclusión de max_selections=4 y estado de disable cruzado
+    # MODIFICACIÓN 2: Filtros desbloqueados permanentemente
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
         "Filtrar por Partida (Máx 4):", 
         options=partidas_display,
-        max_selections=4,
-        disabled=bloquear_filtros
+        max_selections=4
     )
     
-    # Limpiamos el texto seleccionado de vuelta a su nombre original para usarlo en el dataframe
     filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
     
     filtro_destajistas_mapa = f_col_mapa2.multiselect(
         "Filtrar por Destajista (Máx 4):", 
         options=destajistas_unicos_filtro,
-        max_selections=4,
-        disabled=bloquear_filtros
+        max_selections=4
     )
     
     filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
     
-    # Se adapta para recoger tanto pagos completos como parciales para la renderización de filtros visuales
     df_filtered = df[df['Estado'].isin(['Pagado', 'Pago Parcial'])].copy()
     if filtro_partidas_mapa:
         df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
@@ -796,17 +751,30 @@ elif menu == "Mapa Interactivo":
         with c_titulo:
             st.markdown("### 📋 Desglose:")
         with c_selector:
-            # Lógica de bloqueo del selector de lote general
+            # MODIFICACIÓN 3: Lógica dinámica de selector. Solo muestra lotes evaluados si hay filtros.
+            if filtros_activos:
+                lotes_validos_filtro = sorted([str(x) for x in df_filtered['Lote'].unique()], key=lambda x: int(x) if str(x).isdigit() else x)
+                opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in lotes_validos_filtro]
+            else:
+                opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
+                
+            if st.session_state.mostrar_todos_mapa:
+                valor_defecto_mapa = "Mostrar Todos"
+            else:
+                valor_defecto_mapa = f"Lote {st.session_state.lote_actual}"
+                # Si el usuario aplica un filtro que excluye el lote actual, forzamos regresar a la vista general
+                if valor_defecto_mapa not in opciones_selector:
+                    st.session_state.mostrar_todos_mapa = True
+                    st.rerun()
+                    
+            idx_t3 = opciones_selector.index(valor_defecto_mapa) if valor_defecto_mapa in opciones_selector else 0
+
             mapa_sel = st.selectbox(
                 "Selector", 
                 opciones_selector, 
                 index=idx_t3, 
-                label_visibility="collapsed",
-                disabled=filtros_activos
+                label_visibility="collapsed"
             )
-            
-            if filtros_activos:
-                st.caption("Desactiva los filtros para usar este selector de lote individual.")
                 
             if mapa_sel != valor_defecto_mapa:
                 if mapa_sel == "Mostrar Todos":
@@ -818,8 +786,8 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
-        # --- LÓGICA DE LA TABLA (SE ACTIVA SI HAY FILTROS) ---
-        if filtros_activos:
+        # Lógica de la Tabla (Mantiene coherencia entre estado global filtrado y estado de lote específico)
+        if filtros_activos and st.session_state.mostrar_todos_mapa:
             st.markdown("**Desglose de Filtros Activos (Pagados / Parciales):**")
             if not df_filtered.empty:
                 html_table = (
@@ -838,8 +806,6 @@ elif menu == "Mapa Interactivo":
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
                     estado_row = row_lote['Estado']
                     destajista_str = row_lote['Destajista'] if pd.notna(row_lote['Destajista']) and row_lote['Destajista'] != "" else "Sin Asignar"
-                    
-                    # Reflejo de opacidad en la tabla
                     op_style = "1.0" if estado_row == 'Pagado' else "0.5"
                     
                     html_table += (
@@ -851,68 +817,64 @@ elif menu == "Mapa Interactivo":
                         "</tr>"
                     )
                 html_table += "</tbody></table></div>"
-                
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
                 st.info("No se encontraron partidas con avance que coincidan con los filtros seleccionados.")
-        else:
-            if not st.session_state.mostrar_todos_mapa:
-                lote_puro_num = str(st.session_state.lote_actual)
-                df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
-                
-                if not df_desglose_lote.empty:
-                    def formatear_estado_icono(val):
-                        if val == "Pagado": return "🟢 100% PAGADO"
-                        elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
-                        return "🔴 PENDIENTE"
-                        
-                    df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
+        elif not st.session_state.mostrar_todos_mapa:
+            lote_puro_num = str(st.session_state.lote_actual)
+            df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
+            
+            if not df_desglose_lote.empty:
+                def formatear_estado_icono(val):
+                    if val == "Pagado": return "🟢 100% PAGADO"
+                    elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
+                    return "🔴 PENDIENTE"
                     
-                    # --- PUNTOS 1.1, 1.2, 1.3, 1.4: TABLA DESGLOSE ---
-                    html_table = (
-                        "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
-                        "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
-                        "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
-                        "<tr>"
-                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
-                        "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
-                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
-                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
-                        "</tr></thead><tbody>"
+                df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
+                
+                html_table = (
+                    "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
+                    "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
+                    "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
+                    "<tr>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
+                    "</tr></thead><tbody>"
+                )
+                
+                for _, row_lote in df_desglose_lote.iterrows():
+                    c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
+                    html_table += (
+                        "<tr style='border-bottom: 1px solid #eee;'>"
+                        f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
+                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
+                        f"<td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td>"
+                        f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
+                        "</tr>"
                     )
-                    
-                    for _, row_lote in df_desglose_lote.iterrows():
-                        c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
-                        html_table += (
-                            "<tr style='border-bottom: 1px solid #eee;'>"
-                            f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
-                            f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
-                            f"<td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td>"
-                            f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
-                            "</tr>"
-                        )
-                    html_table += "</tbody></table></div>"
-                    
-                    st.markdown(html_table, unsafe_allow_html=True)
-                else:
-                    st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
+                html_table += "</tbody></table></div>"
+                st.markdown(html_table, unsafe_allow_html=True)
             else:
-                st.markdown("**Resumen General por Lote (Financiero):**")
-                df_resumen_global = df.copy()
-                df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
-                
-                df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
-                    Total_Partidas=('Partida', 'count'),
-                    Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
-                    Costo_Total=('Precio', 'sum'),
-                    Pagado_Acum=('Total_Pagado_Real', 'sum')
-                ).reset_index()
-                
-                df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
-                df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
-                
-                styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
-                st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
+                st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
+        else:
+            st.markdown("**Resumen General por Lote (Financiero):**")
+            df_resumen_global = df.copy()
+            df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
+            
+            df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
+                Total_Partidas=('Partida', 'count'),
+                Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
+                Costo_Total=('Precio', 'sum'),
+                Pagado_Acum=('Total_Pagado_Real', 'sum')
+            ).reset_index()
+            
+            df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
+            df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
+            
+            styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+            st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
 
     with col_mapa:
         # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
@@ -934,7 +896,6 @@ elif menu == "Mapa Interactivo":
                 except:
                     soup = BeautifulSoup(svg_content, "html.parser")
                     
-                # --- PUNTO 5: REPARACIÓN DE LÍNEAS Y RELLENOS DIAGONALES EN EL SVG ---
                 for path_elem in soup.find_all(['path', 'polygon']):
                     path_elem['fill-rule'] = "evenodd"
                     if 'style' in path_elem.attrs:
@@ -943,7 +904,6 @@ elif menu == "Mapa Interactivo":
                     else:
                         path_elem['style'] = "fill-rule:evenodd;"
 
-                # --- MODIFICACIÓN 2: Nueva función para obtener centroide y radio visual en base a SVG ---
                 def calcular_centro_poligono(elemento):
                     coords_x, coords_y = [], []
                     try:
@@ -967,7 +927,6 @@ elif menu == "Mapa Interactivo":
                     except:
                         pass
                     return None, None, None
-                # -----------------------------------------------------------------------------------------
                 
                 svg_tag = soup.find("svg")
                 
@@ -977,13 +936,11 @@ elif menu == "Mapa Interactivo":
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                         
-                    # INYECTOR DE GRADIENTES PARA EL DOM DEL SVG (Seccionado geométrico)
                     defs = soup.find('defs')
                     if not defs:
                         defs = soup.new_tag('defs')
                         svg_tag.insert(0, defs)
 
-                # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
                 for item in lotes_datos_mapa:
                     id_lote = str(item["Lote_Id"])
                     hex_color = item["Hex"]
@@ -996,75 +953,95 @@ elif menu == "Mapa Interactivo":
 
                     if lote_path:
                         df_lote_esferas = pd.DataFrame()
+                        # Variable clave para saber si este polígono en particular es el seleccionado en el dropdown
+                        is_selected_lote = (not st.session_state.mostrar_todos_mapa) and (id_lote == str(st.session_state.lote_actual))
                         
-                        # LOGICA COMBINADA DE PINTADO SEGUN FILTROS SUPERPUESTOS
+                        # LOGICA DE ESTILADO BASADO EN ESTADO Y FILTROS
                         if filtros_activos:
                             df_lote_match = df_filtered[df_filtered['Lote'].astype(str).str.strip() == id_lote]
                             if not df_lote_match.empty:
-                                colores_opacidades = []
-                                partidas_vistas = set()
-                                
-                                for _, row_match in df_lote_match.iterrows():
-                                    p_name = row_match['Partida']
-                                    if p_name not in partidas_vistas:
-                                        partidas_vistas.add(p_name)
-                                        op = 1.0 if row_match['Estado'] == 'Pagado' else 0.5
-                                        c_hex_p = mapa_colores_partida.get(p_name, '#3B82F6')
-                                        colores_opacidades.append((c_hex_p, op))
-                                        
-                                colores_opacidades = colores_opacidades[:4]
-                                
-                                if len(colores_opacidades) == 1:
-                                    c, op = colores_opacidades[0]
-                                    lote_path['style'] = f"fill:{c}; fill-opacity:{op}; stroke:#000000; stroke-width:6; opacity:1.0;"
-                                elif len(colores_opacidades) > 1:
-                                    # Generación Dinámica de Gradientes Hard-Stops (Seccionamiento Físico)
-                                    id_grad = f"grad_{id_lote}"
-                                    n_cols = len(colores_opacidades)
-                                    grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="100%")
+                                # Si estamos viendo el mapa general o estamos enfocados en este lote específico
+                                if st.session_state.mostrar_todos_mapa or is_selected_lote:
+                                    colores_opacidades = []
+                                    partidas_vistas = set()
                                     
-                                    for i, (c, op) in enumerate(colores_opacidades):
-                                        start_pct = (i / n_cols) * 100
-                                        end_pct = ((i + 1) / n_cols) * 100
-                                        
-                                        stop1 = soup.new_tag("stop", offset=f"{start_pct}%")
-                                        stop1['stop-color'] = c
-                                        stop1['stop-opacity'] = str(op)
-                                        
-                                        stop2 = soup.new_tag("stop", offset=f"{end_pct}%")
-                                        stop2['stop-color'] = c
-                                        stop2['stop-opacity'] = str(op)
-                                        
-                                        grad.append(stop1)
-                                        grad.append(stop2)
+                                    for _, row_match in df_lote_match.iterrows():
+                                        p_name = row_match['Partida']
+                                        if p_name not in partidas_vistas:
+                                            partidas_vistas.add(p_name)
+                                            op = 1.0 if row_match['Estado'] == 'Pagado' else 0.5
+                                            c_hex_p = mapa_colores_partida.get(p_name, '#3B82F6')
+                                            colores_opacidades.append((c_hex_p, op))
+                                            
+                                    colores_opacidades = colores_opacidades[:4]
                                     
-                                    if defs:
-                                        defs.append(grad)
-                                    lote_path['style'] = f"fill:url(#{id_grad}); stroke:#000000; stroke-width:6; opacity:1.0;"
+                                    if len(colores_opacidades) == 1:
+                                        c, op = colores_opacidades[0]
+                                        # MODIFICACIÓN 4: Resalte de lote específico si fue seleccionado (Grosor y Amarillo)
+                                        if is_selected_lote:
+                                            lote_path['style'] = f"fill:{c}; fill-opacity:{op}; stroke:#FFFF00; stroke-width:8; opacity:1.0;"
+                                        else:
+                                            lote_path['style'] = f"fill:{c}; fill-opacity:{op}; stroke:#000000; stroke-width:6; opacity:1.0;"
+                                    elif len(colores_opacidades) > 1:
+                                        id_grad = f"grad_{id_lote}"
+                                        n_cols = len(colores_opacidades)
+                                        
+                                        # MODIFICACIÓN 1: Gradiente horizontal para franjas verticales
+                                        grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="0%")
+                                        
+                                        for i, (c, op) in enumerate(colores_opacidades):
+                                            start_pct = (i / n_cols) * 100
+                                            end_pct = ((i + 1) / n_cols) * 100
+                                            
+                                            stop1 = soup.new_tag("stop", offset=f"{start_pct}%")
+                                            stop1['stop-color'] = c
+                                            stop1['stop-opacity'] = str(op)
+                                            
+                                            stop2 = soup.new_tag("stop", offset=f"{end_pct}%")
+                                            stop2['stop-color'] = c
+                                            stop2['stop-opacity'] = str(op)
+                                            
+                                            grad.append(stop1)
+                                            grad.append(stop2)
+                                        
+                                        if defs:
+                                            defs.append(grad)
+                                            
+                                        # MODIFICACIÓN 4: Resalte para múltiples colores
+                                        if is_selected_lote:
+                                            lote_path['style'] = f"fill:url(#{id_grad}); stroke:#FFFF00; stroke-width:8; opacity:1.0;"
+                                        else:
+                                            lote_path['style'] = f"fill:url(#{id_grad}); stroke:#000000; stroke-width:6; opacity:1.0;"
 
-                                df_lote_esferas = df_lote_match
+                                    df_lote_esferas = df_lote_match
+                                else:
+                                    # Hace match con filtros pero no es el lote actualmente seleccionado (Efecto apagado / Fade)
+                                    lote_path['style'] = f"fill:#e5e7eb; fill-opacity:0.3; stroke:#000000; stroke-width:2; opacity:0.3;"
                             else:
-                                # Eliminación del color condicional (Grey out/Fade)
-                                lote_path['style'] = f"fill:#e5e7eb; fill-opacity:0.3; stroke:#000000; stroke-width:2; opacity:0.8;"
+                                # Eliminación del color condicional (No hizo match)
+                                lote_path['style'] = f"fill:#e5e7eb; fill-opacity:0.3; stroke:#000000; stroke-width:2; opacity:0.3;"
                         else:
-                            # ORIGINAL
-                            if not st.session_state.mostrar_todos_mapa and id_lote != str(st.session_state.lote_actual):
+                            # ORIGINAL - Sin filtros
+                            if not st.session_state.mostrar_todos_mapa and not is_selected_lote:
                                 lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
                             else:
-                                lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
+                                # Lote Seleccionado Manualmente y sin Filtros
+                                if is_selected_lote:
+                                    lote_path['style'] = f"fill:{hex_color};stroke:#FFFF00;stroke-width:8;opacity:1.0;"
+                                else:
+                                    lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:6;opacity:1.0;"
                                 
-                                if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
+                                if is_selected_lote:
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS ESTÉN DENTRO DEL POLÍGONO
+                        # DIBUJO DE ESFERAS (Se mantiene exacto)
                         if not df_lote_esferas.empty:
                             cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
                             
                             if cx_auto is not None and cy_auto is not None:
                                 base_x, base_y = cx_auto, cy_auto
-                                radio_disp = max(r_auto, 5) # Aseguramos un mínimo para el radio de dispersión
+                                radio_disp = max(r_auto, 5) 
                             else:
-                                # Fallback a coordenadas manuales si el SVG no proporciona buenos puntos
                                 base_x = float(item["x"])
                                 base_y = float(item["y"])
                                 radio_disp = 12 
@@ -1093,20 +1070,12 @@ elif menu == "Mapa Interactivo":
                                     fill_opacity = "0.0"
                                     
                                 if fill_opacity != "0.0":
-                                    # 💡 TIP: Si tras este cambio las ves muy pequeñas, sube este valor base de r_esfera (ej. a 20 o 50)
-                                     # dependiendo de la escala general de tu ViewBox en el SVG.
-                                    r_esfera_dinamico = r_esfera
-
-
                                     circle_tag = soup.new_tag(
                                         "circle", 
                                         cx=f"{cx:.2f}", 
                                         cy=f"{cy:.2f}", 
-                                        r=str(r_esfera_dinamico), 
-                                        #r=50, #radio para purebas
-                                        # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
+                                        r=str(r_esfera), 
                                         style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
-                                        #style="fill:red; stroke:yellow; stroke-width:10px; fill-opacity:1.0;"
                                     )
                                     lote_path.insert_after(circle_tag)
 
@@ -1127,8 +1096,9 @@ elif menu == "Mapa Interactivo":
     st.markdown("### 🔗 Diagrama Interactivo de Partidas")
     
     if st.session_state.mostrar_todos_mapa:
-        st.info("⚠️ Debes seleccionar un lote en el filtro para visualizar el diagrama con las esferas de colores.")
+        st.info("⚠️ Selecciona un Lote específico desde el panel 'Desglose' (arriba a la derecha) para visualizar este diagrama.")
     else:
+        # MODIFICACIÓN 5: El diagrama se comporta de forma idéntica; sin ser afectado por los filtros para permitir visibilidad general del lote seleccionado.
         df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(st.session_state.lote_actual)]
 
         if not df_lote_diag.empty:
@@ -1140,13 +1110,10 @@ elif menu == "Mapa Interactivo":
             colores_relleno = []
             textos_hover = []
 
-            # --- AQUI ESTÁ EL CAMBIO ---
-            # Aumenta estos valores si quieres más separación
-            espaciado_x = 7.0  # <-- Aumenta este número para separar más horizontalmente
-            espaciado_y = 2  # <-- Aumenta este número para separar más verticalmente
+            espaciado_x = 7.0 
+            espaciado_y = 2  
 
             for i, row in enumerate(df_lote_diag.itertuples()):
-                # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
                 x = (i % cols) * espaciado_x
                 y = (i // cols) * espaciado_y
                     
@@ -1170,7 +1137,6 @@ elif menu == "Mapa Interactivo":
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
-            # Calculo dinámico de la altura del gráfico 
             altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
 
             fig_diag = go.Figure(data=go.Scatter(
@@ -1187,8 +1153,6 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
-            # AJUSTE AUTOMÁTICO DEL POLÍGONO
-            # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
             margen = 2.5 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
