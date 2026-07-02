@@ -3,4 +3,4 @@ pandas
 plotly
 requests
 beautifulsoup4
-shapely numpy
+numpy
