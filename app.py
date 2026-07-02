@@ -12,6 +12,10 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
 
+# --- NUEVAS LIBRERÍAS PARA GEOMETRÍA Y CIRCLE PACKING ---
+import numpy as np
+from shapely.geometry import Polygon, Point
+from shapely.affinity import rotate
 
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
@@ -27,9 +31,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
-
 
 # -----------------------------------
 # --- FUNCIÓN PARA POSICIONAMIENTO AUTOMÁTICO ---
@@ -115,8 +116,6 @@ def calcular_centro_lote(id_lote_buscado, ruta_svg):
         print(f"Error procesando el lote {id_lote_buscado}: {e}")
         return None
 
-
-
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA
 # =========================================================================
@@ -136,7 +135,6 @@ def obtener_datos_gsheet():
 
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
         
-        # INICIALIZACIÓN DE NUEVAS COLUMNAS (Compatibilidad con base de datos existente)
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
         if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
         if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
@@ -145,7 +143,6 @@ def obtener_datos_gsheet():
         df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
         df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
         
-        # Migración automática de datos viejos: Si estaba "Pagado" pero no tiene valor en Pago_1, se lo asignamos.
         df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
         return df
@@ -254,16 +251,14 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-# --- PALETA DE COLORES GLOBAL PARA PARTIDAS (Compartida entre Mapa y Diagrama) ---
+# --- PALETA DE COLORES GLOBAL PARA PARTIDAS ---
 partidas_unicas_global = df['Partida'].unique() if not df.empty else []
 paleta_colores_global = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
 mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_global)] for i, partida in enumerate(partidas_unicas_global)}
 
-# Esta variable controlará unificadamente el Lote en TODAS las pestañas (se forza a string)
 if 'lote_actual' not in st.session_state:
     st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
 
-# Esta variable controla si en el mapa se están viendo "Todos"
 if 'mostrar_todos_mapa' not in st.session_state:
     st.session_state.mostrar_todos_mapa = False
 
@@ -309,7 +304,6 @@ def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, 
             st.session_state.df.at[indice, 'Usuario'] = usuario_actual
             st.session_state.df.at[indice, 'Destajista'] = destajista
         
-        # Recalcular Estado Global
         fila = st.session_state.df.loc[indice]
         pagado_tot = float(fila.get('Pago_1', 0)) + float(fila.get('Pago_2', 0))
         costo_tot = float(fila['Precio'])
@@ -335,7 +329,6 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Mapa Interactivo"
 ])
 
-# Control de estado de menú para forzar acciones al cambiar de pestaña
 if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
@@ -538,6 +531,7 @@ if menu == "Registro de Destajos":
                 elif u1: user_display = u1
                 else: user_display = "-"
                 c12.markdown(f"<div style='font-size: 9px; text-align:center; margin-top:2px;'>{user_display}</div>", unsafe_allow_html=True)
+
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
@@ -991,8 +985,6 @@ elif menu == "Mapa Interactivo":
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
 
-                    # --- CREACIÓN DE LA CAPA MAESTRA DE ESFERAS ---
-                    # Al inyectarla al final, garantizamos que floten sobre cualquier polígono
                     capa_esferas = soup.new_tag("g", id="capa_maestra_esferas")
                     svg_tag.append(capa_esferas)
 
@@ -1028,7 +1020,6 @@ elif menu == "Mapa Interactivo":
 
                         # --- INYECCIÓN DE ESFERAS CON COORDENADAS DINÁMICAS DESDE SVG ---
                         if not df_lote_esferas.empty:
-                            
                             # Extraemos las coordenadas directamente del polígono SVG del lote
                             d_str = lote_path.get("d", "")
                             t_str = lote_path.get("transform", "")
@@ -1082,10 +1073,11 @@ elif menu == "Mapa Interactivo":
                                 nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
                                 pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
                             
+                            # --- PRE-PROCESO GEOMÉTRICO ---
+                            base_x, base_y = float(item["x"]), float(item["y"])
+                            transformed_pts = []
+                            
                             if pts:
-                                cx = sum(p[0] for p in pts) / len(pts)
-                                cy = sum(p[1] for p in pts) / len(pts)
-                                
                                 matrix = [1, 0, 0, 1, 0, 0]
                                 if t_str:
                                     m_match = re.search(r'matrix\(([^)]+)\)', t_str)
@@ -1094,29 +1086,121 @@ elif menu == "Mapa Interactivo":
                                         if len(vals) == 6: matrix = vals
                                         
                                 a, b, c_mat, d_mat, e, f_mat = matrix
-                                base_x = a * cx + c_mat * cy + e
-                                base_y = b * cx + d_mat * cy + f_mat
-                            else:
-                                # Fallback por si la lectura del path fallara
-                                base_x = float(item["x"])
-                                base_y = float(item["y"])
+                                
+                                cx_og = sum(p[0] for p in pts) / len(pts)
+                                cy_og = sum(p[1] for p in pts) / len(pts)
+                                base_x = a * cx_og + c_mat * cy_og + e
+                                base_y = b * cx_og + d_mat * cy_og + f_mat
+                                
+                                # Convertimos los puntos locales al espacio de coordenadas global
+                                for p in pts:
+                                    px = a * p[0] + c_mat * p[1] + e
+                                    py = b * p[0] + d_mat * p[1] + f_mat
+                                    transformed_pts.append((px, py))
                             
                             num_esferas = len(df_lote_esferas)
+                            circles_data = []
                             
-                            # Control dinámico: Radio delimitado entre 6px y 18px (Garantiza visibilidad siempre)
-                            r_esfera_dinamico = max(6.0, min(18.0, 60.0 / math.sqrt(num_esferas)))
-                            
-                            golden_angle = math.pi * (3 - math.sqrt(5)) 
-                            
-                            for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                if num_esferas == 1:
-                                    cx, cy = base_x, base_y
-                                else:
-                                    r_disp = (r_esfera_dinamico * 1.1) * math.sqrt(idx)
-                                    theta = idx * golden_angle
-                                    cx = base_x + r_disp * math.cos(theta)
-                                    cy = base_y + r_disp * math.sin(theta)
+                            # --- ALGORITMO AVANZADO SHAPELY (CIRCLE PACKING INTERNO) ---
+                            # Respetando de forma precisa y matemática los límites del lote y su orientación.
+                            if transformed_pts and len(transformed_pts) >= 3:
+                                try:
+                                    poly = Polygon(transformed_pts)
+                                    if not poly.is_valid:
+                                        poly = poly.buffer(0)
+                                        
+                                    if num_esferas == 1:
+                                        c = poly.centroid
+                                        r = min(poly.exterior.distance(c), 18.0)
+                                        if r < 6: r = 10.0
+                                        circles_data.append((c.x, c.y, r))
+                                    else:
+                                        # Identificamos la orientación natural del polígono con su Rectángulo Mínimo Rotado
+                                        mrr = poly.minimum_rotated_rectangle
+                                        mrr_coords = list(mrr.exterior.coords)
+                                        dists = [Point(mrr_coords[i]).distance(Point(mrr_coords[i+1])) for i in range(len(mrr_coords)-1)]
+                                        max_idx = dists.index(max(dists))
+                                        p1 = mrr_coords[max_idx]
+                                        p2 = mrr_coords[max_idx+1]
+                                        
+                                        # Calculamos el ángulo para rotar y alinear la grilla de packing con el eje más largo
+                                        angle_rad = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+                                        angle_deg = math.degrees(angle_rad)
+                                        
+                                        centroid = poly.centroid
+                                        poly_rot = rotate(poly, -angle_deg, origin=centroid)
+                                        minx, miny, maxx, maxy = poly_rot.bounds
+                                        
+                                        area = poly_rot.area
+                                        if area > 0:
+                                            # Estimación inicial optimista basada en la densidad máxima teórica
+                                            R = (math.sqrt(area / (num_esferas * math.pi))) * 0.88
+                                            best_points = []
+                                            best_R = R
+                                            
+                                            # Iteramos para encontrar el radio perfecto sin que colapsen ni sobresalgan
+                                            for _ in range(25):
+                                                inner_poly = poly_rot.buffer(-R)
+                                                if inner_poly.is_empty:
+                                                    R *= 0.8
+                                                    continue
+                                                
+                                                dx_grid = 2 * R
+                                                dy_grid = math.sqrt(3) * R
+                                                
+                                                x_vals = np.arange(minx + R, maxx, dx_grid)
+                                                y_vals = np.arange(miny + R, maxy, dy_grid)
+                                                
+                                                points_grid = []
+                                                for i_y, y_g in enumerate(y_vals):
+                                                    offset = (i_y % 2) * R
+                                                    for x_g in x_vals:
+                                                        pt = Point(x_g + offset, y_g)
+                                                        if inner_poly.contains(pt):
+                                                            points_grid.append(pt)
+                                                
+                                                if len(points_grid) >= num_esferas:
+                                                    # Ordenamos desde el centro para que se agrupen de forma natural
+                                                    points_grid.sort(key=lambda p: p.distance(centroid))
+                                                    best_points = points_grid[:num_esferas]
+                                                    best_R = R
+                                                    break
+                                                else:
+                                                    R *= 0.85
+                                                    
+                                            if best_points:
+                                                # Rotamos los puntos encontrados de vuelta a su posición original
+                                                for pt in best_points:
+                                                    rot_pt = rotate(pt, angle_deg, origin=centroid)
+                                                    circles_data.append((rot_pt.x, rot_pt.y, best_R))
+                                except Exception as e:
+                                    circles_data = [] # Dispara el fallback nativo de seguridad si hay error matemático
+
+                            # --- FALLBACK DE SEGURIDAD NATIVO ---
+                            # Si hubo algún error o la forma geométrica del lote es un artefacto irregular
+                            if len(circles_data) < num_esferas:
+                                circles_data = []
+                                r_esfera_dinamico = max(6.0, min(18.0, 60.0 / math.sqrt(num_esferas)))
+                                golden_angle = math.pi * (3 - math.sqrt(5)) 
                                 
+                                for idx in range(num_esferas):
+                                    if num_esferas == 1:
+                                        circles_data.append((base_x, base_y, r_esfera_dinamico))
+                                    else:
+                                        r_disp = (r_esfera_dinamico * 1.1) * math.sqrt(idx)
+                                        theta = idx * golden_angle
+                                        cx = base_x + r_disp * math.cos(theta)
+                                        cy = base_y + r_disp * math.sin(theta)
+                                        circles_data.append((cx, cy, r_esfera_dinamico))
+                                        
+                            # --- ASIGNACIÓN DE ESTILOS Y DIBUJO ---
+                            for idx, row in enumerate(df_lote_esferas.itertuples()):
+                                # Protección por si la longitud varía repentinamente
+                                if idx < len(circles_data):
+                                    cx, cy, r_esfera = circles_data[idx]
+                                else:
+                                    cx, cy, r_esfera = base_x, base_y, 6.0
+                                    
                                 color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                 
                                 if row.Estado == "Pagado":
@@ -1132,7 +1216,7 @@ elif menu == "Mapa Interactivo":
                                     "circle", 
                                     cx=f"{cx:.2f}", 
                                     cy=f"{cy:.2f}", 
-                                    r=f"{r_esfera_dinamico:.2f}", 
+                                    r=f"{r_esfera:.2f}", 
                                     style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
                                 )
                                 
