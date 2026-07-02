@@ -27,7 +27,92 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # -----------------------------------
+# --- FUNCIÓN PARA POSICIONAMIENTO AUTOMÁTICO ---
+def calcular_centro_lote(id_lote_buscado, ruta_svg):
+    try:
+        with open(ruta_svg, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "xml")
+        
+        path_element = soup.find(id=f"lote-{id_lote_buscado}")
+        if not path_element:
+            path_element = soup.find(id=str(id_lote_buscado))
+        if not path_element: 
+            return None
+        
+        d_str = path_element.get("d", "")
+        t_str = path_element.get("transform", "")
+        pts = []
+        
+        if d_str:
+            tokens = re.findall(r'[a-zA-Z]|[-+]?\d*\.\d+|\d+', d_str)
+            cur_x, cur_y = 0.0, 0.0
+            cmd = ''
+            i = 0
+            while i < len(tokens):
+                tok = tokens[i]
+                if tok.isalpha():
+                    cmd = tok
+                    i += 1
+                    if cmd in ('Z', 'z'): continue
+                else:
+                    try:
+                        if cmd in ('M', 'L'):
+                            cur_x, cur_y = float(tokens[i]), float(tokens[i+1])
+                            pts.append((cur_x, cur_y))
+                            i += 2
+                            if cmd == 'M': cmd = 'L'
+                        elif cmd in ('m', 'l'):
+                            cur_x += float(tokens[i])
+                            cur_y += float(tokens[i+1])
+                            pts.append((cur_x, cur_y))
+                            i += 2
+                            if cmd == 'm': cmd = 'l'
+                        elif cmd in ('H', 'h', 'V', 'v'):
+                            if cmd == 'H': cur_x = float(tokens[i])
+                            elif cmd == 'h': cur_x += float(tokens[i])
+                            elif cmd == 'V': cur_y = float(tokens[i])
+                            elif cmd == 'v': cur_y += float(tokens[i])
+                            pts.append((cur_x, cur_y))
+                            i += 1
+                        elif cmd in ('C', 'c'):
+                            if cmd == 'C':
+                                cur_x, cur_y = float(tokens[i+4]), float(tokens[i+5])
+                            else:
+                                cur_x += float(tokens[i+4])
+                                cur_y += float(tokens[i+5])
+                            pts.append((cur_x, cur_y))
+                            i += 6
+                        else:
+                            i += 1
+                    except IndexError:
+                        break
+        elif path_element.name == "polygon":
+            points_str = path_element.get("points", "")
+            nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
+            pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
+        
+        if pts:
+            cx = sum(p[0] for p in pts) / len(pts)
+            cy = sum(p[1] for p in pts) / len(pts)
+            
+            matrix = [1, 0, 0, 1, 0, 0]
+            if t_str:
+                m_match = re.search(r'matrix\(([^)]+)\)', t_str)
+                if m_match:
+                    vals = [float(v) for v in re.findall(r"[-+]?\d*\.\d+|\d+", m_match.group(1))]
+                    if len(vals) == 6: matrix = vals
+                    
+            a, b, c_mat, d_mat, e, f_mat = matrix
+            return a * cx + c_mat * cy + e, b * cx + d_mat * cy + f_mat
+            
+        return None
+    except Exception as e:
+        print(f"Error procesando el lote {id_lote_buscado}: {e}")
+        return None
+
+
 
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA
@@ -938,12 +1023,80 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # --- INYECCIÓN DE ESFERAS CON COORDENADAS INFALIBLES ---
+                        # --- INYECCIÓN DE ESFERAS CON COORDENADAS DINÁMICAS DESDE SVG ---
                         if not df_lote_esferas.empty:
                             
-                            # Forzamos tu ancla: Nunca fallarán las coordenadas porque usamos tu propia lista "COORDENADAS_LOTES"
-                            base_x = float(item["x"])
-                            base_y = float(item["y"])
+                            # Extraemos las coordenadas directamente del polígono SVG del lote
+                            d_str = lote_path.get("d", "")
+                            t_str = lote_path.get("transform", "")
+                            
+                            pts = []
+                            if d_str:
+                                tokens = re.findall(r'[a-zA-Z]|[-+]?\d*\.\d+|\d+', d_str)
+                                cur_x, cur_y = 0.0, 0.0
+                                cmd = ''
+                                i = 0
+                                while i < len(tokens):
+                                    tok = tokens[i]
+                                    if tok.isalpha():
+                                        cmd = tok
+                                        i += 1
+                                        if cmd in ('Z', 'z'): continue
+                                    else:
+                                        try:
+                                            if cmd in ('M', 'L'):
+                                                cur_x, cur_y = float(tokens[i]), float(tokens[i+1])
+                                                pts.append((cur_x, cur_y))
+                                                i += 2
+                                                if cmd == 'M': cmd = 'L'
+                                            elif cmd in ('m', 'l'):
+                                                cur_x += float(tokens[i])
+                                                cur_y += float(tokens[i+1])
+                                                pts.append((cur_x, cur_y))
+                                                i += 2
+                                                if cmd == 'm': cmd = 'l'
+                                            elif cmd in ('H', 'h', 'V', 'v'):
+                                                if cmd == 'H': cur_x = float(tokens[i])
+                                                elif cmd == 'h': cur_x += float(tokens[i])
+                                                elif cmd == 'V': cur_y = float(tokens[i])
+                                                elif cmd == 'v': cur_y += float(tokens[i])
+                                                pts.append((cur_x, cur_y))
+                                                i += 1
+                                            elif cmd in ('C', 'c'):
+                                                if cmd == 'C':
+                                                    cur_x, cur_y = float(tokens[i+4]), float(tokens[i+5])
+                                                else:
+                                                    cur_x += float(tokens[i+4])
+                                                    cur_y += float(tokens[i+5])
+                                                pts.append((cur_x, cur_y))
+                                                i += 6
+                                            else:
+                                                i += 1
+                                        except IndexError:
+                                            break
+                            elif lote_path.name == "polygon":
+                                points_str = lote_path.get("points", "")
+                                nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
+                                pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
+                            
+                            if pts:
+                                cx = sum(p[0] for p in pts) / len(pts)
+                                cy = sum(p[1] for p in pts) / len(pts)
+                                
+                                matrix = [1, 0, 0, 1, 0, 0]
+                                if t_str:
+                                    m_match = re.search(r'matrix\(([^)]+)\)', t_str)
+                                    if m_match:
+                                        vals = [float(v) for v in re.findall(r"[-+]?\d*\.\d+|\d+", m_match.group(1))]
+                                        if len(vals) == 6: matrix = vals
+                                        
+                                a, b, c_mat, d_mat, e, f_mat = matrix
+                                base_x = a * cx + c_mat * cy + e
+                                base_y = b * cx + d_mat * cy + f_mat
+                            else:
+                                # Fallback por si la lectura del path fallara
+                                base_x = float(item["x"])
+                                base_y = float(item["y"])
                             
                             num_esferas = len(df_lote_esferas)
                             
