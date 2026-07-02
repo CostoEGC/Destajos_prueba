@@ -27,95 +27,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
-
-
 # -----------------------------------
-# --- FUNCIÓN PARA POSICIONAMIENTO AUTOMÁTICO ---
-def calcular_centro_lote(id_lote_buscado, ruta_svg):
-    try:
-        with open(ruta_svg, "r", encoding="utf-8") as f:
-            soup = BeautifulSoup(f, "xml")
-        
-        path_element = soup.find(id=f"lote-{id_lote_buscado}")
-        if not path_element:
-            path_element = soup.find(id=str(id_lote_buscado))
-        if not path_element: 
-            return None
-        
-        d_str = path_element.get("d", "")
-        t_str = path_element.get("transform", "")
-        pts = []
-        
-        if d_str:
-            tokens = re.findall(r'[a-zA-Z]|[-+]?\d*\.\d+|\d+', d_str)
-            cur_x, cur_y = 0.0, 0.0
-            cmd = ''
-            i = 0
-            while i < len(tokens):
-                tok = tokens[i]
-                if tok.isalpha():
-                    cmd = tok
-                    i += 1
-                    if cmd in ('Z', 'z'): continue
-                else:
-                    try:
-                        if cmd in ('M', 'L'):
-                            cur_x, cur_y = float(tokens[i]), float(tokens[i+1])
-                            pts.append((cur_x, cur_y))
-                            i += 2
-                            if cmd == 'M': cmd = 'L'
-                        elif cmd in ('m', 'l'):
-                            cur_x += float(tokens[i])
-                            cur_y += float(tokens[i+1])
-                            pts.append((cur_x, cur_y))
-                            i += 2
-                            if cmd == 'm': cmd = 'l'
-                        elif cmd in ('H', 'h', 'V', 'v'):
-                            if cmd == 'H': cur_x = float(tokens[i])
-                            elif cmd == 'h': cur_x += float(tokens[i])
-                            elif cmd == 'V': cur_y = float(tokens[i])
-                            elif cmd == 'v': cur_y += float(tokens[i])
-                            pts.append((cur_x, cur_y))
-                            i += 1
-                        elif cmd in ('C', 'c'):
-                            if cmd == 'C':
-                                cur_x, cur_y = float(tokens[i+4]), float(tokens[i+5])
-                            else:
-                                cur_x += float(tokens[i+4])
-                                cur_y += float(tokens[i+5])
-                            pts.append((cur_x, cur_y))
-                            i += 6
-                        else:
-                            i += 1
-                    except IndexError:
-                        break
-        elif path_element.name == "polygon":
-            points_str = path_element.get("points", "")
-            nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
-            pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
-        
-        if pts:
-            cx = sum(p[0] for p in pts) / len(pts)
-            cy = sum(p[1] for p in pts) / len(pts)
-            
-            matrix = [1, 0, 0, 1, 0, 0]
-            if t_str:
-                m_match = re.search(r'matrix\(([^)]+)\)', t_str)
-                if m_match:
-                    vals = [float(v) for v in re.findall(r"[-+]?\d*\.\d+|\d+", m_match.group(1))]
-                    if len(vals) == 6: matrix = vals
-                    
-            a, b, c_mat, d_mat, e, f_mat = matrix
-            return a * cx + c_mat * cy + e, b * cx + d_mat * cy + f_mat
-            
-        return None
-    except Exception as e:
-        print(f"Error procesando el lote {id_lote_buscado}: {e}")
-        return None
-
-
 
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA
@@ -178,12 +90,12 @@ ANCHO_LOGIN_ENTRADAS = "200px"
 ESPACIO_ENTRE_RENGLONES = "8px"
 TAMANO_LETRA_PAGADO = "14px"
 GROSOR_ETIQUETA_PAGADO = "2px -25px"
-TAMANO_LETRA_TABLA = "11px" 
+TAMANO_LETRA_TABLA = "11px" # Reducido ligeramente para acomodar más columnas
 TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
 
-# ESTILOS CSS
+# ESTILOS CSS - Se incluye la modificación #3 para el botón principal "Pagar"
 st.markdown(f"""
 <style>
     div[data-testid="stTextInput"] {{
@@ -381,12 +293,15 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
+    # Forzamos los valores a string para evitar errores de tipo al volver a la pestaña
     lotes_unicos = [str(x) for x in df['Lote'].unique()]
     
+    # Sincronización maestra: Buscamos el índice del lote actual en la memoria
     lote_memoria = str(st.session_state.lote_actual)
     idx_t1 = lotes_unicos.index(lote_memoria) if lote_memoria in lotes_unicos else 0
     lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_t1)
     
+    # Si el usuario cambia el lote aquí, actualizamos la memoria maestra y recargamos
     if str(lote_activo) != lote_memoria:
         st.session_state.lote_actual = str(lote_activo)
         st.session_state.mostrar_todos_mapa = False
@@ -394,6 +309,7 @@ if menu == "Registro de Destajos":
     
     fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago 1 (Opcional):", value=None, format="DD/MM/YYYY")
 
+    # Filtramos usando texto para asegurar que encuentre el lote correctamente
     df_lote = df[df['Lote'].astype(str).str.strip() == str(lote_activo)]
     prototipo = df_lote['Prototipo'].iloc[0] if not df_lote.empty else "N/A"
     terreno = df_lote['Terreno_m2'].iloc[0] if not df_lote.empty else 0
@@ -444,6 +360,7 @@ if menu == "Registro de Destajos":
     if fecha_filtro:
         df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
 
+    # --- MODIFICACIÓN 4: SUMATORIA FILTRADA VISIBLE ---
     sum_precio = df_filtrado['Precio'].sum()
     df_fil_temp = df_filtrado.copy()
     df_fil_temp['Tot_Pag'] = pd.to_numeric(df_fil_temp.get('Pago_1', 0)) + pd.to_numeric(df_fil_temp.get('Pago_2', 0))
@@ -453,6 +370,7 @@ if menu == "Registro de Destajos":
     st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # MODIFICACIÓN 2: Cambio de orden lógico y visual en los pesos (Estado vs Por pagar).
     cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.2]
     h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
     h1.markdown("<div style='font-size:11px;'>🗑️ Partida</div>", unsafe_allow_html=True)
@@ -464,8 +382,8 @@ if menu == "Registro de Destajos":
     h7.markdown("<div style='font-size:11px;'>📆 Fecha 1</div>", unsafe_allow_html=True)
     h8.markdown("<div style='font-size:11px;'>💳 Pago 2</div>", unsafe_allow_html=True)
     h9.markdown("<div style='font-size:11px;'>📆 Fecha 2</div>", unsafe_allow_html=True)
-    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True)
-    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True)
+    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
+    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True) # MODIFICACIÓN 2
     h12.markdown("<div style='font-size:11px;'>👤 Usuario</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
@@ -483,9 +401,12 @@ if menu == "Registro de Destajos":
                 por_pagar = precio - total_pagado
                 pct_pagado = min(100, int((total_pagado / precio) * 100)) if precio > 0 else 0
                 
+                # C1: Partida
                 c1.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{numero}.- {fila['Partida']}</div>", unsafe_allow_html=True)
+                # C2: Costo
                 c2.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${precio:,.2f}</div>", unsafe_allow_html=True)
                 
+                # C3: Destajista
                 dest_val = fila.get('Destajista', '')
                 if pago_1 > 0:
                     c3.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{dest_val}</div>", unsafe_allow_html=True)
@@ -493,9 +414,12 @@ if menu == "Registro de Destajos":
                 else:
                     destajista_seleccionado = c3.selectbox("Destajista", ["Seleccionar..."] + LISTA_DESTAJISTAS, key=f"sel_{indice}", label_visibility="collapsed")
                 
+                # C4 y C5: Input Monto a Pagar y Botón
                 if por_pagar > 0:
+                    # MODIFICACIÓN 5: value=None para que se muestre vacío (en blanco).
                     monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=None, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
                     if c5.button("💳", key=f"btn_{indice}", type="primary", use_container_width=True):
+                        # MODIFICACIÓN 1 y 5: Validación reforzada del destajista y monto vacío/cero
                         if destajista_seleccionado in ["Seleccionar...", "", None] or pd.isna(destajista_seleccionado):
                             st.error("⚠️ Debes seleccionar un destajista primero.")
                         elif monto_input is None or monto_input <= 0:
@@ -509,14 +433,17 @@ if menu == "Registro de Destajos":
                     c4.markdown(f"<div style='text-align:center; color:gray; font-size:{TAMANO_LETRA_TABLA};'>Completado</div>", unsafe_allow_html=True)
                     c5.markdown("")
                 
+                # C6 y C7: Pago 1 y Fecha
                 c6.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_1:,.2f}</div>", unsafe_allow_html=True)
                 f1 = fila.get('Fecha_Pago', '-') if str(fila.get('Fecha_Pago', '')) != 'nan' else '-'
                 c7.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f1}</div>", unsafe_allow_html=True)
                 
+                # C8 y C9: Pago 2 y Fecha
                 c8.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_2:,.2f}</div>", unsafe_allow_html=True)
                 f2 = fila.get('Fecha_Pago_2', '-') if str(fila.get('Fecha_Pago_2', '')) != 'nan' else '-'
                 c9.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f2}</div>", unsafe_allow_html=True)
                 
+                # MODIFICACIÓN 2: C10 ahora es Por pagar y C11 es Estado
                 color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
                 c10.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
 
@@ -529,6 +456,7 @@ if menu == "Registro de Destajos":
                 """
                 c11.markdown(barra_html, unsafe_allow_html=True)
                 
+                # C12: Usuario 1 / Usuario 2
                 u1 = str(fila.get('Usuario', ''))
                 u2 = str(fila.get('Usuario_2', ''))
                 if u1 == 'nan': u1 = ''
@@ -578,7 +506,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
         monto_pagado = df_dash['Total_Pagado_Real'].sum()
         monto_pendiente = monto_total - monto_pagado
         
-        df_pagados = df_dash[df_dash['Estado'] == 'Pagado'] 
+        df_pagados = df_dash[df_dash['Estado'] == 'Pagado'] # Solo las que llegaron al 100%
         df_pendientes = df_dash[df_dash['Estado'] != 'Pagado']
         
         st.markdown("<br>", unsafe_allow_html=True)
@@ -628,6 +556,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf1:
             g_col1, g_col2 = st.columns(2)
             
+            # Gráfico con los 3 Estados Actualizados
             df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
             fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
                                title="Comportamiento Financiero por Prototipo",
@@ -652,6 +581,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf2:
             g_col3, g_col4 = st.columns(2)
             
+            # Pie Chart ahora suma el Total Pagado Real
             df_pagos_efectivos = df_dash[df_dash['Total_Pagado_Real'] > 0]
             if not df_pagos_efectivos.empty:
                 df_dest = df_pagos_efectivos.groupby('Destajista')['Total_Pagado_Real'].sum().reset_index()
@@ -682,6 +612,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
+    # Función auxiliar para convertir HEX a RGBA para efectos de transparencia en plotly
     def hex_to_rgba(hex_val, opacity):
         hex_val = hex_val.lstrip('#')
         if len(hex_val) == 6:
@@ -811,32 +742,30 @@ elif menu == "Mapa Interactivo":
     """, unsafe_allow_html=True)
 
     # --- NUEVOS FILTROS DINÁMICOS DE ESFERAS EN EL MAPA ---
-    st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas)")
+    st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas Pagados)")
+    f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    # CANDADO: Verifica que el visor principal esté en "Mostrar Todos"
-    if not st.session_state.mostrar_todos_mapa:
-        st.warning("🔒 **Debes mostrar todos los lotes** para usar el filtro por partida o destajista. Cambia el selector del panel inferior derecho a 'Mostrar Todos'.")
-        filtro_partidas_mapa = []
-        filtro_destajistas_mapa = []
-        filtros_activos = False
-    else:
-        f_col_mapa1, f_col_mapa2 = st.columns(2)
-        
-        partidas_ordenadas = []
-        for p in df['Partida'].dropna().unique():
-            if str(p).strip() and str(p) not in partidas_ordenadas:
-                partidas_ordenadas.append(str(p))
-                
-        partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
-        destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
-        
-        filtro_partidas_mapa_display = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_display)
-        filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
-        filtro_destajistas_mapa = f_col_mapa2.multiselect("Filtrar por Destajista:", options=destajistas_unicos_filtro)
-        
-        filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
+    # --- MODIFICACIÓN 1: Ordenar las partidas respecto a su número inicial (orden original) ---
+    partidas_ordenadas = []
+    for p in df['Partida'].dropna().unique():
+        if str(p).strip() and str(p) not in partidas_ordenadas:
+            partidas_ordenadas.append(str(p))
+            
+    # Creamos la visualización con "1.- Cisterna", etc.
+    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
     
-    df_filtered = df[df['Estado'].isin(['Pagado', 'Pago Parcial'])].copy()
+    destajistas_unicos_filtro = sorted([str(d) for d in df['Destajista'].dropna().unique() if str(d).strip()], key=clave_ordenamiento)
+    
+    filtro_partidas_mapa_display = f_col_mapa1.multiselect("Filtrar por Partida:", options=partidas_display)
+    
+    # Limpiamos el texto seleccionado de vuelta a su nombre original para usarlo en el dataframe
+    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
+    
+    filtro_destajistas_mapa = f_col_mapa2.multiselect("Filtrar por Destajista:", options=destajistas_unicos_filtro)
+    
+    filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
+    
+    df_filtered = df[df['Estado'] == 'Pagado'].copy()
     if filtro_partidas_mapa:
         df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
@@ -861,8 +790,9 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
+        # --- LÓGICA DE LA TABLA (SE ACTIVA SI HAY FILTROS) ---
         if filtros_activos:
-            st.markdown("**Desglose de Filtros Activos (Con Pagos Registrados):**")
+            st.markdown("**Desglose de Filtros Activos (Pagados):**")
             if not df_filtered.empty:
                 html_table = (
                     "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
@@ -872,7 +802,6 @@ elif menu == "Mapa Interactivo":
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Lote</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Partida</th>"
-                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Estado</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Destajista</th>"
                     "</tr></thead><tbody>"
                 )
@@ -880,14 +809,11 @@ elif menu == "Mapa Interactivo":
                 for _, row_lote in df_filtered.iterrows():
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
                     destajista_str = row_lote['Destajista'] if pd.notna(row_lote['Destajista']) and row_lote['Destajista'] != "" else "Sin Asignar"
-                    estado_icono = "🟢 100%" if row_lote['Estado'] == "Pagado" else "🟡 Parcial"
-                    
                     html_table += (
                         "<tr style='border-bottom: 1px solid #eee;'>"
                         f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; margin:auto;'></div></td>"
                         f"<td style='padding: 8px; text-align: left;'>{row_lote['Lote']}</td>"
                         f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
-                        f"<td style='padding: 8px; text-align: left; font-size:11px;'>{estado_icono}</td>"
                         f"<td style='padding: 8px; text-align: left;'>{destajista_str}</td>"
                         "</tr>"
                     )
@@ -895,7 +821,7 @@ elif menu == "Mapa Interactivo":
                 
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
-                st.info("No se encontraron partidas con pagos que coincidan con los filtros seleccionados.")
+                st.info("No se encontraron partidas pagadas que coincidan con los filtros seleccionados.")
         else:
             if not st.session_state.mostrar_todos_mapa:
                 lote_puro_num = str(st.session_state.lote_actual)
@@ -909,6 +835,7 @@ elif menu == "Mapa Interactivo":
                         
                     df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
                     
+                    # --- PUNTOS 1.1, 1.2, 1.3, 1.4: TABLA DESGLOSE ---
                     html_table = (
                         "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
                         "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
@@ -974,7 +901,7 @@ elif menu == "Mapa Interactivo":
                 except:
                     soup = BeautifulSoup(svg_content, "html.parser")
                     
-                # REPARACIÓN DE LÍNEAS Y RELLENOS DIAGONALES EN EL SVG
+                # --- PUNTO 5: REPARACIÓN DE LÍNEAS Y RELLENOS DIAGONALES EN EL SVG ---
                 for path_elem in soup.find_all(['path', 'polygon']):
                     path_elem['fill-rule'] = "evenodd"
                     if 'style' in path_elem.attrs:
@@ -982,6 +909,32 @@ elif menu == "Mapa Interactivo":
                             path_elem['style'] += ";fill-rule:evenodd;"
                     else:
                         path_elem['style'] = "fill-rule:evenodd;"
+
+                # --- MODIFICACIÓN 2: Nueva función para obtener centroide y radio visual en base a SVG ---
+                def calcular_centro_poligono(elemento):
+                    coords_x, coords_y = [], []
+                    try:
+                        if elemento.name in ['polygon', 'polyline']:
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('points', ''))
+                            coords_x = [float(pts[i]) for i in range(0, len(pts), 2)]
+                            coords_y = [float(pts[i+1]) for i in range(0, len(pts), 2)]
+                        elif elemento.name == 'path':
+                            pts = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', elemento.get('d', ''))
+                            if len(pts) >= 2:
+                                coords_x = [float(pts[i]) for i in range(0, len(pts)-1, 2)]
+                                coords_y = [float(pts[i+1]) for i in range(0, len(pts)-1, 2)]
+                        
+                        if coords_x and coords_y:
+                            min_x, max_x = min(coords_x), max(coords_x)
+                            min_y, max_y = min(coords_y), max(coords_y)
+                            cx = (min_x + max_x) / 2.0
+                            cy = (min_y + max_y) / 2.0
+                            radio_disp = min(max_x - min_x, max_y - min_y) * 0.30 
+                            return cx, cy, radio_disp
+                    except:
+                        pass
+                    return None, None, None
+                # -----------------------------------------------------------------------------------------
                 
                 svg_tag = soup.find("svg")
                 
@@ -990,11 +943,8 @@ elif menu == "Mapa Interactivo":
                     svg_tag['height'] = "100%"
                     if not svg_tag.get('preserveAspectRatio'):
                         svg_tag['preserveAspectRatio'] = "xMidYMid meet"
-
-                    # --- CREACIÓN DE LA CAPA MAESTRA DE ESFERAS ---
-                    # Al inyectarla al final, garantizamos que floten sobre cualquier polígono
-                    capa_esferas = soup.new_tag("g", id="capa_maestra_esferas")
-                    svg_tag.append(capa_esferas)
+                
+               
 
                 # Iteramos sobre los lotes de la base de datos para pintarlos en el SVG
                 for item in lotes_datos_mapa:
@@ -1010,6 +960,7 @@ elif menu == "Mapa Interactivo":
                     if lote_path:
                         df_lote_esferas = pd.DataFrame()
                         
+                        # NUEVA LOGICA DE PINTADO SEGUN FILTROS
                         if filtros_activos:
                             df_lote_match = df_filtered[df_filtered['Lote'].astype(str).str.strip() == id_lote]
                             if not df_lote_match.empty:
@@ -1026,96 +977,29 @@ elif menu == "Mapa Interactivo":
                                 if not st.session_state.mostrar_todos_mapa and id_lote == str(st.session_state.lote_actual):
                                     df_lote_esferas = df[df['Lote'].astype(str).str.strip() == id_lote]
 
-                        # --- INYECCIÓN DE ESFERAS CON COORDENADAS DINÁMICAS DESDE SVG ---
+                        # CORRECCIÓN DEFINITIVA DE COORDENADAS PARA QUE LAS ESFERAS ESTÉN DENTRO DEL POLÍGONO
                         if not df_lote_esferas.empty:
+                            cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
                             
-                            # Extraemos las coordenadas directamente del polígono SVG del lote
-                            d_str = lote_path.get("d", "")
-                            t_str = lote_path.get("transform", "")
-                            
-                            pts = []
-                            if d_str:
-                                tokens = re.findall(r'[a-zA-Z]|[-+]?\d*\.\d+|\d+', d_str)
-                                cur_x, cur_y = 0.0, 0.0
-                                cmd = ''
-                                i = 0
-                                while i < len(tokens):
-                                    tok = tokens[i]
-                                    if tok.isalpha():
-                                        cmd = tok
-                                        i += 1
-                                        if cmd in ('Z', 'z'): continue
-                                    else:
-                                        try:
-                                            if cmd in ('M', 'L'):
-                                                cur_x, cur_y = float(tokens[i]), float(tokens[i+1])
-                                                pts.append((cur_x, cur_y))
-                                                i += 2
-                                                if cmd == 'M': cmd = 'L'
-                                            elif cmd in ('m', 'l'):
-                                                cur_x += float(tokens[i])
-                                                cur_y += float(tokens[i+1])
-                                                pts.append((cur_x, cur_y))
-                                                i += 2
-                                                if cmd == 'm': cmd = 'l'
-                                            elif cmd in ('H', 'h', 'V', 'v'):
-                                                if cmd == 'H': cur_x = float(tokens[i])
-                                                elif cmd == 'h': cur_x += float(tokens[i])
-                                                elif cmd == 'V': cur_y = float(tokens[i])
-                                                elif cmd == 'v': cur_y += float(tokens[i])
-                                                pts.append((cur_x, cur_y))
-                                                i += 1
-                                            elif cmd in ('C', 'c'):
-                                                if cmd == 'C':
-                                                    cur_x, cur_y = float(tokens[i+4]), float(tokens[i+5])
-                                                else:
-                                                    cur_x += float(tokens[i+4])
-                                                    cur_y += float(tokens[i+5])
-                                                pts.append((cur_x, cur_y))
-                                                i += 6
-                                            else:
-                                                i += 1
-                                        except IndexError:
-                                            break
-                            elif lote_path.name == "polygon":
-                                points_str = lote_path.get("points", "")
-                                nums = [float(n) for n in re.findall(r"[-+]?\d*\.\d+|\d+", points_str)]
-                                pts = [(nums[k], nums[k+1]) for k in range(0, len(nums)-1, 2)]
-                            
-                            if pts:
-                                cx = sum(p[0] for p in pts) / len(pts)
-                                cy = sum(p[1] for p in pts) / len(pts)
-                                
-                                matrix = [1, 0, 0, 1, 0, 0]
-                                if t_str:
-                                    m_match = re.search(r'matrix\(([^)]+)\)', t_str)
-                                    if m_match:
-                                        vals = [float(v) for v in re.findall(r"[-+]?\d*\.\d+|\d+", m_match.group(1))]
-                                        if len(vals) == 6: matrix = vals
-                                        
-                                a, b, c_mat, d_mat, e, f_mat = matrix
-                                base_x = a * cx + c_mat * cy + e
-                                base_y = b * cx + d_mat * cy + f_mat
+                            if cx_auto is not None and cy_auto is not None:
+                                base_x, base_y = cx_auto, cy_auto
+                                radio_disp = max(r_auto, 5) # Aseguramos un mínimo para el radio de dispersión
                             else:
-                                # Fallback por si la lectura del path fallara
+                                # Fallback a coordenadas manuales si el SVG no proporciona buenos puntos
                                 base_x = float(item["x"])
                                 base_y = float(item["y"])
+                                radio_disp = 12 
                             
                             num_esferas = len(df_lote_esferas)
-                            
-                            # Control dinámico: Radio delimitado entre 6px y 18px (Garantiza visibilidad siempre)
-                            r_esfera_dinamico = max(6.0, min(18.0, 60.0 / math.sqrt(num_esferas)))
-                            
-                            golden_angle = math.pi * (3 - math.sqrt(5)) 
+                            r_esfera = 50 if num_esferas < 10 else 5
                             
                             for idx, row in enumerate(df_lote_esferas.itertuples()):
                                 if num_esferas == 1:
                                     cx, cy = base_x, base_y
                                 else:
-                                    r_disp = (r_esfera_dinamico * 1.1) * math.sqrt(idx)
-                                    theta = idx * golden_angle
-                                    cx = base_x + r_disp * math.cos(theta)
-                                    cy = base_y + r_disp * math.sin(theta)
+                                    angulo = (2 * math.pi * idx) / num_esferas
+                                    cx = base_x + radio_disp * math.cos(angulo)
+                                    cy = base_y + radio_disp * math.sin(angulo)
                                 
                                 color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
                                 
@@ -1126,18 +1010,26 @@ elif menu == "Mapa Interactivo":
                                     fill_style = color_burbuja
                                     fill_opacity = "0.5"
                                 else:
-                                    continue # Optimizamos memoria saltando las partidas no pagadas
+                                    fill_style = "none" 
+                                    fill_opacity = "0.0"
                                     
-                                circle_tag = soup.new_tag(
-                                    "circle", 
-                                    cx=f"{cx:.2f}", 
-                                    cy=f"{cy:.2f}", 
-                                    r=f"{r_esfera_dinamico:.2f}", 
-                                    style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
-                                )
-                                
-                                # Lo depositamos en la capa maestra del Z-Index superior
-                                capa_esferas.append(circle_tag)
+                                if fill_opacity != "0.0":
+                                    # 💡 TIP: Si tras este cambio las ves muy pequeñas, sube este valor base de r_esfera (ej. a 20 o 50)
+                                     # dependiendo de la escala general de tu ViewBox en el SVG.
+                                    r_esfera_dinamico = r_esfera
+
+
+                                    circle_tag = soup.new_tag(
+                                        "circle", 
+                                        cx=f"{cx:.2f}", 
+                                        cy=f"{cy:.2f}", 
+                                        r=str(r_esfera_dinamico), 
+                                        #r=50, #radio para purebas
+                                        # Le añadimos un contorno blanco/oscuro sutil para que resalten sobre el relleno
+                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
+                                        #style="fill:red; stroke:yellow; stroke-width:10px; fill-opacity:1.0;"
+                                    )
+                                    lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
@@ -1169,10 +1061,13 @@ elif menu == "Mapa Interactivo":
             colores_relleno = []
             textos_hover = []
 
-            espaciado_x = 7.0  
-            espaciado_y = 2  
+            # --- AQUI ESTÁ EL CAMBIO ---
+            # Aumenta estos valores si quieres más separación
+            espaciado_x = 7.0  # <-- Aumenta este número para separar más horizontalmente
+            espaciado_y = 2  # <-- Aumenta este número para separar más verticalmente
 
             for i, row in enumerate(df_lote_diag.itertuples()):
+                # RESTAURADO: Acomodo en Cuadrícula multiplicando por el factor de espaciado
                 x = (i % cols) * espaciado_x
                 y = (i // cols) * espaciado_y
                     
@@ -1196,6 +1091,7 @@ elif menu == "Mapa Interactivo":
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
+            # Calculo dinámico de la altura del gráfico 
             altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
 
             fig_diag = go.Figure(data=go.Scatter(
@@ -1212,6 +1108,8 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
+            # AJUSTE AUTOMÁTICO DEL POLÍGONO
+            # Usamos espaciado_x para que el borde se adapte automáticamente al nuevo ancho
             margen = 2.5 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
