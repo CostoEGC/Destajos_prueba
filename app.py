@@ -1113,8 +1113,11 @@ elif menu == "Mapa Interactivo":
             textos_hover = []
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            espaciado_x = 7.0 
-            espaciado_y = 2
+            espaciado_base = 10.0 
+            espaciado_x = espaciado_base
+            espaciado_y = espaciado_base
+            #espaciado_x = 7.0 
+            #espaciado_y = 2
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
@@ -1156,7 +1159,8 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
-            margen = 2.5 
+            #margen = 2.5 
+            margen = espaciado_base /2.0
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
