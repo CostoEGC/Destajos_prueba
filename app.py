@@ -1147,7 +1147,7 @@ elif menu == "Mapa Interactivo":
                 y=y_coords,
                 mode='markers',
                 marker=dict(
-                    size=50, 
+                    size=40, 
                     color=colores_relleno,
                     symbol='circle',
                     line=dict(width=0) 
