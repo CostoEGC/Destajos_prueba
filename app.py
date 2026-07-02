@@ -1160,7 +1160,7 @@ elif menu == "Mapa Interactivo":
             ))
 
             #margen = 2.5 
-            margen = espaciado_base /2.0
+            margen = espaciado_base 
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
