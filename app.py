@@ -1170,7 +1170,7 @@ elif menu == "Mapa Interactivo":
 
             fig_diag.add_shape(
                 type="path",
-               # path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
+                path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
                 line=dict(color="rgba(14,232,144,0.8)", width=4), 
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
