@@ -30,64 +30,6 @@ st.markdown(
 
 
 
-def extraer_poligono_real(path_element):
-    """Extrae y transforma los puntos de un path SVG a coordenadas globales."""
-    d_string = path_element.get("d")
-    transform_string = path_element.get("transform", "")
-
-    # 1. Obtener la matriz (si no existe, usamos matriz identidad)
-    a, b, c, d_mat, e, f = 1.0, 0.0, 0.0, 1.0, 0.0, 0.0
-    if transform_string:
-        match = re.search(r'matrix\(([^)]+)\)', transform_string)
-        if match:
-            valores = [float(v) for v in match.group(1).split(',')]
-            if len(valores) == 6:
-                a, b, c, d_mat, e, f = valores
-
-    # 2. Extraer tokens (letras y números) del trazado
-    tokens = re.findall(r'[a-zA-Z]+|-?[\d.]+', d_string)
-    
-    puntos_locales = []
-    x_actual, y_actual = 0.0, 0.0
-    comando = 'M' # Por defecto absoluto
-    
-    i = 0
-    while i < len(tokens):
-        if tokens[i].isalpha():
-            comando = tokens[i]
-            i += 1
-            continue
-        
-        # Procesar pares de coordenadas X, Y
-        if i + 1 < len(tokens):
-            x_val = float(tokens[i])
-            y_val = float(tokens[i+1])
-            
-            # Cálculo de coordenadas relativas
-            if comando == 'm' or comando == 'l':
-                # Regla SVG: El primer punto después de 'm' inicial actúa como absoluto
-                if comando == 'm' and len(puntos_locales) == 0:
-                    x_actual = x_val
-                    y_actual = y_val
-                else:
-                    x_actual += x_val
-                    y_actual += y_val
-            else: # Coordenadas absolutas (M, L)
-                x_actual = x_val
-                y_actual = y_val
-                
-            puntos_locales.append((x_actual, y_actual))
-        i += 2
-
-    # 3. Aplicar matriz de transformación
-    puntos_globales = []
-    for x, y in puntos_locales:
-        nuevo_x = a * x + c * y + e
-        nuevo_y = b * x + d_mat * y + f
-        puntos_globales.append((nuevo_x, nuevo_y))
-        
-    return puntos_globales
-
 
 # -----------------------------------
 # --- FUNCIÓN PARA POSICIONAMIENTO AUTOMÁTICO ---
@@ -96,21 +38,11 @@ def calcular_centro_lote(id_lote_buscado, ruta_svg):
         with open(ruta_svg, "r", encoding="utf-8") as f:
             soup = BeautifulSoup(f, "xml")
         
-        path_element = soup.find("path", {"id": f"lote-{id_lote_buscado}"})
-        #if not path_element:
-         #   path_element = soup.find(id=str(id_lote_buscado))
-        if not path_element: return None
-        
-        puntos = extraer_poligono_real(path_element)
-        if not puntos: return None
-        
-        # Retornamos los límites para dibujar el cuadro
-        xs = [p[0] for p in puntos]
-        ys = [p[1] for p in puntos]
-        return min(xs), max(xs), min(ys), max(ys)
-    except Exception as e:
-        #print(f"Error procesando el lote {id_lote_buscado}: {e}")
-        return None
+        path_element = soup.find(id=f"lote-{id_lote_buscado}")
+        if not path_element:
+            path_element = soup.find(id=str(id_lote_buscado))
+        if not path_element: 
+            return None
         
         d_str = path_element.get("d", "")
         t_str = path_element.get("transform", "")
@@ -1299,7 +1231,7 @@ elif menu == "Mapa Interactivo":
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
