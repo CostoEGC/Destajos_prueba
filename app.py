@@ -1107,8 +1107,8 @@ elif menu == "Mapa Interactivo":
             textos_hover = []
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            espaciado_x = 8.0 
-            espaciado_y = 8.0  
+            espaciado_x = 7.0 
+            espaciado_y = 2  
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
