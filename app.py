@@ -960,6 +960,12 @@ elif menu == "Mapa Interactivo":
                         lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
 
                     if lote_path:
+                        etiqueta_hover = lote_path.find('title')
+                        if not etiqueta_hover:
+                            etiqueta_hover = soup.new_tag('title')
+                            lote_path.append(etiqueta_hover)
+                        etiqueta_hover.string = f"Lote-{id_lote}"
+
                         df_lote_esferas = pd.DataFrame()
                         is_selected_lote = (not st.session_state.mostrar_todos_mapa) and (id_lote == str(st.session_state.lote_actual))
                         
@@ -1156,25 +1162,15 @@ elif menu == "Mapa Interactivo":
             x_min = -margen
             y_min = -margen
 
-            fig_diag.add_trace(go.Scatter(
-            x=[x_min, x_min, x_max, x_max, x_min], # Ajusta esto a los puntos de tu polígono
-            y=[y_min, y_max, y_max, y_min, y_min], # Ajusta esto a los puntos de tu polígono
-            fill="toself",
-            fillcolor="rgba(0,0,0,0)", # Totalmente transparente (no se ve)
-            line=dict(color="rgba(0,0,0,0)", width=0), # Borde invisible
-            hoverinfo="text",
-            text=f"Lote-{id_lote}", # Aquí se inyecta tu etiqueta
-            showlegend=False
-        ))
+            
 
-
-            #fig_diag.add_shape(
-            #    type="path",
-            #    path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
-            #    line=dict(color="rgba(14,232,144,0.8)", width=8), 
-            #    fillcolor="rgba(0,0,0,0)",
-            #    layer="below"
-            #)
+            fig_diag.add_shape(
+                type="path",
+                path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
+                line=dict(color="rgba(14,232,144,0.8)", width=8), 
+                fillcolor="rgba(0,0,0,0)",
+                layer="below"
+            )
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
