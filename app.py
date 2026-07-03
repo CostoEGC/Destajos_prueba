@@ -1114,9 +1114,7 @@ elif menu == "Mapa Interactivo":
             
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            #espaciado_base = 10.0 
-            #espaciado_x = espaciado_base-3
-            #espaciado_y = espaciado_base-8
+            
             espaciado_x = 7.0 
             espaciado_y = 2
 
@@ -1184,7 +1182,8 @@ elif menu == "Mapa Interactivo":
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
-                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", scaleanchor="x", scaleratio=1),
+                #yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", scaleanchor="x", scaleratio=1),
+                yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
