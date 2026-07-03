@@ -1150,7 +1150,7 @@ elif menu == "Mapa Interactivo":
 
             fig_diag = go.Figure(data=go.Scatter(
                 x=x_coords,
-                y=yy_coords,
+                y=y_coords,
                 mode='markers',
                 marker=dict(
                     size=50, 
