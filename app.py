@@ -1099,7 +1099,7 @@ elif menu == "Mapa Interactivo":
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=850, scrolling=True)
+                st.components.v1.html(html_final, height=1000, scrolling=True)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
