@@ -1098,8 +1098,8 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                html_final = f"<div style='width:100%; height:100%; min-height:850px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=1100) #scrolling=True)
+                html_final = f"<div style='width:100%; height:auto; min-height:800px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
+                st.components.v1.html(html_final, height=850) #scrolling=True)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
