@@ -912,7 +912,8 @@ elif menu == "Mapa Interactivo":
                     else:
                         path_elem['style'] = "fill-rule:evenodd;"
 
-                def calcular_centro_poligono(elemento):
+                # --- NUEVA FUNCIÓN DE APOYO PARA EXTRAER COORDENADAS ---
+                def obtener_coords_poligono(elemento):
                     coords_x, coords_y = [], []
                     try:
                         if elemento.name in ['polygon', 'polyline']:
@@ -924,7 +925,13 @@ elif menu == "Mapa Interactivo":
                             if len(pts) >= 2:
                                 coords_x = [float(pts[i]) for i in range(0, len(pts)-1, 2)]
                                 coords_y = [float(pts[i+1]) for i in range(0, len(pts)-1, 2)]
-                        
+                    except:
+                        pass
+                    return coords_x, coords_y
+
+                def calcular_centro_poligono(elemento):
+                    coords_x, coords_y = obtener_coords_poligono(elemento)
+                    try:
                         if coords_x and coords_y:
                             min_x, max_x = min(coords_x), max(coords_x)
                             min_y, max_y = min(coords_y), max(coords_y)
@@ -939,25 +946,18 @@ elif menu == "Mapa Interactivo":
                 svg_tag = soup.find("svg")
                 
                 if svg_tag:
-                # 1. Rescatamos las medidas originales para crear el viewBox si el CAD no lo traía.
-                # Esto garantiza que el navegador conozca el tamaño real y escale todo sin cortar nada.
                     if not svg_tag.get('viewBox') and not svg_tag.get('viewbox'):
                         w_orig = str(svg_tag.get('width', '')).replace('px', '').replace('pt', '').strip()
                         h_orig = str(svg_tag.get('height', '')).replace('px', '').replace('pt', '').strip()
                         if w_orig and h_orig and w_orig.replace('.', '', 1).isdigit() and h_orig.replace('.', '', 1).isdigit():
                             svg_tag['viewBox'] = f"0 0 {float(w_orig)} {float(h_orig)}"
 
-                # 2. Permitimos que el ancho sea responsivo y el alto se ajuste automáticamente.
-                svg_tag['width'] = "100%"
-                svg_tag['height'] = "auto"
-                
-                if not svg_tag.get('preserveAspectRatio'):
-                    svg_tag['preserveAspectRatio'] = "xMidYMid meet"
-                #if svg_tag:
-                #    svg_tag['width'] = "100%"
-                #    svg_tag['height'] = "100%"
-                #    if not svg_tag.get('preserveAspectRatio'):
-                        #svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                    # --- MODIFICACIÓN 1: FORZAR ZOOM OUT PARA QUE QUEPA TODO ---
+                    svg_tag['width'] = "100%"
+                    svg_tag['height'] = "100%"
+                    
+                    if not svg_tag.get('preserveAspectRatio'):
+                        svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                         
                     defs = soup.find('defs')
                     if not defs:
@@ -1011,7 +1011,50 @@ elif menu == "Mapa Interactivo":
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
                                         
-                                        grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="0%")
+                                        # --- MODIFICACIÓN 2: LÓGICA DE CORTE RECTANGULAR SOBRE POLÍGONO ROTADO ---
+                                        coords_x, coords_y = obtener_coords_poligono(lote_path)
+                                        x1_g, y1_g, x2_g, y2_g, grad_units = "0%", "0%", "100%", "0%", "objectBoundingBox"
+                                        
+                                        if coords_x and len(coords_x) > 2:
+                                            # Encontrar el lado más largo del lote para usarlo como guía del gradiente
+                                            max_d = 0
+                                            dx_l, dy_l = 1, 0
+                                            n_pts = len(coords_x)
+                                            for i_pt in range(n_pts):
+                                                j_pt = (i_pt + 1) % n_pts
+                                                dx = coords_x[j_pt] - coords_x[i_pt]
+                                                dy = coords_y[j_pt] - coords_y[i_pt]
+                                                dist = dx*dx + dy*dy
+                                                if dist > max_d:
+                                                    max_d = dist
+                                                    dx_l = dx
+                                                    dy_l = dy
+                                            
+                                            if max_d > 0:
+                                                length = math.sqrt(max_d)
+                                                ux, uy = dx_l / length, dy_l / length
+                                                cx_val = sum(coords_x) / n_pts
+                                                cy_val = sum(coords_y) / n_pts
+                                                
+                                                min_p = float('inf')
+                                                max_p = float('-inf')
+                                                # Proyectar todos los puntos sobre ese eje largo para definir inicio y fin del corte
+                                                for x_val, y_val in zip(coords_x, coords_y):
+                                                    proj = (x_val - cx_val) * ux + (y_val - cy_val) * uy
+                                                    if proj < min_p: min_p = proj
+                                                    if proj > max_p: max_p = proj
+                                                    
+                                                x1_val = cx_val + min_p * ux
+                                                y1_val = cy_val + min_p * uy
+                                                x2_val = cx_val + max_p * ux
+                                                y2_val = cy_val + max_p * uy
+                                                
+                                                x1_g, y1_g = f"{x1_val:.2f}", f"{y1_val:.2f}"
+                                                x2_g, y2_g = f"{x2_val:.2f}", f"{y2_val:.2f}"
+                                                grad_units = "userSpaceOnUse"
+
+                                        grad = soup.new_tag("linearGradient", id=id_grad, x1=x1_g, y1=y1_g, x2=x2_g, y2=y2_g, gradientUnits=grad_units)
+                                        # --- FIN DE LÓGICA DE CORTE RECTANGULAR ---
                                         
                                         for i, (c, op) in enumerate(colores_opacidades):
                                             start_pct = (i / n_cols) * 100
@@ -1098,8 +1141,13 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                #html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
-                html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items: flex-start; padding-top: 10px;'>{html_final}</div>"
+                # --- Ajuste de altura del contenedor a 850px para el zoom out ---
+                html_final = f"<div style='width:100%; height:850px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
+                
+                # =====================================================================
+                # 📜 AQUÍ ESTÁ EL SCROLLING (PARA EL FUTURO):
+                # Cambia el parámetro scrolling=False a scrolling=True cuando lo necesites.
+                # =====================================================================
                 st.components.v1.html(html_final, height=850, scrolling=False)
                 
             except Exception as e:
@@ -1191,75 +1239,6 @@ elif menu == "Mapa Interactivo":
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
             )
-            
-            #x_coords = []
-            #y_coords = []
-            #colores_relleno = []
-            #textos_hover = []
-            
-
-            # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            
-            #espaciado_x = 7.0 
-            #espaciado_y = 2
-
-            #for i, row in enumerate(df_lote_diag.itertuples()):
-                #x = (i % cols) * espaciado_x
-                #y = (i // cols) * espaciado_y 
-                
-                    
-                #x_coords.append(x)
-                #y_coords.append(y) 
-                
-
-                #estado = row.Estado
-                #costo = row.Precio
-                #pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
-                #destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
-                
-                #color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
-
-                #if estado == "Pagado":
-                #    colores_relleno.append(color_asignado)
-                #elif estado == "Pago Parcial":
-                #    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
-                #else:
-                #    colores_relleno.append("rgba(0,0,0,0)")
-
-                #hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}#<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
-                #textos_hover.append(hover_text)
-
-            #altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
-
-            #fig_diag = go.Figure(data=go.Scatter(
-            #    x=x_coords,
-            #    y=y_coords,
-            #    mode='markers',
-            #    marker=dict(
-            #        size=50, 
-            #        color=colores_relleno,
-            #        symbol='circle',
-            #        line=dict(width=0) 
-            #    ),
-            #    text=textos_hover,
-            #    hoverinfo='text'
-            #))
-
-            #margen = 2.5 
-            #x_max = (cols - 1) * espaciado_x + margen
-            #y_max = max(y_coords) + margen if y_coords else margen
-            #x_min = -margen
-            #y_min = -margen
-
-            
-
-            #fig_diag.add_shape(
-            #    type="path",
-            #    path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
-            #    line=dict(color="rgba(14,232,144,0.8)", width=4), 
-            #    fillcolor="rgba(0,0,0,0)",
-            #    layer="below"
-            #)
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
@@ -1268,7 +1247,6 @@ elif menu == "Mapa Interactivo":
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", scaleanchor="x", scaleratio=1),
-                #yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
