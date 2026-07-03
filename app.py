@@ -1099,8 +1099,8 @@ elif menu == "Mapa Interactivo":
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 #ajuste de altura del contenedor a 850 px para el zoom out
-                html_final = f"<div style='width:100%; height:850px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=850, scrolling=False)
+                html_final = f"<div style='width:100%; height:950px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
+                st.components.v1.html(html_final, height=950, scrolling=False)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
