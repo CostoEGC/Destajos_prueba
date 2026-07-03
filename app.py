@@ -1010,8 +1010,34 @@ elif menu == "Mapa Interactivo":
                                     elif len(colores_opacidades) > 1:
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
+
+                                        # --- NUEVA LÓGICA DE CORTE RECTANGULAR (ROTACIÓN NATIVA SVG) ---
+                                        angulo_rotacion = 0
+                                        coords_x, coords_y = COORDENADAS_LOTES(lote_path)
                                         
+                                        if coords_x and len(coords_x) > 2:
+                                            max_d = 0
+                                            best_dx, best_dy = 1, 0
+                                            n_pts = len(coords_x)
+                                            # Buscamos el lado más largo del lote
+                                            for i_pt in range(n_pts):
+                                                j_pt = (i_pt + 1) % n_pts
+                                                dx = coords_x[j_pt] - coords_x[i_pt]
+                                                dy = coords_y[j_pt] - coords_y[i_pt]
+                                                dist = dx*dx + dy*dy
+                                                if dist > max_d:
+                                                    max_d = dist
+                                                    best_dx, best_dy = dx, dy
+
+                                            # Calculamos el ángulo de ese lado en grados
+                                            angulo_rad = math.atan2(best_dy, best_dx)
+                                            angulo_rotacion = math.degrees(angulo_rad)
+
+                                        # Creamos el gradiente y lo rotamos desde su centro
                                         grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="0%")
+                                        grad['gradientTransform'] = f"rotate({angulo_rotacion}, 0.5, 0.5)"
+                                        # --- FIN DE NUEVA LÓGICA ---                                
+                                        
                                         
                                         for i, (c, op) in enumerate(colores_opacidades):
                                             start_pct = (i / n_cols) * 100
@@ -1098,10 +1124,10 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                #ajuste de altura del contenedor a 850 px para el zoom out
+                #ajuste de altura del contenedor a 850 px para el zoom out, cambiar este valor (height) en las 2 lineas de abajo para hacer mas grande o mas chica la imagen de los poligonos
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=1000, scrolling=False)
-                
+                st.components.v1.html(html_final, height=1000, scrolling=False)  #cambiar scrolling a true si queremos que aparezca esa barra 
+
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
                 st.write(f"Detalle del error técnico: {e}")
