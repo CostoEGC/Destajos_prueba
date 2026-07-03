@@ -1112,8 +1112,8 @@ elif menu == "Mapa Interactivo":
             x_coords, y_coords, colores_relleno, textos_hover = [], [], [], []
 
             # 1. Definimos la cuadrícula virtual perfecta. Cada celda medirá 10x10.
-            ancho_celda = 7.0
-            alto_celda = 2.0
+            ancho_celda = 10
+            alto_celda = 10
             
             for i, row in enumerate(df_lote_diag.itertuples()):
                 col_actual = i % cols
@@ -1167,7 +1167,7 @@ elif menu == "Mapa Interactivo":
             #x_max = cols * ancho_celda
             #y_max = filas * alto_celda
             x_max = 50
-            y_max = 30
+            y_max = 60
 
             fig_diag.add_shape(
                 type="path",
