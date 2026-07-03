@@ -650,15 +650,29 @@ elif menu == "Mapa Interactivo":
             porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
             pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             
-            if porcentaje >= 99.9:
-                color_lote = "🟢 Completado"
-                hex_color = "#10B981"
-            elif porcentaje > 0:
-                color_lote = "🟡 En Proceso"
-                hex_color = "#F59E0B"
-            else:
-                color_lote = "🔴 Pendiente"
-                hex_color = "#EF4444"
+            # --- NUEVA LÓGICA DE ETAPAS DE OBRA ---
+            if porcentaje == 0:
+                color_lote = "🔴 No iniciado"
+                hex_color = "#EF4444"      # Rojo
+            elif 0 < porcentaje <= 50:
+                color_lote = "⚫ Obra negra"
+                hex_color = "#57534E"      # Gris oscuro
+            elif 50 < porcentaje <= 60:
+                color_lote = "⚪ Obra gris"
+                hex_color = "#A8A29E"      # Gris claro
+            elif 60 < porcentaje <= 70:
+                color_lote = "🟡 Obra blanca"
+                hex_color = "#FDE047"      # Amarillo
+            elif 70 < porcentaje <= 80:
+                color_lote = "🟠 Pisos"
+                hex_color = "#F97316"      # Naranja
+            elif 80 < porcentaje <= 95:
+                color_lote = "🔵 Equipamientos (avalúos)"
+                hex_color = "#3B82F6"      # Azul
+            else: # Mayor a 95% hasta 100%
+                color_lote = "🟢 Detallado y entrega"
+                hex_color = "#10B981"      # Verde
+            # --------------------------------------
                 
             lotes_datos_mapa.append({
                 "Lote": f"Lote {lote_num}",
@@ -741,6 +755,22 @@ elif menu == "Mapa Interactivo":
         df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
+
+
+        # --- LEYENDA VISUAL DE AVANCES ---
+    st.markdown("""
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: rgba(255,255,255,0.05); border-radius: 8px; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #EF4444; border-radius: 50%;"></div><span style="font-size: 12px;">0% No iniciado</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #57534E; border-radius: 50%;"></div><span style="font-size: 12px;">1-50% Obra negra</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #A8A29E; border-radius: 50%;"></div><span style="font-size: 12px;">51-60% Obra gris</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #FDE047; border-radius: 50%;"></div><span style="font-size: 12px;">61-70% Obra blanca</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #F97316; border-radius: 50%;"></div><span style="font-size: 12px;">71-80% Pisos</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #3B82F6; border-radius: 50%;"></div><span style="font-size: 12px;">81-95% Equipamientos</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #10B981; border-radius: 50%;"></div><span style="font-size: 12px;">96-100% Detallado y entrega</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+    # ---------------------------------
+
 
     col_mapa, col_info_lote = st.columns([5, 3])
 
