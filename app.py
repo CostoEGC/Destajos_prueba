@@ -1098,7 +1098,7 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                html_final = f"<div style='width:100%; height:auto; min-height:900px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
+                html_final = f"<div style='width:100%; height:auto; min-height:700px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
                 st.components.v1.html(html_final, height=1000) #scrolling=True)
                 
             except Exception as e:
