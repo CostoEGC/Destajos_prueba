@@ -430,8 +430,7 @@ if menu == "Registro de Destajos":
         hay_errores = False
         
         # Procesamiento en tiempo real tras cada clic o edición
-        for idx, row in edited_df.iterrows():
-            original_idx = df_pendientes.index[idx]
+        for original_idx, row in edited_df.iterrows():
             
             # 1. Guardar destajista en tiempo real
             if row['Destajista'] != st.session_state.df.at[original_idx, 'Destajista']:
