@@ -286,30 +286,54 @@ st.sidebar.markdown(f"**Total Prototipos: {total_general}**")
 if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
-    # 1. Asegurar que exista la columna Manzana (por si no viene del GSheet)
+    # Asegurar que exista la columna Manzana en el DataFrame
     if 'Manzana' not in df.columns:
         df['Manzana'] = 'N/A'
         
-    # --- 2. FILTROS DE TABLA (Cruzados y en 2 columnas) ---
+    # --- 1. FUNCIÓN DE ORDENAMIENTO PERSONALIZADO DE PROTOTIPOS (1, 1+, 2, 2+, 2A...) ---
+    def ordenar_prototipos(val):
+        val_str = str(val).strip()
+        match = re.match(r'^(\d+)', val_str)
+        if match:
+            num = int(match.group(1))
+            resto = val_str[len(match.group(1)):]
+        else:
+            num = 99999
+            resto = val_str
+            
+        # Pesos para orden natural de sufijos: '' < '+' < 'A' < 'A+'
+        if resto == '': peso = 0
+        elif resto == '+': peso = 1
+        elif resto == 'A': peso = 2
+        elif resto == 'A+': peso = 3
+        else: peso = 4
+        return (num, peso, resto)
+
+    # --- 2. FILTROS DE TABLA (Distribuidos en 2 Columnas y Cruzados) ---
     st.markdown("##### ⏳ Filtros de Tabla")
     f_col1, f_col2 = st.columns(2)
     
-    # Columna 1
-    prototipos_disp = ["Todos"] + list(df['Prototipo'].dropna().unique())
-    filtro_prototipo = f_col1.selectbox("Prototipo:", prototipos_disp)
-    
-    manzanas_disp = ["Todas"] + list(df['Manzana'].dropna().unique())
-    filtro_manzana = f_col1.selectbox("Manzana:", manzanas_disp)
+    # COLUMNA 1: Prototipo, Lote, Manzana
+    prototipos_unicos = sorted(list(df['Prototipo'].dropna().unique()), key=ordenar_prototipos)
+    prototipos_disp = ["Todos"] + prototipos_unicos
+    filtro_prototipo = f_col1.selectbox(
+        "Prototipo:", 
+        prototipos_disp, 
+        format_func=lambda x: f"Prototipo {x}" if x != "Todos" else "Todos"
+    )
     
     lotes_disp = list(df['Lote'].dropna().unique())
     filtro_lote = f_col1.multiselect("Selecciona el Lote (múltiple):", options=lotes_disp)
     
-    # Columna 2
-    def extraer_num(val):
-        m = re.match(r'^(\d+)', str(val))
+    manzanas_disp = ["Todas"] + list(df['Manzana'].dropna().unique())
+    filtro_manzana = f_col1.selectbox("Manzana:", manzanas_disp)
+    
+    # COLUMNA 2: Concepto, Destajista, Fecha
+    def extraer_num_partida(val):
+        m = re.match(r'^(\d+)', str(val).strip())
         return int(m.group(1)) if m else 99999
         
-    partidas_disp = ["Todas"] + sorted(list(df['Partida'].dropna().unique()), key=extraer_num)
+    partidas_disp = ["Todas"] + sorted(list(df['Partida'].dropna().unique()), key=extraer_num_partida)
     filtro_concepto = f_col2.selectbox("Buscar Concepto:", partidas_disp)
     
     destajistas_disp = ["Todos"] + LISTA_DESTAJISTAS
@@ -317,7 +341,7 @@ if menu == "Registro de Destajos":
     
     fecha_filtro = f_col2.date_input("Filtrar por Fecha (Opcional):", value=None, format="DD/MM/YYYY")
 
-    # --- 3. Lógica de Filtros Cruzados ---
+    # --- 3. APLICACIÓN DE FILTROS CRUZADOS ---
     df_filtrado = df.copy()
     if filtro_prototipo != "Todos":
         df_filtrado = df_filtrado[df_filtrado['Prototipo'] == filtro_prototipo]
@@ -332,18 +356,18 @@ if menu == "Registro de Destajos":
     if fecha_filtro:
         df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
 
-    # --- 4. TARJETA DE RESUMEN AL PRINCIPIO ---
+    # --- 4. TABLA DE RESUMEN AL PRINCIPIO (Lote X – Prototipo X) ---
     costo_total_filtrado = df_filtrado['Precio'].sum()
     pagado_filtrado = (pd.to_numeric(df_filtrado.get('Pago_1', 0)) + pd.to_numeric(df_filtrado.get('Pago_2', 0))).sum()
     pendiente_filtrado = costo_total_filtrado - pagado_filtrado
     
     lotes_str = ", ".join([str(l) for l in filtro_lote]) if filtro_lote else "Todos"
-    proto_str = filtro_prototipo
+    proto_str = f"Prototipo {filtro_prototipo}" if filtro_prototipo != "Todos" else "Todos"
 
     st.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
-            <div style="font-size:24px; font-weight:bold;">🏠 Lotes: {lotes_str} - Prototipo: {proto_str}</div>
+            <div style="font-size:24px; font-weight:bold;">🏠 Lotes: {lotes_str} – {proto_str}</div>
         </div>
         <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
             <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
@@ -362,23 +386,24 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
     
-    # --- 5. RESUMEN EN TEXTO (Costo vs Pagos) ---
-    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 ➔ Costo: ${costo_total_filtrado:,.2f} | Pagos: ${pagado_filtrado:,.2f}</div>", unsafe_allow_html=True)
+    # --- 5. LÍNEA DE CÓDIGO SOLICITADA (Muestra Costo y Pagos Activos) ---
+    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${costo_total_filtrado:,.2f} | Pagos: ${pagado_filtrado:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 6. PREPARACIÓN DEL EDITOR INTERACTIVO (EXCEL-LIKE) ---
-    # Filtramos solo las columnas requeridas
+    # --- 6. PREPARACIÓN DE LAS COLUMNAS ESPECÍFICAS SOLICITADAS ---
     df_editor = df_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'Fecha_Pago', 'Usuario', 'Estado']].copy()
     
-    # Insertamos la columna virtual de pago
-    df_editor.insert(6, 'Pagar', False) 
+    # Columna interactiva de pago sustituta al botón (Checkbox)
+    df_editor.insert(6, 'Pago', False) 
+    df_editor.loc[df_editor['Estado'] == 'Pagado', 'Pago'] = True
+
+    # --- 7. LABEL LLAMATIVO DE SUMA EN FORMATO MONEDA ---
+    # Captura filas dinámicamente marcadas para pago que no estén previamente consolidadas
+    mask_nuevos_pagos = (df_editor['Pago'] == True) & (df_editor['Estado'] != 'Pagado')
     
-    # Si ya está pagado, marcamos la casilla y el editor la bloqueará visualmente
-    df_editor.loc[df_editor['Estado'] == 'Pagado', 'Pagar'] = True
-
-    st.markdown("### 📋 Tabla Interactiva de Destajos")
-    st.info("💡 **Tip:** Haz doble clic en 'Destajista' para asignar. Arrastra la esquina azul de la celda hacia abajo para autocompletar. Marca 'Pagar' para sumar los montos.")
-
+    # Estructura del data_editor con columnas estáticas (simulando HTML) y columna Destajista tipo Excel
+    st.markdown("### 📋 Tabla de Destajos")
+    
     edited_df = st.data_editor(
         df_editor,
         column_config={
@@ -388,28 +413,30 @@ if menu == "Registro de Destajos":
             "Partida": st.column_config.TextColumn("Partida", disabled=True),
             "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", disabled=True),
             "Destajista": st.column_config.SelectboxColumn("Destajista", options=LISTA_DESTAJISTAS, required=False),
-            "Pagar": st.column_config.CheckboxColumn("💰 Pagar", help="Activa para registrar el pago temporalmente"),
-            "Fecha_Pago": st.column_config.TextColumn("Fecha Pago", disabled=True),
+            "Pago": st.column_config.CheckboxColumn("Pago", help="Selecciona para registrar pago"),
+            "Fecha_Pago": st.column_config.TextColumn("Fecha pago", disabled=True),
             "Usuario": st.column_config.TextColumn("Usuario", disabled=True),
             "Estado": st.column_config.TextColumn("Estado", disabled=True)
         },
         hide_index=True,
         use_container_width=True,
-        key="grid_destajos"
+        key="grid_destajos_v2"
     )
 
-    # --- 7. LABEL DINÁMICO DE SUMA ---
-    # Sumamos el costo de las filas marcadas con 'Pagar' que aún NO tienen el estatus 'Pagado'
-    mask_nuevos_pagos = (edited_df['Pagar'] == True) & (edited_df['Estado'] != 'Pagado')
-    suma_a_pagar = edited_df.loc[mask_nuevos_pagos, 'Precio'].sum()
+    # Recalcular la suma acumulada en tiempo real basado en la interacción del usuario
+    mask_actualizada = (edited_df['Pago'] == True) & (edited_df['Estado'] != 'Pagado')
+    suma_acumulada = edited_df.loc[mask_actualizada, 'Precio'].sum()
 
+    # Contenedor llamativo con formato moneda
     st.markdown(f"""
-    <div style="background-color: #FEF08A; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #EAB308; margin-top: 15px; margin-bottom: 15px;">
-        <h2 style="color: #854D0E; margin: 0;">Monto Seleccionado a Liberar: ${suma_a_pagar:,.2f}</h2>
+    <div style="background-color: #F59E0B; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #D97706; margin-top: 10px; margin-bottom: 20px;">
+        <h2 style="color: #FFFFFF; margin: 0; font-family: Arial, sans-serif; font-size: 26px;">
+            💰 Total Acumulado Seleccionado: ${suma_acumulada:,.2f}
+        </h2>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 8. APLICAR CAMBIOS LOCALES ---
+    # --- 8. PROCESAMIENTO Y BLOQUEO AL DAR CLICK EN GUARDAR CAMBIOS ---
     if st.button("📝 Confirmar Asignaciones y Pagos en Tabla", type="primary", use_container_width=True):
         cambios_realizados = False
         ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
@@ -417,24 +444,26 @@ if menu == "Registro de Destajos":
         for idx, row in edited_df.iterrows():
             original_idx = df_filtrado.index[idx]
             
-            # Actualizar Destajista si el usuario lo modificó con el autocompletado/desplegable
+            # 8.1 Guardar cambios de la columna tipo Excel (Destajista) si se arrastraron o cambiaron valores
             if row['Destajista'] != st.session_state.df.at[original_idx, 'Destajista']:
                 st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
                 cambios_realizados = True
                 
-            # Procesar el pago si la casilla fue activada
-            if row['Pagar'] and st.session_state.df.at[original_idx, 'Estado'] != 'Pagado':
-                st.session_state.df.at[original_idx, 'Pago_1'] = row['Precio']
+            # 8.2 Estampar fecha, usuario y bloquear fila si se marcó la casilla de Pago
+            if row['Pago'] and st.session_state.df.at[original_idx, 'Estado'] != 'Pagado':
+                # Si el costo es 0 o vacío, registrar de igual forma
+                costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
+                st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
                 st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
                 st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
                 st.session_state.df.at[original_idx, 'Estado'] = 'Pagado'
                 cambios_realizados = True
                 
         if cambios_realizados:
-            st.success("✅ Datos registrados. El contador regresó a $0.00. IMPORTANTE: Presiona 'GUARDAR CAMBIOS' en el menú lateral para sincronizar con Google Sheets.")
+            st.success("✅ Cambios retenidos localmente. La suma regresó a $0.00. Recuerda presionar 'GUARDAR CAMBIOS' en el menú lateral izquierdo para sincronizar con Google Sheets.")
             st.rerun()
         else:
-            st.info("No se detectaron nuevas asignaciones o pagos para confirmar.")
+            st.info("No se detectaron nuevos cambios para procesar.")
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
