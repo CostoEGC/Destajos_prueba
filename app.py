@@ -386,48 +386,51 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
     
-    # --- 5. LÍNEA DE CÓDIGO SOLICITADA (Muestra Costo y Pagos Activos) ---
     st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${costo_total_filtrado:,.2f} | Pagos: ${pagado_filtrado:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 6. PREPARACIÓN DE LAS COLUMNAS ESPECÍFICAS SOLICITADAS ---
-    df_editor = df_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'Fecha_Pago', 'Usuario', 'Estado']].copy()
+    # --- 5. PREPARACIÓN Y SEGREGACIÓN DE DATOS (PENDIENTES VS PAGADOS) ---
+    df_base = df_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'Fecha_Pago', 'Usuario', 'Estado']].copy()
     
-    # Columna interactiva de pago sustituta al botón (Checkbox)
-    df_editor.insert(6, 'Pago', False) 
-    df_editor.loc[df_editor['Estado'] == 'Pagado', 'Pago'] = True
-
-    # --- 7. LABEL LLAMATIVO DE SUMA EN FORMATO MONEDA ---
-    # Captura filas dinámicamente marcadas para pago que no estén previamente consolidadas
-    mask_nuevos_pagos = (df_editor['Pago'] == True) & (df_editor['Estado'] != 'Pagado')
+    # Separar registros pendientes (Editables) de los pagados (Bloqueados)
+    df_pendientes = df_base[df_base['Estado'] != 'Pagado'].copy()
+    df_pagados = df_base[df_base['Estado'] == 'Pagado'].copy()
     
-    # Estructura del data_editor con columnas estáticas (simulando HTML) y columna Destajista tipo Excel
-    st.markdown("### 📋 Tabla de Destajos")
+    # Insertar columna interactiva de Checkbox solo a los pendientes
+    df_pendientes.insert(6, 'Pago', False)
+
+    # --- 6. TABLA INTERACTIVA (SÓLO FILAS PENDIENTES - COLUMNA DESTAJISTA TIPO EXCEL) ---
+    st.markdown("### 📋 Asignación de Destajistas y Selección de Pagos")
     
-    edited_df = st.data_editor(
-        df_editor,
-        column_config={
-            "Lote": st.column_config.TextColumn("Lote", disabled=True),
-            "Manzana": st.column_config.TextColumn("Manzana", disabled=True),
-            "Prototipo": st.column_config.TextColumn("Prototipo", disabled=True),
-            "Partida": st.column_config.TextColumn("Partida", disabled=True),
-            "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", disabled=True),
-            "Destajista": st.column_config.SelectboxColumn("Destajista", options=LISTA_DESTAJISTAS, required=False),
-            "Pago": st.column_config.CheckboxColumn("Pago", help="Selecciona para registrar pago"),
-            "Fecha_Pago": st.column_config.TextColumn("Fecha pago", disabled=True),
-            "Usuario": st.column_config.TextColumn("Usuario", disabled=True),
-            "Estado": st.column_config.TextColumn("Estado", disabled=True)
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="grid_destajos_v2"
-    )
+    if not df_pendientes.empty:
+        edited_df = st.data_editor(
+            df_pendientes,
+            column_config={
+                "Lote": st.column_config.TextColumn("Lote", disabled=True),
+                "Manzana": st.column_config.TextColumn("Manzana", disabled=True),
+                "Prototipo": st.column_config.TextColumn("Prototipo", disabled=True),
+                "Partida": st.column_config.TextColumn("Partida", disabled=True),
+                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", disabled=True),
+                "Destajista": st.column_config.SelectboxColumn("Destajista", options=LISTA_DESTAJISTAS, required=False),
+                "Pago": st.column_config.CheckboxColumn("Pago", help="Selecciona para registrar pago"),
+                "Fecha_Pago": st.column_config.TextColumn("Fecha pago", disabled=True),
+                "Usuario": st.column_config.TextColumn("Usuario", disabled=True),
+                "Estado": st.column_config.TextColumn("Estado", disabled=True)
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="grid_destajos_interactivo"
+        )
+        
+        # Calcular el total acumulado de los checkboxes seleccionados en tiempo real
+        mask_seleccionados = (edited_df['Pago'] == True)
+        suma_acumulada = edited_df.loc[mask_seleccionados, 'Precio'].sum()
+    else:
+        st.info("🎉 No hay conceptos pendientes por pagar con los filtros seleccionados.")
+        suma_acumulada = 0.0
+        edited_df = pd.DataFrame()
 
-    # Recalcular la suma acumulada en tiempo real basado en la interacción del usuario
-    mask_actualizada = (edited_df['Pago'] == True) & (edited_df['Estado'] != 'Pagado')
-    suma_acumulada = edited_df.loc[mask_actualizada, 'Precio'].sum()
-
-    # Contenedor llamativo con formato moneda
+    # Banner del Total Acumulado Seleccionado
     st.markdown(f"""
     <div style="background-color: #F59E0B; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #D97706; margin-top: 10px; margin-bottom: 20px;">
         <h2 style="color: #FFFFFF; margin: 0; font-family: Arial, sans-serif; font-size: 26px;">
@@ -436,34 +439,83 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
 
-    # --- 8. PROCESAMIENTO Y BLOQUEO AL DAR CLICK EN GUARDAR CAMBIOS ---
-    if st.button("📝 Confirmar Asignaciones y Pagos en Tabla", type="primary", use_container_width=True):
-        cambios_realizados = False
-        ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
-        
-        for idx, row in edited_df.iterrows():
-            original_idx = df_filtrado.index[idx]
+    # --- 7. BOTÓN UNIFICADO: GUARDAR CAMBIOS (PROCESA LOCALMENTE Y SUBE A GOOGLE SHEETS) ---
+    if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
+        if not edited_df.empty:
+            cambios_locales = False
+            ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
             
-            # 8.1 Guardar cambios de la columna tipo Excel (Destajista) si se arrastraron o cambiaron valores
-            if row['Destajista'] != st.session_state.df.at[original_idx, 'Destajista']:
-                st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
-                cambios_realizados = True
+            # --- VALIDACIÓN DE CANDADO DE SEGURIDAD ---
+            for idx, row in edited_df.iterrows():
+                if row['Pago']:
+                    destajista_val = str(row['Destajista']).strip()
+                    if pd.isna(row['Destajista']) or destajista_val == "" or destajista_val == "None" or destajista_val == "Todos":
+                        st.error(f"🔒 **Candado de Seguridad:** No puedes liquidar el **Lote {row['Lote']}** (Partida: {row['Partida']}) porque no tiene un Destajista asignado. Selecciona un destajista primero antes de activar la casilla de pago.")
+                        st.stop() # Detiene la ejecución completa para evitar que se guarde el error
+            
+            # --- PROCESAMIENTO DE CAMBIOS ---
+            for idx, row in edited_df.iterrows():
+                # Al mantener el dataframe filtrado el índice original de la fila (idx) se preserva perfectamente
+                original_idx = idx 
                 
-            # 8.2 Estampar fecha, usuario y bloquear fila si se marcó la casilla de Pago
-            if row['Pago'] and st.session_state.df.at[original_idx, 'Estado'] != 'Pagado':
-                # Si el costo es 0 o vacío, registrar de igual forma
-                costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
-                st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
-                st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
-                st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
-                st.session_state.df.at[original_idx, 'Estado'] = 'Pagado'
-                cambios_realizados = True
+                # Guardar cambios del Destajista (Grilla interactiva tipo Excel)
+                if row['Destajista'] != st.session_state.df.at[original_idx, 'Destajista']:
+                    st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
+                    cambios_locales = True
+                    
+                # Guardar cambios de Pago, estampar firmas y congelar fila
+                if row['Pago']:
+                    costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
+                    st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
+                    st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
+                    st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
+                    st.session_state.df.at[original_idx, 'Estado'] = 'Pagado'
+                    cambios_locales = True
+            
+            # --- SINCRONIZACIÓN DIRECTA CON GOOGLE SHEETS (UNIFICACIÓN DE BOTONES) ---
+            if cambios_locales:
+                df_para_enviar = st.session_state.df.copy()
                 
-        if cambios_realizados:
-            st.success("✅ Cambios retenidos localmente. La suma regresó a $0.00. Recuerda presionar 'GUARDAR CAMBIOS' en el menú lateral izquierdo para sincronizar con Google Sheets.")
-            st.rerun()
+                # Formatear fechas a texto limpio antes del envío para evitar incompatibilidades
+                if 'Fecha_Pago' in df_para_enviar.columns:
+                    df_para_enviar['Fecha_Pago'] = df_para_enviar['Fecha_Pago'].astype(str).replace('NaT', '')
+                
+                header = [df_para_enviar.columns.tolist()]
+                rows = df_para_enviar.values.tolist()
+                payload = header + rows
+                
+                with st.spinner("Sincronizando y bloqueando datos en Google Sheets..."):
+                    try:
+                        response = requests.post(URL_API_SHEET, json={"data": payload})
+                        if response.status_code == 200:
+                            st.success("✅ ¡Cambios guardados y filas bloqueadas con éxito en Google Sheets!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Error de respuesta del servidor de Google ({response.status_code}). Los cambios se retuvieron localmente.")
+                    except Exception as e:
+                        st.error(f"❌ Error crítico de conexión al guardar en la nube: {e}")
+            else:
+                st.info("No se encontraron modificaciones nuevas ni pagos seleccionados para guardar.")
         else:
-            st.info("No se detectaron nuevos cambios para procesar.")
+            st.info("La tabla está vacía. No hay datos pendientes por procesar.")
+
+    # --- 8. HISTORIAL DE REGISTROS PAGADOS (COMPLETAMENTE BLOQUEADO / VISTA HTML) ---
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    st.markdown("### 🔒 Historial de Registros Pagados (Bloqueados para Edición)")
+    
+    if not df_pagados.empty:
+        # Renombrar columnas para la presentación estática final
+        df_pagados_vista = df_pagados.rename(columns={'Precio': 'Costo', 'Fecha_Pago': 'Fecha de Pago'}).copy()
+        
+        # st.dataframe genera una visualización nativa HTML 100% estática y de solo lectura.
+        # Al no estar dentro de un data_editor, no tiene checkboxes ni desplegables, cumpliendo con el bloqueo total de la fila.
+        st.dataframe(
+            df_pagados_vista[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'Fecha de Pago', 'Usuario', 'Estado']],
+            hide_index=True,
+            use_container_width=True
+        )
+    else:
+        st.caption("No existen registros pagados bajo los filtros seleccionados actualmente.")
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
