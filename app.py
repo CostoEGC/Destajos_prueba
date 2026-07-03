@@ -659,10 +659,10 @@ elif menu == "Mapa Interactivo":
                 hex_color = "#57534E"      # Gris oscuro
             elif 50 < porcentaje <= 60:
                 color_lote = "⚪ Obra gris"
-                hex_color = "#A8A29E"      # Gris claro
+                hex_color = "#752BA7"      # Morado
             elif 60 < porcentaje <= 70:
                 color_lote = "🟡 Obra blanca"
-                hex_color = "#FDE047"      # Amarillo
+                hex_color = "#FADE50"      # Amarillo
             elif 70 < porcentaje <= 80:
                 color_lote = "🟠 Pisos"
                 hex_color = "#F97316"      # Naranja
@@ -762,7 +762,7 @@ elif menu == "Mapa Interactivo":
     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: rgba(255,255,255,0.05); border-radius: 8px; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #EF4444; border-radius: 50%;"></div><span style="font-size: 12px;">0% No iniciado</span></div>
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #57534E; border-radius: 50%;"></div><span style="font-size: 12px;">1-50% Obra negra</span></div>
-        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #A8A29E; border-radius: 50%;"></div><span style="font-size: 12px;">51-60% Obra gris</span></div>
+        <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #752Ba7; border-radius: 50%;"></div><span style="font-size: 12px;">51-60% Obra gris</span></div>
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #FDE047; border-radius: 50%;"></div><span style="font-size: 12px;">61-70% Obra blanca</span></div>
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #F97316; border-radius: 50%;"></div><span style="font-size: 12px;">71-80% Pisos</span></div>
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #3B82F6; border-radius: 50%;"></div><span style="font-size: 12px;">81-95% Equipamientos</span></div>
