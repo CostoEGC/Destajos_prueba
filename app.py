@@ -1164,9 +1164,9 @@ elif menu == "Mapa Interactivo":
 
             # 4. El rectángulo delimita exactamente los bordes de la cuadrícula
             x_min, y_min = 0.0, 0.0
-            #x_max = cols * ancho_celda
+            x_max = cols * ancho_celda
             #y_max = filas * alto_celda
-            x_max = 300
+            #x_max = 300
             y_max = 80
 
             fig_diag.add_shape(
