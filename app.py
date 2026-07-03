@@ -1011,33 +1011,35 @@ elif menu == "Mapa Interactivo":
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
 
-                                        # --- NUEVA LÓGICA DE CORTE RECTANGULAR (ROTACIÓN NATIVA SVG) ---
+                                        # --- NUEVA LÓGICA DE CORTE RECTANGULAR AUTOCONTENIDA ---
                                         angulo_rotacion = 0
-                                        coords_x, coords_y = COORDENADAS_LOTES(lote_path)
+                                        try:
+                                            # Buscamos los números dentro del polígono
+                                            d_attr = lote_path.get('d', '')
+                                            numeros = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', d_attr)
+                                            
+                                            if len(numeros) >= 4:
+                                                max_dist = 0
+                                                best_dx, best_dy = 1, 0
+                                                
+                                                # Buscamos el vector (lado) más largo del lote
+                                                for idx in range(2, len(numeros)-1, 2):
+                                                    dx = float(numeros[idx])
+                                                    dy = float(numeros[idx+1])
+                                                    dist = dx*dx + dy*dy
+                                                    if dist > max_dist:
+                                                        max_dist = dist
+                                                        best_dx = dx
+                                                        best_dy = dy
+                                                
+                                                # Convertimos a grados para inyectarlo en el SVG
+                                                if max_dist > 0:
+                                                    angulo_rotacion = math.degrees(math.atan2(best_dy, best_dx))
+                                        except Exception:
+                                            pass
                                         
-                                        if coords_x and len(coords_x) > 2:
-                                            max_d = 0
-                                            best_dx, best_dy = 1, 0
-                                            n_pts = len(coords_x)
-                                            # Buscamos el lado más largo del lote
-                                            for i_pt in range(n_pts):
-                                                j_pt = (i_pt + 1) % n_pts
-                                                dx = coords_x[j_pt] - coords_x[i_pt]
-                                                dy = coords_y[j_pt] - coords_y[i_pt]
-                                                dist = dx*dx + dy*dy
-                                                if dist > max_d:
-                                                    max_d = dist
-                                                    best_dx, best_dy = dx, dy
-
-                                            # Calculamos el ángulo de ese lado en grados
-                                            angulo_rad = math.atan2(best_dy, best_dx)
-                                            angulo_rotacion = math.degrees(angulo_rad)
-
-                                        # Creamos el gradiente y lo rotamos desde su centro
                                         grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="0%")
                                         grad['gradientTransform'] = f"rotate({angulo_rotacion}, 0.5, 0.5)"
-                                        # --- FIN DE NUEVA LÓGICA ---                                
-                                        
                                         
                                         for i, (c, op) in enumerate(colores_opacidades):
                                             start_pct = (i / n_cols) * 100
