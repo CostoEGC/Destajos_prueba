@@ -1098,8 +1098,8 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                #html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
-                html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items: flex-start; padding-top: 10px;'>{html_final}</div>"
+                #ajuste de altura del contenedor a 850 px para el zoom out
+                html_final = f"<div style='width:100%; height:850px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
                 st.components.v1.html(html_final, height=850, scrolling=False)
                 
             except Exception as e:
