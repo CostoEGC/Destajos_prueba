@@ -1166,8 +1166,8 @@ elif menu == "Mapa Interactivo":
             x_min, y_min = 0.0, 0.0
             #x_max = cols * ancho_celda
             #y_max = filas * alto_celda
-            x_max = 80
-            y_max = 10
+            x_max = 150
+            y_max = 50
 
             fig_diag.add_shape(
                 type="path",
