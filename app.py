@@ -939,10 +939,25 @@ elif menu == "Mapa Interactivo":
                 svg_tag = soup.find("svg")
                 
                 if svg_tag:
-                    svg_tag['width'] = "100%"
-                    svg_tag['height'] = "100%"
-                    if not svg_tag.get('preserveAspectRatio'):
-                        svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                # 1. Rescatamos las medidas originales para crear el viewBox si el CAD no lo traía.
+                # Esto garantiza que el navegador conozca el tamaño real y escale todo sin cortar nada.
+                    if not svg_tag.get('viewBox') and not svg_tag.get('viewbox'):
+                        w_orig = str(svg_tag.get('width', '')).replace('px', '').replace('pt', '').strip()
+                        h_orig = str(svg_tag.get('height', '')).replace('px', '').replace('pt', '').strip()
+                        if w_orig and h_orig and w_orig.replace('.', '', 1).isdigit() and h_orig.replace('.', '', 1).isdigit():
+                            svg_tag['viewBox'] = f"0 0 {float(w_orig)} {float(h_orig)}"
+
+                # 2. Permitimos que el ancho sea responsivo y el alto se ajuste automáticamente.
+                svg_tag['width'] = "100%"
+                svg_tag['height'] = "auto"
+                
+                if not svg_tag.get('preserveAspectRatio'):
+                    svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                #if svg_tag:
+                #    svg_tag['width'] = "100%"
+                #    svg_tag['height'] = "100%"
+                #    if not svg_tag.get('preserveAspectRatio'):
+                        #svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                         
                     defs = soup.find('defs')
                     if not defs:
@@ -1083,8 +1098,8 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                html_final = f"<div style='width:100%; height:100%; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=700, scrolling=True)
+                html_final = f"<div style='width:100%; height:auto; min-height:850px; display:flex; justify-content:center; align-items:center;'>{html_final}</div>"
+                st.components.v1.html(html_final, height=850, scrolling=True)
                 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
@@ -1259,7 +1274,7 @@ elif menu == "Mapa Interactivo":
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
-            st.plotly_chart(fig_diag, use_container_width=True, config={'scrollZoom': True})
+            st.plotly_chart(fig_diag, use_container_width=True)
             
             pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
             pendientes_diag = num_partidas - pagadas_diag
