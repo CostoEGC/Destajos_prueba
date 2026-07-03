@@ -1114,11 +1114,11 @@ elif menu == "Mapa Interactivo":
             yy_coords = []
 
             # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            espaciado_base = 10.0 
-            espaciado_x = espaciado_base-3
-            espaciado_y = espaciado_base-8
-            #espaciado_x = 7.0 
-            #espaciado_y = 2
+            #espaciado_base = 10.0 
+            #espaciado_x = espaciado_base-3
+            #espaciado_y = espaciado_base-8
+            espaciado_x = 7.0 
+            espaciado_y = 2
 
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x = (i % cols) * espaciado_x
@@ -1163,7 +1163,6 @@ elif menu == "Mapa Interactivo":
             ))
 
             margen = 2.5 
-            #margen = espaciado_base /5.0
             x_max = (cols - 1) * espaciado_x + margen
             y_max = max(y_coords) + margen if y_coords else margen
             x_min = -margen
