@@ -1166,8 +1166,7 @@ elif menu == "Mapa Interactivo":
             x_min, y_min = 0.0, 0.0
             x_max = cols * ancho_celda
             y_max = filas * alto_celda
-            #x_max = 300
-            #y_max = 80
+            
 
             fig_diag.add_shape(
                 type="path",
@@ -1260,7 +1259,7 @@ elif menu == "Mapa Interactivo":
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
 
-            st.plotly_chart(fig_diag, use_container_width=True)
+            st.plotly_chart(fig_diag, use_container_width=True, config={'scrollZoom': True})
             
             pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
             pendientes_diag = num_partidas - pagadas_diag
