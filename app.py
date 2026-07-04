@@ -332,7 +332,7 @@ if menu == "Registro de Destajos":
         else: peso = 4
         return (num, peso, resto)
 
-   st.markdown("##### ⏳ Filtros de Tabla")
+    st.markdown("##### ⏳ Filtros de Tabla")
     f_col1, f_col2 = st.columns(2)
     
     prototipos_unicos = sorted(list(df['Prototipo'].dropna().unique()), key=ordenar_prototipos)
@@ -483,6 +483,7 @@ if menu == "Registro de Destajos":
             use_container_width=True,
             height=300
         )
+    
     # Forzamos que las filas "Pagadas" siempre tengan el check encendido visualmente
     df_tabla.loc[df_tabla['Estado'] == 'Pagado', 'Pago'] = True
 
