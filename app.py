@@ -416,73 +416,7 @@ if menu == "Registro de Destajos":
     
     # ➔ FIX 2: En lugar de borrar las pagadas, mostramos todas. 
     df_tabla = df_base.copy()
-    # ➔ SEPARAMOS LAS TABLAS PARA BLOQUEAR DEFINITIVAMENTE LAS PAGADAS
-    df_pendientes = df_tabla[df_tabla['Estado'] != 'Pagado'].copy()
-    df_pagadas = df_tabla[df_tabla['Estado'] == 'Pagado'].copy()
-
-    st.markdown("### 📋 Asignación y Selección de Pagos (Pendientes)")
-
-    # 1. TABLA DE PENDIENTES (EDITABLE)
-    if not df_pendientes.empty:
-        edited_df = st.data_editor(
-            df_pendientes,
-            column_config={
-                "Lote": st.column_config.TextColumn("Lote", disabled=True),
-                "Manzana": st.column_config.TextColumn("Manzana", disabled=True),
-                "Prototipo": st.column_config.TextColumn("Prototipo", disabled=True),
-                "Partida": st.column_config.TextColumn("Partida", disabled=True),
-                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", disabled=True),
-                "Destajista": st.column_config.SelectboxColumn("Destajista", options=LISTA_DESTAJISTAS, required=False),
-                "Pago": st.column_config.CheckboxColumn("Pago", help="Selecciona para registrar pago"),
-                "Fecha_Pago": st.column_config.TextColumn("Fecha pago", disabled=True),
-                "Usuario": st.column_config.TextColumn("Usuario", disabled=True),
-                "Estado": st.column_config.TextColumn("Estado", disabled=True)
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=400, 
-            key="grid_destajos_pendientes"
-        )
-        st.session_state.df_temporal = edited_df.copy()
-        
-        suma_acumulada = 0.0
-        hay_errores = False
-        
-        for original_idx, row in edited_df.iterrows():
-            if row['Pago']:
-                dest_val = str(row['Destajista']).strip()
-                if pd.isna(row['Destajista']) or dest_val in ["", "None", "Todos", "nan"]:
-                    hay_errores = True
-                else:
-                    suma_acumulada += row['Precio'] if pd.notna(row['Precio']) else 0.0
-
-        if hay_errores:
-            st.error("⚠️ **Alerta:** Hay casillas de pago marcadas sin un Destajista asignado. El sistema no te permitirá guardarlas.")
-
-        st.markdown(f"""
-        <div style="margin-bottom: 20px;">
-            <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
-                Total Acumulado Seleccionado: ${suma_acumulada:,.2f}
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.success("✅ No hay partidas pendientes con los filtros actuales.")
-        st.session_state.df_temporal = pd.DataFrame() # Evita errores al guardar si está vacía
-
-    # 2. TABLA DE PAGADAS (SOLO LECTURA, 100% BLOQUEADA)
-    if not df_pagadas.empty:
-        st.markdown("### 🔒 Historial de Partidas Pagadas (Solo Lectura)")
-        st.dataframe(
-            df_pagadas,
-            column_config={
-                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f"),
-                "Pago": st.column_config.CheckboxColumn("Pago", default=True) # Siempre se verá marcado
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=300
-        )
+    
     
     # Forzamos que las filas "Pagadas" siempre tengan el check encendido visualmente
     df_tabla.loc[df_tabla['Estado'] == 'Pagado', 'Pago'] = True
