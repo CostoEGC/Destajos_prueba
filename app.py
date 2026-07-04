@@ -44,7 +44,7 @@ def obtener_datos_gsheet():
             df['Fecha_Pago'] = pd.to_datetime(df['Fecha_Pago'], errors='coerce')
             df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
-        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
+        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0.0).astype(float)
         
         # INICIALIZACIÓN DE NUEVAS COLUMNAS
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
@@ -52,8 +52,8 @@ def obtener_datos_gsheet():
         if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
         if 'Usuario_2' not in df.columns: df['Usuario_2'] = ''
         
-        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
-        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
+        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0).astype(float)
+        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0).astype(float)
         
         df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
@@ -267,7 +267,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                     
                     # Si se marcó para pago
                     if row['Pago'] == True:
-                        costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
+                        costo_partida = float(row['Precio']) if pd.notna(row['Precio']) else 0.0
                         st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
                         st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
                         st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
