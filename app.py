@@ -398,12 +398,26 @@ if menu == "Registro de Destajos":
     df_base.rename(columns={'Check_Pago_Temp': 'Pago'}, inplace=True)
     
     # Sólo mostramos los pendientes
+    # Sólo mostramos los pendientes
     df_pendientes = df_base[df_base['Estado'] != 'Pagado'].copy()
 
     st.markdown("### 📋 Asignación de Destajistas y Selección de Pagos")
 
+    # --- FIX: Calcular suma inicial para evitar el salto/parpadeo de la interfaz ---
+    suma_inicial = df_pendientes.loc[df_pendientes['Pago'] == True, 'Precio'].sum() if not df_pendientes.empty else 0.0
+
     # Contenedores dinámicos para mostrar el texto azul y los errores arriba de la tabla
     suma_placeholder = st.empty()
+    
+    # Llenamos el contenedor ANTES de que se dibuje la tabla para que siempre ocupe su espacio
+    suma_placeholder.markdown(f"""
+    <div style="margin-bottom: 20px;">
+        <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
+            Total Acumulado Seleccionado: ${suma_inicial:,.2f}
+        </h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
     error_placeholder = st.empty()
 
     if not df_pendientes.empty:
