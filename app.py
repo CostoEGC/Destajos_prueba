@@ -256,18 +256,25 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         cambios = False
         ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
         
-        # Procesar los bloqueos de pago pendientes
-        if 'Check_Pago_Temp' in st.session_state.df.columns:
-            for idx, row in st.session_state.df.iterrows():
-                if row['Check_Pago_Temp'] == True and row['Estado'] != 'Pagado':
-                    costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
-                    st.session_state.df.at[idx, 'Pago_1'] = costo_partida
-                    st.session_state.df.at[idx, 'Fecha_Pago'] = ahora
-                    st.session_state.df.at[idx, 'Usuario'] = st.session_state.usuario
-                    st.session_state.df.at[idx, 'Estado'] = 'Pagado'
-                    st.session_state.df.at[idx, 'Check_Pago_Temp'] = False
-                    cambios = True
+        # Leemos de la tabla temporal que absorbe los clics sin parpadear
+        if 'df_temporal' in st.session_state:
+            for original_idx, row in st.session_state.df_temporal.iterrows():
+                
+                # Solo permitimos cambios si la fila NO está bloqueada (Pagada)
+                if row['Estado'] != 'Pagado':
+                    # Guardamos el destajista
+                    st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
                     
+                    # Si se marcó para pago
+                    if row['Pago'] == True:
+                        costo_partida = row['Precio'] if pd.notna(row['Precio']) else 0
+                        st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
+                        st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
+                        st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
+                        st.session_state.df.at[original_idx, 'Estado'] = 'Pagado'
+                        st.session_state.df.at[original_idx, 'Check_Pago_Temp'] = True # Mantiene el check fijo
+                        cambios = True
+                        
         # Limpiar columnas temporales y formatear fechas antes del envío
         df_para_enviar = st.session_state.df.drop(columns=['Check_Pago_Temp'], errors='ignore').copy()
         if 'Fecha_Pago' in df_para_enviar.columns:
@@ -397,19 +404,18 @@ if menu == "Registro de Destajos":
     df_base = st.session_state.df.loc[df_filtrado.index, ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'Check_Pago_Temp', 'Fecha_Pago', 'Usuario', 'Estado']].copy()
     df_base.rename(columns={'Check_Pago_Temp': 'Pago'}, inplace=True)
     
-    # Sólo mostramos los pendientes
-    # Sólo mostramos los pendientes
-    df_pendientes = df_base[df_base['Estado'] != 'Pagado'].copy()
+    # ➔ FIX 2: En lugar de borrar las pagadas, mostramos todas. 
+    df_tabla = df_base.copy()
+    
+    # Forzamos que las filas "Pagadas" siempre tengan el check encendido visualmente
+    df_tabla.loc[df_tabla['Estado'] == 'Pagado', 'Pago'] = True
 
     st.markdown("### 📋 Asignación de Destajistas y Selección de Pagos")
 
-    # --- FIX: Calcular suma inicial para evitar el salto/parpadeo de la interfaz ---
-    suma_inicial = df_pendientes.loc[df_pendientes['Pago'] == True, 'Precio'].sum() if not df_pendientes.empty else 0.0
+    # Calculamos la suma inicial ignorando lo que ya está pagado
+    suma_inicial = df_tabla.loc[(df_tabla['Pago'] == True) & (df_tabla['Estado'] != 'Pagado'), 'Precio'].sum() if not df_tabla.empty else 0.0
 
-    # Contenedores dinámicos para mostrar el texto azul y los errores arriba de la tabla
     suma_placeholder = st.empty()
-    
-    # Llenamos el contenedor ANTES de que se dibuje la tabla para que siempre ocupe su espacio
     suma_placeholder.markdown(f"""
     <div style="margin-bottom: 20px;">
         <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
@@ -420,9 +426,9 @@ if menu == "Registro de Destajos":
     
     error_placeholder = st.empty()
 
-    if not df_pendientes.empty:
+    if not df_tabla.empty:
         edited_df = st.data_editor(
-            df_pendientes,
+            df_tabla,
             column_config={
                 "Lote": st.column_config.TextColumn("Lote", disabled=True),
                 "Manzana": st.column_config.TextColumn("Manzana", disabled=True),
@@ -437,50 +443,33 @@ if menu == "Registro de Destajos":
             },
             hide_index=True,
             use_container_width=True,
+            height=600, # ➔ FIX 3: AQUÍ CONTROLAS EL TAMAÑO DE LA TABLA HACIA ABAJO (Puedes subir a 800 o 1000)
             key="grid_destajos_interactivo"
         )
+        
+        # ➔ FIX 1: Guardamos el estado temporal para que el botón "Guardar" lo lea, evitando fallos gráficos.
+        st.session_state.df_temporal = edited_df.copy()
         
         suma_acumulada = 0.0
         hay_errores = False
         
-        # Procesamiento en tiempo real tras cada clic o edición
+        # Calculamos la suma en tiempo real evaluando solo el editor temporal
         for original_idx, row in edited_df.iterrows():
-            
-            # 1. Guardar destajista en tiempo real
-            if row['Destajista'] != st.session_state.df.at[original_idx, 'Destajista']:
-                st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
-            
-            # 2. Validación instantánea del pago
-            if row['Pago']:
-                dest_val = str(row['Destajista']).strip()
-                if pd.isna(row['Destajista']) or dest_val in ["", "None", "Todos", "nan"]:
-                    hay_errores = True
-                    st.session_state.df.at[original_idx, 'Check_Pago_Temp'] = False # Anulamos la intención de pago
-                else:
-                    suma_acumulada += row['Precio'] if pd.notna(row['Precio']) else 0.0
-                    st.session_state.df.at[original_idx, 'Check_Pago_Temp'] = True
-            else:
-                st.session_state.df.at[original_idx, 'Check_Pago_Temp'] = False
+            if row['Estado'] != 'Pagado': # Ignoramos matemáticamente las bloqueadas
+                if row['Pago']:
+                    dest_val = str(row['Destajista']).strip()
+                    if pd.isna(row['Destajista']) or dest_val in ["", "None", "Todos", "nan"]:
+                        hay_errores = True
+                    else:
+                        suma_acumulada += row['Precio'] if pd.notna(row['Precio']) else 0.0
 
-        # Inyectar alerta roja instantánea si se detectó el error
         if hay_errores:
             error_placeholder.error("⚠️ **Alerta:** Hay casillas de pago marcadas sin un Destajista asignado. El sistema no sumará esas partidas ni te permitirá pagarlas hasta que asignes un destajista.")
 
-        # Mostrar el total acumulado en texto azul puro y sin recuadro
         suma_placeholder.markdown(f"""
         <div style="margin-bottom: 20px;">
             <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
                 Total Acumulado Seleccionado: ${suma_acumulada:,.2f}
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    else:
-        st.info("🎉 No hay conceptos pendientes por pagar con los filtros seleccionados.")
-        suma_placeholder.markdown(f"""
-        <div style="margin-bottom: 20px;">
-            <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
-                Total Acumulado Seleccionado: $0.00
             </h2>
         </div>
         """, unsafe_allow_html=True)
