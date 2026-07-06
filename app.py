@@ -39,9 +39,8 @@ st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets else ""
 
-def obtener_datos_gsheet(nombre_pestana="Ravellos"):
+def obtener_datos_gsheet(nombre_pestana="Ravello"):
     try:
-        # Aquí le agregamos el nombre de la pestaña a la URL
         url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
         response = requests.get(url_completa)
         data = response.json()
@@ -51,17 +50,17 @@ def obtener_datos_gsheet(nombre_pestana="Ravellos"):
             df['Fecha_Pago'] = pd.to_datetime(df['Fecha_Pago'], errors='coerce')
             df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
-        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
+        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0.0)
         
-        # INICIALIZACIÓN DE NUEVAS COLUMNAS
+        # INICIALIZACIÓN DE COLUMNAS (Limpiamos las viejas y aseguramos las nuevas)
+        if 'Manzana' not in df.columns: df['Manzana'] = 'M-1'
+        if 'C.C' not in df.columns: df['C.C'] = 'CC-01'
+        if 'Pagar' not in df.columns: df['Pagar'] = False
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
-        if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
-        if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
-        if 'Usuario_2' not in df.columns: df['Usuario_2'] = ''
         
         df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
-        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
         
+        # Lógica para asimilar que si está Pagado, el Pago_1 es igual al Precio
         df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
         return df
@@ -71,14 +70,22 @@ def obtener_datos_gsheet(nombre_pestana="Ravellos"):
 
 def actualizar_datos_gsheet(df, nombre_pestana="Ravello"):
     try:
-        # Aquí también le decimos a qué pestaña mandar los datos
         url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
-        datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
+        
+        # Opcional: si quieres asegurar que las columnas booleanas (como Pagar) 
+        # pasen como texto a Sheets para evitar errores visuales:
+        df_enviar = df.copy()
+        if 'Pagar' in df_enviar.columns:
+            df_enviar['Pagar'] = df_enviar['Pagar'].astype(str)
+
+        datos_a_enviar = [df_enviar.columns.values.tolist()] + df_enviar.values.tolist()
         response = requests.post(url_completa, json=datos_a_enviar)
+        
         if response.status_code != 200:
             st.error("⚠️ Hubo un problema al guardar en la nube.")
     except Exception as e:
         st.error(f"Error al enviar datos a Google Sheets: {e}")
+
 
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
