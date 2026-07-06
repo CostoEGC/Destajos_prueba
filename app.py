@@ -12,7 +12,17 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
 
-
+def extraer_num_partida(partida):
+    """
+    Convierte una cadena como '1.2.3' en una lista [1, 2, 3] 
+    para que el ordenamiento sea numérico y no alfabético.
+    """
+    try:
+        # Extrae todos los números encontrados en el texto
+        numeros = re.findall(r'\d+', str(partida))
+        return [int(n) for n in numeros]
+    except:
+        return [0]
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
