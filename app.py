@@ -39,7 +39,7 @@ st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets else ""
 
-def obtener_datos_gsheet(nombre_pestana="Destajos"):
+def obtener_datos_gsheet(nombre_pestana="Ravellos"):
     try:
         # Aquí le agregamos el nombre de la pestaña a la URL
         url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
@@ -69,7 +69,7 @@ def obtener_datos_gsheet(nombre_pestana="Destajos"):
         st.error(f"Error al conectar con Google Sheets: {e}")
         return pd.DataFrame()
 
-def actualizar_datos_gsheet(df, nombre_pestana="Destajos"):
+def actualizar_datos_gsheet(df, nombre_pestana="Ravello"):
     try:
         # Aquí también le decimos a qué pestaña mandar los datos
         url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
