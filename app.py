@@ -12,24 +12,16 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
 
-def extraer_num_partida(partida):
-    """
-    Convierte una cadena como '1.2.3' en una lista [1, 2, 3] 
-    para que el ordenamiento sea numérico y no alfabético.
-    """
-    try:
-        # Extrae todos los números encontrados en el texto
-        numeros = re.findall(r'\d+', str(partida))
-        return [int(n) for n in numeros]
-    except:
-        return [0]
+
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
     footer {visibility: hidden;}
+    .stAppToolbar {visibility: hidden;}
     .stAppDeployButton {display: none;}
     </style>
     """,
@@ -54,7 +46,7 @@ def obtener_datos_gsheet():
             df['Fecha_Pago'] = pd.to_datetime(df['Fecha_Pago'], errors='coerce')
             df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
-        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0.0).astype(float)
+        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
         
         # INICIALIZACIÓN DE NUEVAS COLUMNAS
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
@@ -62,8 +54,8 @@ def obtener_datos_gsheet():
         if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
         if 'Usuario_2' not in df.columns: df['Usuario_2'] = ''
         
-        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0).astype(float)
-        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0).astype(float)
+        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
+        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
         
         df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
@@ -262,37 +254,10 @@ if st.session_state.menu_actual != menu:
     st.rerun()
 
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
-    with st.spinner("Procesando pagos y sincronizando con Google..."):
-        cambios = False
-        ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
-        
-        # Leemos de la tabla temporal que absorbe los clics sin parpadear
-        if 'df_temporal' in st.session_state:
-            for original_idx, row in st.session_state.df_temporal.iterrows():
-                
-                # Solo permitimos cambios si la fila NO está bloqueada (Pagada)
-                if row['Estado'] != 'Pagado':
-                    # Guardamos el destajista
-                    st.session_state.df.at[original_idx, 'Destajista'] = row['Destajista']
-                    
-                    # Si se marcó para pago
-                    if row['Pago'] == True:
-                        costo_partida = float(row['Precio']) if pd.notna(row['Precio']) else 0.0
-                        st.session_state.df.at[original_idx, 'Pago_1'] = costo_partida
-                        st.session_state.df.at[original_idx, 'Fecha_Pago'] = ahora
-                        st.session_state.df.at[original_idx, 'Usuario'] = st.session_state.usuario
-                        st.session_state.df.at[original_idx, 'Estado'] = 'Pagado'
-                        st.session_state.df.at[original_idx, 'Check_Pago_Temp'] = True # Mantiene el check fijo
-                        cambios = True
-                        
-        # Limpiar columnas temporales y formatear fechas antes del envío
-        df_para_enviar = st.session_state.df.drop(columns=['Check_Pago_Temp'], errors='ignore').copy()
-        if 'Fecha_Pago' in df_para_enviar.columns:
-            df_para_enviar['Fecha_Pago'] = df_para_enviar['Fecha_Pago'].astype(str).replace('NaT', '')
-            
-        actualizar_datos_gsheet(df_para_enviar)
+    with st.spinner("Sincronizando con Google..."):
+        actualizar_datos_gsheet(st.session_state.df)
         st.session_state.df_original = st.session_state.df.copy()
-        st.success("✅ ¡Datos guardados y filas bloqueadas!")
+        st.success("¡Datos guardados!")
         st.rerun()
 
 if 'df_original' in st.session_state:
@@ -323,87 +288,44 @@ st.sidebar.markdown(f"**Total Prototipos: {total_general}**")
 if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
-    if 'Manzana' not in df.columns:
-        df['Manzana'] = 'N/A'
-        
-    def ordenar_prototipos(val):
-        val_str = str(val).strip()
-        match = re.match(r'^(\d+)', val_str)
-        if match:
-            num = int(match.group(1))
-            resto = val_str[len(match.group(1)):]
-        else:
-            num = 99999
-            resto = val_str
-        if resto == '': peso = 0
-        elif resto == '+': peso = 1
-        elif resto == 'A': peso = 2
-        elif resto == 'A+': peso = 3
-        else: peso = 4
-        return (num, peso, resto)
+    col_lote, col_fecha, col_vacio = st.columns([2 ,2 ,4])
+    lotes_unicos = [str(x) for x in df['Lote'].unique()]
+    
+    lote_memoria = str(st.session_state.lote_actual)
+    idx_t1 = lotes_unicos.index(lote_memoria) if lote_memoria in lotes_unicos else 0
+    lote_activo = col_lote.selectbox("🔍 Selecciona el Lote:", lotes_unicos, index=idx_t1)
+    
+    if str(lote_activo) != lote_memoria:
+        st.session_state.lote_actual = str(lote_activo)
+        st.session_state.mostrar_todos_mapa = False
+        st.rerun()
+    
+    fecha_filtro = col_fecha.date_input("📅 Filtrar por Fecha de Pago 1 (Opcional):", value=None, format="DD/MM/YYYY")
 
-    st.markdown("##### ⏳ Filtros de Tabla")
-    f_col1, f_col2 = st.columns(2)
-    
-    prototipos_unicos = sorted(list(df['Prototipo'].dropna().unique()), key=ordenar_prototipos)
-    prototipos_disp = ["Todos"] + prototipos_unicos
-    
-    # AGREGAMOS key="..." A TODOS LOS FILTROS PARA QUE NO SE BORREN AL GUARDAR
-    filtro_prototipo = f_col1.selectbox("Prototipo:", prototipos_disp, format_func=lambda x: f"Prototipo {x}" if x != "Todos" else "Todos", key="f_proto")
-    
-    lotes_disp = list(df['Lote'].dropna().unique())
-    filtro_lote = f_col1.multiselect("Selecciona el Lote (múltiple):", options=lotes_disp, key="f_lote")
-    
-    manzanas_disp = ["Todas"] + list(df['Manzana'].dropna().unique())
-    filtro_manzana = f_col1.selectbox("Manzana:", manzanas_disp, key="f_manz")
-    
-    partidas_disp = ["Todas"] + sorted(list(df['Partida'].dropna().unique()), key=extraer_num_partida)
-    filtro_concepto = f_col2.selectbox("Buscar Concepto:", partidas_disp, key="f_conc")
-    
-    destajistas_disp = ["Todos"] + LISTA_DESTAJISTAS
-    filtro_destajista = f_col2.selectbox("Destajista:", destajistas_disp, key="f_dest")
-    
-    fecha_filtro = f_col2.date_input("Filtrar por Fecha (Opcional):", value=None, format="DD/MM/YYYY", key="f_fecha")
-    
-    def extraer_num_partida(val):
-        m = re.match(r'^(\d+)', str(val).strip())
-        return int(m.group(1)) if m else 99999
-        
-    partidas_disp = ["Todas"] + sorted(list(df['Partida'].dropna().unique()), key=extraer_num_partida)
-    filtro_concepto = f_col2.selectbox("Buscar Concepto:", partidas_disp)
-    
-    destajistas_disp = ["Todos"] + LISTA_DESTAJISTAS
-    filtro_destajista = f_col2.selectbox("Destajista:", destajistas_disp)
-    
-    fecha_filtro = f_col2.date_input("Filtrar por Fecha (Opcional):", value=None, format="DD/MM/YYYY")
+    df_lote = df[df['Lote'].astype(str).str.strip() == str(lote_activo)]
+    prototipo = df_lote['Prototipo'].iloc[0] if not df_lote.empty else "N/A"
+    terreno = df_lote['Terreno_m2'].iloc[0] if not df_lote.empty else 0
+    construccion = df_lote['Construccion_m2'].iloc[0] if not df_lote.empty else 0
 
-    df_filtrado = df.copy()
-    if filtro_prototipo != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == filtro_prototipo]
-    if filtro_manzana != "Todas": df_filtrado = df_filtrado[df_filtrado['Manzana'] == filtro_manzana]
-    if filtro_lote: df_filtrado = df_filtrado[df_filtrado['Lote'].isin(filtro_lote)]
-    if filtro_concepto != "Todas": df_filtrado = df_filtrado[df_filtrado['Partida'] == filtro_concepto]
-    if filtro_destajista != "Todos": df_filtrado = df_filtrado[df_filtrado['Destajista'] == filtro_destajista]
-    if fecha_filtro: df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
-
-    costo_total_filtrado = df_filtrado['Precio'].sum()
-    pagado_filtrado = (pd.to_numeric(df_filtrado.get('Pago_1', 0)) + pd.to_numeric(df_filtrado.get('Pago_2', 0))).sum()
+    costo_total_filtrado = df_lote['Precio'].sum()
+    df_lote_temp = df_lote.copy()
+    df_lote_temp['Total_Pagado_Temp'] = pd.to_numeric(df_lote_temp.get('Pago_1', 0)) + pd.to_numeric(df_lote_temp.get('Pago_2', 0))
+    pagado_filtrado = df_lote_temp['Total_Pagado_Temp'].sum()
     pendiente_filtrado = costo_total_filtrado - pagado_filtrado
-    
-    lotes_str = ", ".join([str(l) for l in filtro_lote]) if filtro_lote else "Todos"
-    proto_str = f"Prototipo {filtro_prototipo}" if filtro_prototipo != "Todos" else "Todos"
 
     st.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
-            <div style="font-size:24px; font-weight:bold;">🏠 Lotes: {lotes_str} – {proto_str}</div>
+            <div style="font-size:24px; font-weight:bold;">🏠 Lote {lote_activo} - Prototipo {prototipo}</div>
+            <div style="font-size:16px;">📐 Terreno: {terreno} m² | Construcción: {construccion} m²</div>
         </div>
         <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
             <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Costo Total Filtrado</div>
+                <div style="font-size:14px; opacity: 0.9;">Costo Total Prototipo en este Lote</div>
                 <div style="font-size:24px; font-weight:bold;">${costo_total_filtrado:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Total Pagado</div>
+                <div style="font-size:14px; opacity: 0.9;">Total Pagado Real</div>
                 <div style="font-size:24px; font-weight:bold;">${pagado_filtrado:,.2f}</div>
             </div>
             <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
@@ -414,86 +336,117 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${costo_total_filtrado:,.2f} | Pagos: ${pagado_filtrado:,.2f}</div>", unsafe_allow_html=True)
+    st.markdown("##### ⏳ Filtros de Tabla")
+    f_col1, f_col2, f_col3 = st.columns([2, 2, 2])
+    filtro_concepto = f_col1.text_input("Buscar Concepto:", "", placeholder="Ej. Muros")
+    filtro_destajista = f_col2.selectbox("Filtrar por Destajista:", ["Todos"] + LISTA_DESTAJISTAS)
+    filtro_estado = f_col3.selectbox("Filtrar por Estado de Pago:", ["Todos", "Pendiente", "Pago Parcial", "Pagado"])
+    
+    df_filtrado = df_lote.copy()
+    if filtro_concepto:
+        df_filtrado = df_filtrado[df_filtrado['Partida'].str.contains(filtro_concepto, case=False, na=False)]
+    if filtro_destajista != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['Destajista'] == filtro_destajista]
+    if filtro_estado != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['Estado'] == filtro_estado]
+    if fecha_filtro:
+        df_filtrado = df_filtrado[df_filtrado['Fecha_Pago'] == str(fecha_filtro)]
+
+    sum_precio = df_filtrado['Precio'].sum()
+    df_fil_temp = df_filtrado.copy()
+    df_fil_temp['Tot_Pag'] = pd.to_numeric(df_fil_temp.get('Pago_1', 0)) + pd.to_numeric(df_fil_temp.get('Pago_2', 0))
+    sum_pagado = df_fil_temp['Tot_Pag'].sum()
+    sum_pendiente = sum_precio - sum_pagado
+    
+    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹 ➔ Costo: ${sum_precio:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-
-    # Preparar memoria para los pagos temporales
-    if 'Check_Pago_Temp' not in st.session_state.df.columns:
-        st.session_state.df['Check_Pago_Temp'] = False
-
-    df_base = st.session_state.df.loc[df_filtrado.index, ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'Check_Pago_Temp', 'Fecha_Pago', 'Usuario', 'Estado']].copy()
-    df_base.rename(columns={'Check_Pago_Temp': 'Pago'}, inplace=True)
     
-    # ➔ FIX 2: En lugar de borrar las pagadas, mostramos todas. 
-    df_tabla = df_base.copy()
+    cols_weights = [2.2, 1.0, 1.8, 1.2, 0.6, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.2]
+    h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12 = st.columns(cols_weights)
+    h1.markdown("<div style='font-size:11px;'>🗑️ Partida</div>", unsafe_allow_html=True)
+    h2.markdown("<div style='font-size:11px;'>💵 Costo</div>", unsafe_allow_html=True)
+    h3.markdown("<div style='font-size:11px;'>👷 Destajista</div>", unsafe_allow_html=True)
+    h4.markdown("<div style='font-size:11px;'>💰 Monto a pagar</div>", unsafe_allow_html=True)
+    h5.markdown("")
+    h6.markdown("<div style='font-size:11px;'>💳 Pago 1</div>", unsafe_allow_html=True)
+    h7.markdown("<div style='font-size:11px;'>📆 Fecha 1</div>", unsafe_allow_html=True)
+    h8.markdown("<div style='font-size:11px;'>💳 Pago 2</div>", unsafe_allow_html=True)
+    h9.markdown("<div style='font-size:11px;'>📆 Fecha 2</div>", unsafe_allow_html=True)
+    h10.markdown("<div style='font-size:11px;'>🚨 Por pagar</div>", unsafe_allow_html=True)
+    h11.markdown("<div style='font-size:11px;'>📊 Estado</div>", unsafe_allow_html=True)
+    h12.markdown("<div style='font-size:11px;'>👤 Usuario</div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
     
-    
-    # Forzamos que las filas "Pagadas" siempre tengan el check encendido visualmente
-    df_tabla.loc[df_tabla['Estado'] == 'Pagado', 'Pago'] = True
+    with st.container(height=550):
+        if df_filtrado.empty:
+            st.info("No hay partidas que coincidan con los filtros seleccionados.")
+        else:
+            for numero, (indice, fila) in enumerate(df_filtrado.iterrows(), start=1):
+                c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12 = st.columns(cols_weights)
+                
+                precio = float(fila['Precio'])
+                pago_1 = float(fila.get('Pago_1', 0))
+                pago_2 = float(fila.get('Pago_2', 0))
+                total_pagado = pago_1 + pago_2
+                por_pagar = precio - total_pagado
+                pct_pagado = min(100, int((total_pagado / precio) * 100)) if precio > 0 else 0
+                
+                c1.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{numero}.- {fila['Partida']}</div>", unsafe_allow_html=True)
+                c2.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${precio:,.2f}</div>", unsafe_allow_html=True)
+                
+                dest_val = fila.get('Destajista', '')
+                if pago_1 > 0:
+                    c3.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA};'>{dest_val}</div>", unsafe_allow_html=True)
+                    destajista_seleccionado = dest_val
+                else:
+                    destajista_seleccionado = c3.selectbox("Destajista", ["Seleccionar..."] + LISTA_DESTAJISTAS, key=f"sel_{indice}", label_visibility="collapsed")
+                
+                if por_pagar > 0:
+                    monto_input = c4.number_input("Monto", min_value=0.0, max_value=float(por_pagar), value=None, step=100.0, key=f"monto_{indice}", label_visibility="collapsed")
+                    if c5.button("💳", key=f"btn_{indice}", type="primary", use_container_width=True):
+                        if destajista_seleccionado in ["Seleccionar...", "", None] or pd.isna(destajista_seleccionado):
+                            st.error("⚠️ Debes seleccionar un destajista primero.")
+                        elif monto_input is None or monto_input <= 0:
+                            st.error("⚠️ El monto a pagar debe ser mayor a 0.")
+                        elif monto_input > por_pagar:
+                            st.error("⚠️ La cantidad supera el monto máximo a pagar o no se admiten valores negativos.")
+                        else:
+                            es_pago_2 = (pago_1 > 0)
+                            dialogo_confirmacion(indice, fila['Lote'], fila['Partida'], destajista_seleccionado, precio, monto_input, es_pago_2)
+                else:
+                    c4.markdown(f"<div style='text-align:center; color:gray; font-size:{TAMANO_LETRA_TABLA};'>Completado</div>", unsafe_allow_html=True)
+                    c5.markdown("")
+                
+                c6.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_1:,.2f}</div>", unsafe_allow_html=True)
+                f1 = fila.get('Fecha_Pago', '-') if str(fila.get('Fecha_Pago', '')) != 'nan' else '-'
+                c7.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f1}</div>", unsafe_allow_html=True)
+                
+                c8.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center;'>${pago_2:,.2f}</div>", unsafe_allow_html=True)
+                f2 = fila.get('Fecha_Pago_2', '-') if str(fila.get('Fecha_Pago_2', '')) != 'nan' else '-'
+                c9.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: 10px; text-align:center;'>{f2}</div>", unsafe_allow_html=True)
+                
+                color_deuda = "#EF4444" if por_pagar > 0 else "#10B981"
+                c10.markdown(f"<div style='margin-bottom: {ESPACIO_ENTRE_RENGLONES}; font-size: {TAMANO_LETRA_TABLA}; text-align:center; color:{color_deuda}; font-weight:bold;'>${por_pagar:,.2f}</div>", unsafe_allow_html=True)
 
-    st.markdown("### 📋 Asignación de Destajistas y Selección de Pagos")
+                color_barra = "#10B981" if pct_pagado == 100 else "#3B82F6"
+                barra_html = f"""
+                <div style="width: 100%; background-color: #e5e7eb; border-radius: 4px; height: 18px; position: relative; margin-top: 2px;">
+                    <div style="width: {pct_pagado}%; background-color: {color_barra}; height: 100%; border-radius: 4px;"></div>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; text-align: center; font-size: 10px; color: {'white' if pct_pagado>50 else 'black'}; font-weight: bold; line-height: 18px;">Pagado al {pct_pagado}%</div>
+                </div>
+                """
+                c11.markdown(barra_html, unsafe_allow_html=True)
+                
+                u1 = str(fila.get('Usuario', ''))
+                u2 = str(fila.get('Usuario_2', ''))
+                if u1 == 'nan': u1 = ''
+                if u2 == 'nan': u2 = ''
+                
+                if u1 and u2: user_display = f"{u1} / {u2}"
+                elif u1: user_display = u1
+                else: user_display = "-"
+                c12.markdown(f"<div style='font-size: 9px; text-align:center; margin-top:2px;'>{user_display}</div>", unsafe_allow_html=True)
 
-    # Calculamos la suma inicial ignorando lo que ya está pagado
-    suma_inicial = df_tabla.loc[(df_tabla['Pago'] == True) & (df_tabla['Estado'] != 'Pagado'), 'Precio'].sum() if not df_tabla.empty else 0.0
-
-    suma_placeholder = st.empty()
-    suma_placeholder.markdown(f"""
-    <div style="margin-bottom: 20px;">
-        <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
-            Total Acumulado Seleccionado: ${suma_inicial:,.2f}
-        </h2>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    error_placeholder = st.empty()
-
-    if not df_tabla.empty:
-        edited_df = st.data_editor(
-            df_tabla,
-            column_config={
-                "Lote": st.column_config.TextColumn("Lote", disabled=True),
-                "Manzana": st.column_config.TextColumn("Manzana", disabled=True),
-                "Prototipo": st.column_config.TextColumn("Prototipo", disabled=True),
-                "Partida": st.column_config.TextColumn("Partida", disabled=True),
-                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", disabled=True),
-                "Destajista": st.column_config.SelectboxColumn("Destajista", options=LISTA_DESTAJISTAS, required=False),
-                "Pago": st.column_config.CheckboxColumn("Pago", help="Selecciona para registrar pago"),
-                "Fecha_Pago": st.column_config.TextColumn("Fecha pago", disabled=True),
-                "Usuario": st.column_config.TextColumn("Usuario", disabled=True),
-                "Estado": st.column_config.TextColumn("Estado", disabled=True)
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=600, # ➔ FIX 3: AQUÍ CONTROLAS EL TAMAÑO DE LA TABLA HACIA ABAJO (Puedes subir a 800 o 1000)
-            key="grid_destajos_interactivo"
-        )
-        
-        # ➔ FIX 1: Guardamos el estado temporal para que el botón "Guardar" lo lea, evitando fallos gráficos.
-        st.session_state.df_temporal = edited_df.copy()
-        
-        suma_acumulada = 0.0
-        hay_errores = False
-        
-        # Calculamos la suma en tiempo real evaluando solo el editor temporal
-        for original_idx, row in edited_df.iterrows():
-            if row['Estado'] != 'Pagado': # Ignoramos matemáticamente las bloqueadas
-                if row['Pago']:
-                    dest_val = str(row['Destajista']).strip()
-                    if pd.isna(row['Destajista']) or dest_val in ["", "None", "Todos", "nan"]:
-                        hay_errores = True
-                    else:
-                        suma_acumulada += row['Precio'] if pd.notna(row['Precio']) else 0.0
-
-        if hay_errores:
-            error_placeholder.error("⚠️ **Alerta:** Hay casillas de pago marcadas sin un Destajista asignado. El sistema no sumará esas partidas ni te permitirá pagarlas hasta que asignes un destajista.")
-
-        suma_placeholder.markdown(f"""
-        <div style="margin-bottom: 20px;">
-            <h2 style="color: #3B82F6; margin: 0; font-family: Arial, sans-serif; font-size: 24px; font-weight: bold;">
-                Total Acumulado Seleccionado: ${suma_acumulada:,.2f}
-            </h2>
-        </div>
-        """, unsafe_allow_html=True)
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
 # =========================================================================
@@ -1297,6 +1250,74 @@ elif menu == "Mapa Interactivo":
                 layer="below"
             )
             
+            #x_coords = []
+            #y_coords = []
+            #colores_relleno = []
+            #textos_hover = []
+            
+
+            # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
+            
+            #espaciado_x = 7.0 
+            #espaciado_y = 2
+
+            #for i, row in enumerate(df_lote_diag.itertuples()):
+                #x = (i % cols) * espaciado_x
+                #y = (i // cols) * espaciado_y 
+                
+                    
+                #x_coords.append(x)
+                #y_coords.append(y) 
+                
+
+                #estado = row.Estado
+                #costo = row.Precio
+                #pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
+                #destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
+                #color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
+
+                #if estado == "Pagado":
+                #    colores_relleno.append(color_asignado)
+                #elif estado == "Pago Parcial":
+                #    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
+                #else:
+                #    colores_relleno.append("rgba(0,0,0,0)")
+
+                #hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}#<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
+                #textos_hover.append(hover_text)
+
+            #altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
+
+            #fig_diag = go.Figure(data=go.Scatter(
+            #    x=x_coords,
+            #    y=y_coords,
+            #    mode='markers',
+            #    marker=dict(
+            #        size=50, 
+            #        color=colores_relleno,
+            #        symbol='circle',
+            #        line=dict(width=0) 
+            #    ),
+            #    text=textos_hover,
+            #    hoverinfo='text'
+            #))
+
+            #margen = 2.5 
+            #x_max = (cols - 1) * espaciado_x + margen
+            #y_max = max(y_coords) + margen if y_coords else margen
+            #x_min = -margen
+            #y_min = -margen
+
+            
+
+            #fig_diag.add_shape(
+            #    type="path",
+            #    path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
+            #    line=dict(color="rgba(14,232,144,0.8)", width=4), 
+            #    fillcolor="rgba(0,0,0,0)",
+            #    layer="below"
+            #)
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
