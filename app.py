@@ -313,7 +313,7 @@ if menu == "Registro de Destajos":
     # 2. BANNER SUPERIOR (Lote x - Prototipo x)
     # Calculamos totales globales o del filtro actual
     costo_total = df['Precio'].sum()
-    pagado_total = (pd.to_numeric(df['Pago_1']) + pd.to_numeric(df['Pago_2'])).sum()
+    pagado_total = (pd.to_numeric(df['Pago_1'])).sum()
     
     st.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
@@ -1372,75 +1372,7 @@ elif menu == "Mapa Interactivo":
                 layer="below"
             )
             
-            #x_coords = []
-            #y_coords = []
-            #colores_relleno = []
-            #textos_hover = []
             
-
-            # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            
-            #espaciado_x = 7.0 
-            #espaciado_y = 2
-
-            #for i, row in enumerate(df_lote_diag.itertuples()):
-                #x = (i % cols) * espaciado_x
-                #y = (i // cols) * espaciado_y 
-                
-                    
-                #x_coords.append(x)
-                #y_coords.append(y) 
-                
-
-                #estado = row.Estado
-                #costo = row.Precio
-                #pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
-                #destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
-                
-                #color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
-
-                #if estado == "Pagado":
-                #    colores_relleno.append(color_asignado)
-                #elif estado == "Pago Parcial":
-                #    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
-                #else:
-                #    colores_relleno.append("rgba(0,0,0,0)")
-
-                #hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}#<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
-                #textos_hover.append(hover_text)
-
-            #altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
-
-            #fig_diag = go.Figure(data=go.Scatter(
-            #    x=x_coords,
-            #    y=y_coords,
-            #    mode='markers',
-            #    marker=dict(
-            #        size=50, 
-            #        color=colores_relleno,
-            #        symbol='circle',
-            #        line=dict(width=0) 
-            #    ),
-            #    text=textos_hover,
-            #    hoverinfo='text'
-            #))
-
-            #margen = 2.5 
-            #x_max = (cols - 1) * espaciado_x + margen
-            #y_max = max(y_coords) + margen if y_coords else margen
-            #x_min = -margen
-            #y_min = -margen
-
-            
-
-            #fig_diag.add_shape(
-            #    type="path",
-            #    path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
-            #    line=dict(color="rgba(14,232,144,0.8)", width=4), 
-            #    fillcolor="rgba(0,0,0,0)",
-            #    layer="below"
-            #)
-
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
             # EJE Y BLOQUEADO A 1:1 PARA GARANTIZAR GEOMETRÍA CIRCULAR Y SIN CORTES
