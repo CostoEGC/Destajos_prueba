@@ -12,16 +12,16 @@ from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
-from st_aggrid.shared import JsCode # Importación agregada para solucionar el error de JavaScript
+from st_aggrid.shared import JsCode
 from fpdf import FPDF
 import io
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
+# Se elimina el 'header {visibility: hidden;}' para que el botón lateral siga existiendo
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
     footer {visibility: hidden;}
     .stAppToolbar {visibility: hidden;}
     .stAppDeployButton {display: none;}
@@ -52,7 +52,6 @@ def obtener_datos_gsheet(nombre_pestana="Ravello"):
         if 'Precio' in df.columns:
             df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0.0)
         
-        # INICIALIZACIÓN DE COLUMNAS (Limpiamos las viejas y aseguramos las nuevas)
         if 'Manzana' not in df.columns: df['Manzana'] = 'M-1'
         if 'C.C' not in df.columns: df['C.C'] = 'CC-01'
         if 'Pagar' not in df.columns: df['Pagar'] = False
@@ -60,7 +59,6 @@ def obtener_datos_gsheet(nombre_pestana="Ravello"):
         
         df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
         
-        # Lógica para asimilar que si está Pagado, el Pago_1 es igual al Precio
         if 'Estado' in df.columns and 'Precio' in df.columns:
             df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
@@ -72,9 +70,6 @@ def obtener_datos_gsheet(nombre_pestana="Ravello"):
 def actualizar_datos_gsheet(df, nombre_pestana="Ravello"):
     try:
         url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
-        
-        # Opcional: si quieres asegurar que las columnas booleanas (como Pagar) 
-        # pasen como texto a Sheets para evitar errores visuales:
         df_enviar = df.copy()
         if 'Pagar' in df_enviar.columns:
             df_enviar['Pagar'] = df_enviar['Pagar'].astype(str)
@@ -109,7 +104,6 @@ TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
 
-# ESTILOS CSS
 st.markdown(f"""
 <style>
     div[data-testid="stTextInput"] {{
@@ -157,7 +151,6 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- CABECERA UNIVERSAL CON LOGO ---
 def mostrar_cabecera_con_logo(titulo, subtitulo=None):
     col_texto, col_logo = st.columns([8, 2])
     with col_texto:
@@ -169,7 +162,7 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
             st.image("logo.png", use_container_width=True)
 
 # =========================================================================
-# INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
+# INICIALIZACIÓN DE ESTADOS 
 # =========================================================================
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
@@ -180,7 +173,6 @@ if 'df' not in st.session_state:
 
 df = st.session_state.df
 
-# --- PALETA DE COLORES GLOBAL ---
 partidas_unicas_global = df['Partida'].unique() if (not df.empty and 'Partida' in df.columns) else []
 paleta_colores_global = px.colors.qualitative.Alphabet + px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
 mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_global)] for i, partida in enumerate(partidas_unicas_global)}
@@ -191,7 +183,7 @@ if 'lote_actual' not in st.session_state:
 if 'mostrar_todos_mapa' not in st.session_state:
     st.session_state.mostrar_todos_mapa = False
 
-# --- 1. FORMULARIO DE ACCESO ---
+# --- FORMULARIO DE ACCESO ---
 def login():
     mostrar_cabecera_con_logo("🔐 Control de estimaciones", "Por favor, introduce tus credenciales para ingresar.")
     with st.container():
@@ -210,46 +202,68 @@ if st.session_state.usuario is None:
     login()
     st.stop()
 
-@st.dialog("⚠️ CONFIRMACIÓN DE PAGO")
-def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, es_pago_2):
-    st.warning(f"¿Confirmas el pago por **${monto_pago:,.2f}** de la partida **{partida}** para el **{lote}**?")
-    if not es_pago_2:
-        st.markdown(f"**Destajista asignado:** {destajista}")
-    st.markdown(f"**Monto a liberar:** `${monto_pago:,.2f}`")
-    
-    col1, col2 = st.columns(2)
-    if col1.button("✅ ACEPTAR"):
-        ahora = datetime.now(ZoneInfo("America/Mexico_City"))
-        fecha_hora_str = ahora.strftime("%d/%m/%Y %H:%M:%S")
-        usuario_actual = st.session_state.usuario
-
-        if es_pago_2:
-            st.session_state.df.at[indice, 'Pago_2'] = monto_pago
-            st.session_state.df.at[indice, 'Fecha_Pago_2'] = fecha_hora_str
-            st.session_state.df.at[indice, 'Usuario_2'] = usuario_actual
-        else:
-            st.session_state.df.at[indice, 'Pago_1'] = monto_pago
-            st.session_state.df.at[indice, 'Fecha_Pago'] = fecha_hora_str
-            st.session_state.df.at[indice, 'Usuario'] = usuario_actual
-            st.session_state.df.at[indice, 'Destajista'] = destajista
-        
-        # Recalcular Estado
-        fila = st.session_state.df.loc[indice]
-        pagado_tot = float(fila.get('Pago_1', 0)) + float(fila.get('Pago_2', 0))
-        costo_tot = float(fila['Precio'])
-        
-        if pagado_tot >= costo_tot:
-            st.session_state.df.at[indice, 'Estado'] = 'Pagado'
-        else:
-            st.session_state.df.at[indice, 'Estado'] = 'Pago Parcial'
-            
-        st.rerun()
-
-    if col2.button("❌ CANCELAR"):
-        st.rerun()
-
 def clave_ordenamiento(val):
     return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
+
+# =========================================================================
+# FUNCIÓN DE REPORTES (AHORA ACCESIBLE DESDE LA BARRA LATERAL)
+# =========================================================================
+@st.dialog("🖨️ Generar Reporte PDF")
+def dialogo_reportes():
+    st.write("Selecciona el rango de fechas para el reporte:")
+    rep_fechas = st.date_input("Rango de Fechas:", value=[], key="rep_fechas")
+    
+    col_orient, col_vacia = st.columns(2)
+    orientacion = col_orient.radio("Orientación del PDF:", ["Vertical (Portrait)", "Horizontal (Landscape)"])
+    
+    if st.button("📄 Generar e Imprimir"):
+        if len(rep_fechas) != 2:
+            st.error("Debes seleccionar una fecha de inicio y una de fin.")
+        else:
+            inicio, fin = rep_fechas
+            df_rep = st.session_state.df.copy()
+            fechas_dt_rep = pd.to_datetime(df_rep['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            df_rep_filtrado = df_rep[(fechas_dt_rep >= inicio) & (fechas_dt_rep <= fin)]
+            
+            if df_rep_filtrado.empty:
+                st.warning("No hay pagos registrados en este rango de fechas.")
+            else:
+                resumen_pdf = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Pago_1'].sum().reset_index()
+                
+                pdf = FPDF(orientation='L' if 'Horizontal' in orientacion else 'P', unit='mm', format='Letter')
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt=f"Reporte de Pagos a Destajistas ({inicio.strftime('%d/%m/%Y')} - {fin.strftime('%d/%m/%Y')})", ln=True, align='C')
+                pdf.ln(10)
+                
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(80, 10, "Destajista", border=1, align='C')
+                pdf.cell(50, 10, "Centro de Costo (C.C)", border=1, align='C')
+                pdf.cell(50, 10, "Cantidad Pagada", border=1, align='C')
+                pdf.ln()
+                
+                pdf.set_font("Arial", '', 11)
+                total_rep = 0
+                for _, row in resumen_pdf.iterrows():
+                    pdf.cell(80, 10, str(row['Destajista'])[:30], border=1)
+                    pdf.cell(50, 10, str(row['C.C']), border=1, align='C')
+                    pdf.cell(50, 10, f"${row['Pago_1']:,.2f}", border=1, align='R')
+                    pdf.ln()
+                    total_rep += row['Pago_1']
+                    
+                pdf.set_font("Arial", 'B', 12)
+                pdf.cell(130, 10, "TOTAL PAGADO", border=1, align='R')
+                pdf.cell(50, 10, f"${total_rep:,.2f}", border=1, align='R')
+                
+                pdf_bytes = pdf.output(dest='S').encode('latin1')
+                st.download_button(
+                    label="⬇️ Descargar Reporte PDF",
+                    data=pdf_bytes,
+                    file_name=f"Reporte_Destajos_{inicio.strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
+                )
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
 st.sidebar.title(f"👷 {st.session_state.usuario}")
@@ -268,6 +282,8 @@ if st.session_state.menu_actual != menu:
     st.session_state.menu_actual = menu
     st.rerun()
 
+st.sidebar.markdown("---")
+
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     with st.spinner("Sincronizando con Google..."):
         actualizar_datos_gsheet(st.session_state.df)
@@ -275,7 +291,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         st.success("¡Datos guardados!")
         st.rerun()
 
-# --- NUEVO BOTÓN PARA RECARGAR DATOS Y EVITAR COLUMNAS FANTASMAS ---
 if st.sidebar.button("🔄 RECARGAR DATOS DESDE GOOGLE"):
     with st.spinner("Descargando información fresca..."):
         st.session_state.df = obtener_datos_gsheet()
@@ -283,9 +298,13 @@ if st.sidebar.button("🔄 RECARGAR DATOS DESDE GOOGLE"):
         st.success("¡Datos actualizados!")
         st.rerun()
 
+# ➔ AQUI ESTA EL BOTÓN DE REPORTES MOVIDO A LA BARRA LATERAL
+if st.sidebar.button("📄 REPORTES EN PDF"):
+    dialogo_reportes()
+
 if 'df_original' in st.session_state:
     if not st.session_state.df.equals(st.session_state.df_original):
-        st.sidebar.warning("⚠️ Tienes cambios pendientes. ¡Presiona el botón Guardar!")
+        st.sidebar.warning("⚠️ Tienes cambios pendientes. ¡Presiona Guardar Cambios!")
 
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
@@ -311,17 +330,14 @@ if not df.empty and 'Lote' in df.columns and 'Prototipo' in df.columns:
 if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
-    # 1. INICIALIZAR COLUMNAS FALTANTES SI NO EXISTEN
     if 'Manzana' not in df.columns: df['Manzana'] = 'M-1'
     if 'C.C' not in df.columns: df['C.C'] = 'CC-01'
     if 'Pagar' not in df.columns: df['Pagar'] = False
     
-    # Asegurar tipos correctos para la tabla
     df['Pagar'] = df['Pagar'].astype(bool)
     if 'Precio' in df.columns:
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0.0)
 
-    # 2. BANNER SUPERIOR (Lote x - Prototipo x)
     costo_total = df['Precio'].sum() if 'Precio' in df.columns else 0.0
     pagado_total = (pd.to_numeric(df['Pago_1'])).sum() if 'Pago_1' in df.columns else 0.0
     
@@ -343,10 +359,8 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
 
-    # 3. FILTROS DE TABLA CRUZADOS
     st.markdown("##### ⏳ Filtros de Tabla")
     
-    # Preparar datos para filtros
     def sort_prototipos(val):
         match = re.match(r"(\d+)(.*)", str(val))
         return (int(match.group(1)), match.group(2)) if match else (float('inf'), str(val))
@@ -373,7 +387,6 @@ if menu == "Registro de Destajos":
     filtro_fechas = f5.date_input("Rango de Fechas (Pago):", value=[], format="DD/MM/YYYY")
     filtro_concepto = f6.selectbox("Concepto (Partida):", ["Todos"] + partidas_unicas)
 
-    # Aplicar filtros cruzados
     df_filtrado = df.copy()
     if filtro_proto != "Todos" and 'Prototipo' in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado['Prototipo'] == filtro_proto.replace("Prototipo ", "")]
@@ -390,30 +403,38 @@ if menu == "Registro de Destajos":
         fechas_dt = pd.to_datetime(df_filtrado['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
         df_filtrado = df_filtrado[(fechas_dt >= inicio) & (fechas_dt <= fin)]
 
-    # 4. TABLA INTERACTIVA AG-GRID
-    # Filtramos SOLO las columnas que de verdad existen para evitar bloqueos
+    # ---------------- TABLA ----------------
     cols_requeridas_ideales = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'C.C', 'Pagar', 'Fecha_Pago', 'Usuario']
     cols_requeridas_existentes = [col for col in cols_requeridas_ideales if col in df_filtrado.columns]
     
     df_grid = df_filtrado[cols_requeridas_existentes].copy()
+    
+    # ➔ SOLUCIÓN A INDEXERROR: INYECTAMOS EL INDICE ORIGINAL COMO UNA COLUMNA OCULTA
+    df_grid['_index_'] = df_filtrado.index
+
     if 'Precio' in df_grid.columns:
         df_grid.rename(columns={'Precio': 'Costo'}, inplace=True)
 
     gb = GridOptionsBuilder.from_dataframe(df_grid)
     gb.configure_default_column(editable=True, resizable=True, sortable=True, filter=True)
     
-    # Configurar columnas bloqueadas y especiales (si existen en el Excel)
-    if 'Lote' in df_grid.columns: gb.configure_column("Lote", editable=False)
-    if 'Prototipo' in df_grid.columns: gb.configure_column("Prototipo", editable=False)
+    # ➔ SOLUCIÓN DE CENTRADO Y MANZANA FIJA: Aplicamos cellStyle
+    centrar = {'textAlign': 'center'}
+    
+    gb.configure_column("_index_", hide=True) # Ocultamos nuestra columna de rastreo
+    
+    if 'Lote' in df_grid.columns: gb.configure_column("Lote", editable=False, cellStyle=centrar)
+    if 'Manzana' in df_grid.columns: gb.configure_column("Manzana", editable=False, cellStyle=centrar)
+    if 'Prototipo' in df_grid.columns: gb.configure_column("Prototipo", editable=False, cellStyle=centrar)
     if 'Partida' in df_grid.columns: gb.configure_column("Partida", editable=False)
     if 'Costo' in df_grid.columns: gb.configure_column("Costo", editable=False, type=["numericColumn", "numberColumnFilter"], valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})")
-    if 'Fecha_Pago' in df_grid.columns: gb.configure_column("Fecha_Pago", editable=False)
-    if 'Usuario' in df_grid.columns: gb.configure_column("Usuario", editable=False)
+    if 'Fecha_Pago' in df_grid.columns: gb.configure_column("Fecha_Pago", editable=False, cellStyle=centrar)
+    if 'Usuario' in df_grid.columns: gb.configure_column("Usuario", editable=False, cellStyle=centrar)
+    if 'C.C' in df_grid.columns: gb.configure_column("C.C", editable=True, cellStyle=centrar)
     
     if 'Destajista' in df_grid.columns:
         gb.configure_column("Destajista", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={'values': [""] + LISTA_DESTAJISTAS})
     
-    # JsCode agregado correctamente para evitar "e is not a function"
     if 'Pagar' in df_grid.columns:
         jscode_editable_pagar = JsCode("""
         function(params) {
@@ -422,7 +443,7 @@ if menu == "Registro de Destajos":
             return true;
         }
         """)
-        gb.configure_column("Pagar", editable=jscode_editable_pagar, cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor")
+        gb.configure_column("Pagar", editable=jscode_editable_pagar, cellRenderer="agCheckboxCellRenderer", cellEditor="agCheckboxCellEditor", cellStyle=centrar)
     
     jscode_row_style = JsCode("""
     function(params) {
@@ -436,7 +457,6 @@ if menu == "Registro de Destajos":
     
     gridOptions = gb.build()
 
-    # Layout de la tabla y Label
     st.markdown("---")
     
     if 'suma_pagar' not in st.session_state:
@@ -458,13 +478,12 @@ if menu == "Registro de Destajos":
         gridOptions=gridOptions,
         update_mode=GridUpdateMode.MODEL_CHANGED, 
         data_return_mode=DataReturnMode.AS_INPUT,
-        allow_unsafe_jscode=True, # Indispensable para que JsCode funcione
+        allow_unsafe_jscode=True,
         theme='balham', 
         height=500,
         fit_columns_on_grid_load=True
     )
 
-    # 5. BOTONES DE ACCIÓN (Reportes y Guardado)
     df_modificado = grid_response['data']
     
     if not df_modificado.empty and 'Pagar' in df_modificado.columns and 'Costo' in df_modificado.columns:
@@ -472,10 +491,8 @@ if menu == "Registro de Destajos":
         if st.session_state.suma_pagar != suma_actual:
             st.session_state.suma_pagar = suma_actual
             st.rerun()
-
-    col_btn1, col_btn2 = st.columns(2)
     
-    if col_btn1.button("💾 GUARDAR PAGOS MARCADOS", type="primary"):
+    if st.button("💾 GUARDAR PAGOS MARCADOS", type="primary"):
         errores = False
         cambios_realizados = 0
         ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
@@ -488,7 +505,9 @@ if menu == "Registro de Destajos":
                     errores = True
                     break
                 else:
-                    idx_original = df_filtrado.index[i]
+                    # ➔ SOLUCIÓN A INDEXERROR: USAMOS LA COLUMNA DE RASTREO PARA UBICAR LA FILA EXACTA
+                    idx_original = row['_index_']
+                    
                     st.session_state.df.at[idx_original, 'Destajista'] = row['Destajista']
                     if 'C.C' in row: st.session_state.df.at[idx_original, 'C.C'] = row['C.C']
                     st.session_state.df.at[idx_original, 'Pago_1'] = row['Costo']
@@ -505,67 +524,6 @@ if menu == "Registro de Destajos":
             st.rerun()
         elif cambios_realizados == 0 and not errores:
             st.info("No hay nuevas partidas marcadas para pagar.")
-
-    # 6. FUNCIÓN Y BOTÓN DE REPORTES PDF
-    @st.dialog("🖨️ Generar Reporte PDF")
-    def dialogo_reportes():
-        st.write("Selecciona el rango de fechas para el reporte:")
-        rep_fechas = st.date_input("Rango de Fechas:", value=[], key="rep_fechas")
-        
-        col_orient, col_vacia = st.columns(2)
-        orientacion = col_orient.radio("Orientación del PDF:", ["Vertical (Portrait)", "Horizontal (Landscape)"])
-        
-        if st.button("📄 Generar e Imprimir"):
-            if len(rep_fechas) != 2:
-                st.error("Debes seleccionar una fecha de inicio y una de fin.")
-            else:
-                inicio, fin = rep_fechas
-                df_rep = st.session_state.df.copy()
-                fechas_dt_rep = pd.to_datetime(df_rep['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-                df_rep_filtrado = df_rep[(fechas_dt_rep >= inicio) & (fechas_dt_rep <= fin)]
-                
-                if df_rep_filtrado.empty:
-                    st.warning("No hay pagos registrados en este rango de fechas.")
-                else:
-                    resumen_pdf = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Pago_1'].sum().reset_index()
-                    
-                    pdf = FPDF(orientation='L' if 'Horizontal' in orientacion else 'P', unit='mm', format='Letter')
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 16)
-                    pdf.cell(200, 10, txt=f"Reporte de Pagos a Destajistas ({inicio.strftime('%d/%m/%Y')} - {fin.strftime('%d/%m/%Y')})", ln=True, align='C')
-                    pdf.ln(10)
-                    
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(80, 10, "Destajista", border=1, align='C')
-                    pdf.cell(50, 10, "Centro de Costo (C.C)", border=1, align='C')
-                    pdf.cell(50, 10, "Cantidad Pagada", border=1, align='C')
-                    pdf.ln()
-                    
-                    pdf.set_font("Arial", '', 11)
-                    total_rep = 0
-                    for _, row in resumen_pdf.iterrows():
-                        pdf.cell(80, 10, str(row['Destajista'])[:30], border=1)
-                        pdf.cell(50, 10, str(row['C.C']), border=1, align='C')
-                        pdf.cell(50, 10, f"${row['Pago_1']:,.2f}", border=1, align='R')
-                        pdf.ln()
-                        total_rep += row['Pago_1']
-                        
-                    pdf.set_font("Arial", 'B', 12)
-                    pdf.cell(130, 10, "TOTAL PAGADO", border=1, align='R')
-                    pdf.cell(50, 10, f"${total_rep:,.2f}", border=1, align='R')
-                    
-                    pdf_bytes = pdf.output(dest='S').encode('latin1')
-                    st.download_button(
-                        label="⬇️ Descargar Reporte PDF",
-                        data=pdf_bytes,
-                        file_name=f"Reporte_Destajos_{inicio.strftime('%Y%m%d')}.pdf",
-                        mime="application/pdf",
-                        type="primary",
-                        use_container_width=True
-                    )
-
-    if col_btn2.button("📄 REPORTES", type="secondary"):
-        dialogo_reportes()
 
 
 # =========================================================================
@@ -594,7 +552,6 @@ elif menu == "Dashboard (Gráficos y Visor)":
     lotes_dash = d_col2.multiselect("Filtrar por Lotes:", options=lotes_disponibles, key="tab2_lotes_seleccionados")
     destajista_dash = d_col3.selectbox("Filtrar por Destajista Global:", options=destajistas_disponibles)
     
-    # NUEVO: Si los filtros quedan vacíos, asumimos que quiere ver todos
     if not protos_dash:
         protos_dash = protos_disponibles
     if not lotes_dash:
