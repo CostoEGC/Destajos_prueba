@@ -440,7 +440,7 @@ if menu == "Registro de Destajos":
     """, unsafe_allow_html=True)
     
     sum_precio_grid = df_grid['Costo'].sum()
-    sum_pagos_grid = pd.to_numeric(df_filtrado.get('Pago_1', 0)).sum() + pd.to_numeric(df_filtrado.get('Pago_2', 0)).sum()
+    sum_pagos_grid = pd.to_numeric(df_filtrado.get('Pago_1', 0)).sum() 
     
     st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${sum_precio_grid:,.2f} | Pagos: ${sum_pagos_grid:,.2f}</div>", unsafe_allow_html=True)
 
