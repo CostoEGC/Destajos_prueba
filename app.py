@@ -99,7 +99,6 @@ LISTA_CC = [
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
 
-# --- CABECERA UNIVERSAL CON LOGO ---
 def mostrar_cabecera_con_logo(titulo, subtitulo=None):
     col_texto, col_logo = st.columns([8, 2])
     with col_texto:
@@ -118,7 +117,6 @@ if 'usuario' not in st.session_state:
 
 if 'df' not in st.session_state:
     st.session_state.df = obtener_datos_gsheet()
-    st.session_state.df_original = st.session_state.df.copy()
 
 df = st.session_state.df
 
@@ -166,7 +164,7 @@ class PDFReporte(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        self.cell(0, 10, f'Pagina {self.page_no()}', 0, 0, 'C')
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
 st.sidebar.title(f"👷 {st.session_state.usuario}")
@@ -184,11 +182,6 @@ if st.session_state.menu_actual != menu:
         st.session_state.mostrar_todos_mapa = True
     st.session_state.menu_actual = menu
     st.rerun()
-
-st.sidebar.markdown("---")
-
-# CAPTURAMOS EL CLIC DEL BOTÓN GUARDAR DESDE LA BARRA LATERAL
-btn_guardar_sidebar = st.sidebar.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True)
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔒 Cerrar Sesión"):
@@ -214,9 +207,7 @@ if menu == "Registro de Destajos":
     if 'Pagar' not in df.columns:
         df['Pagar'] = False
     
-    # -------------------------------------------------------------
     # KPI GLOBAL Y FILTRADO INICIAL
-    # -------------------------------------------------------------
     costo_total_filtrado = df['Precio'].sum()
     df['Total_Pagado_Temp'] = pd.to_numeric(df.get('Pago_1', 0)) + pd.to_numeric(df.get('Pago_2', 0))
     pagado_filtrado = df['Total_Pagado_Temp'].sum()
@@ -244,14 +235,11 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
     
-    # -------------------------------------------------------------
     # FILTROS DE TABLA CRUZADOS
-    # -------------------------------------------------------------
     st.markdown("##### ⏳ Filtros de Tabla")
     
     def limpiar_partida(p):
         return re.sub(r'^\d+\.-\s*', '', str(p))
-    
     def extraer_num_partida(p):
         match = re.match(r'^(\d+)', str(p))
         return int(match.group(1)) if match else 9999
@@ -269,13 +257,11 @@ if menu == "Registro de Destajos":
         return (num_val, suffix)
     
     prototipos_unicos = sorted(df['Prototipo'].dropna().unique(), key=ordenar_prototipo)
-    # Aplicar la palabra Prototipo en los filtros
     prototipos_nombres = [f"Prototipo {p}" if not str(p).startswith("Prototipo") else p for p in prototipos_unicos]
     
     manzanas_unicas = sorted(df['Manzana'].dropna().unique(), key=clave_ordenamiento)
     lotes_unicos = sorted(df['Lote'].dropna().unique(), key=clave_ordenamiento)
     destajistas_unicos = sorted(df['Destajista'].dropna().unique(), key=clave_ordenamiento)
-    estados_unicos = sorted(df['Estado'].dropna().unique())
     
     col_f1, col_f2 = st.columns(2)
     with col_f1:
@@ -286,11 +272,11 @@ if menu == "Registro de Destajos":
     with col_f2:
         filtro_manzana = st.selectbox("Manzana:", ["Todas"] + manzanas_unicas)
         filtro_concepto = st.selectbox("Buscar Concepto:", ["Todos"] + partidas_limpias)
-        filtro_estado = st.selectbox("Estado de Pago:", ["Todos"] + estados_unicos)
         
+        # Filtro doble de fechas sin que se cierre
         c_fecha1, c_fecha2 = st.columns(2)
-        fecha_inicio = c_fecha1.date_input("Fecha Inicio:", value=None, format="DD/MM/YYYY")
-        fecha_fin = c_fecha2.date_input("Fecha Fin:", value=None, format="DD/MM/YYYY")
+        fecha_inicio = c_fecha1.date_input("Filtrar Desde:", value=None, format="DD/MM/YYYY")
+        fecha_fin = c_fecha2.date_input("Filtrar Hasta:", value=None, format="DD/MM/YYYY")
 
     df_filtrado = df.copy()
     
@@ -306,8 +292,6 @@ if menu == "Registro de Destajos":
     if filtro_concepto != "Todos":
         partida_original = partidas_dict[filtro_concepto]
         df_filtrado = df_filtrado[df_filtrado['Partida'] == partida_original]
-    if filtro_estado != "Todos":
-        df_filtrado = df_filtrado[df_filtrado['Estado'] == filtro_estado]
     
     if fecha_inicio and fecha_fin:
         df_filtrado['Fecha_Pago_DT'] = pd.to_datetime(df_filtrado['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
@@ -318,91 +302,66 @@ if menu == "Registro de Destajos":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # -------------------------------------------------------------
-    # TABLA NATIVA INTERACTIVA 
+    # SEPARACIÓN DE TABLAS (LA CLAVE PARA EL BLOQUEO TOTAL)
     # -------------------------------------------------------------
     columnas_mostrar = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'C.C', 'Pagar', 'Fecha_Pago', 'Usuario', 'Estado']
     df_grid = df_filtrado[columnas_mostrar].copy()
-    
-    # Agregar "Prototipo" a la vista de la tabla
     df_grid['Prototipo'] = df_grid['Prototipo'].apply(lambda x: f"Prototipo {x}" if not str(x).startswith("Prototipo") else x)
 
-    # Aplicar color gris claro a las filas ya pagadas
-    def color_bloqueado(row):
-        if row['Estado'] == 'Pagado':
-            return ['background-color: #e5e7eb; color: #4b5563;'] * len(row)
-        return [''] * len(row)
+    # Dividimos los datos
+    df_pendientes = df_grid[df_grid['Estado'] != 'Pagado'].copy()
+    df_pagados = df_grid[df_grid['Estado'] == 'Pagado'].copy()
 
-    styled_df = df_grid.style.apply(color_bloqueado, axis=1)
-
-    st.markdown("### 📋 Edición y Pago de Destajos")
+    # --- 1. TABLA EDITABLE (PENDIENTES) ---
+    st.markdown("### 📋 Partidas por Pagar (Editables)")
     
-    # Contenedor para la etiqueta separada (evita lag)
-    placeholder_total = st.empty()
+    # Usamos st.form para ELIMINAR el lag y el doble clic
+    with st.form("form_edicion"):
+        df_modificado = st.data_editor(
+            df_pendientes,
+            use_container_width=True,
+            hide_index=True,
+            height=400,
+            disabled=["Lote", "Manzana", "Prototipo", "Partida", "Precio", "Fecha_Pago", "Usuario", "Estado"],
+            column_config={
+                "Lote": st.column_config.TextColumn("Lote", width="small"),
+                "Manzana": st.column_config.TextColumn("Manzana", width="small"),
+                "Prototipo": st.column_config.TextColumn("Prototipo", width="small"),
+                "Partida": st.column_config.TextColumn("Partida", width="large"),
+                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", width="small"),
+                "Destajista": st.column_config.SelectboxColumn("Destajista", options=[""] + LISTA_DESTAJISTAS, width="medium"),
+                "C.C": st.column_config.SelectboxColumn("C.C", options=[""] + LISTA_CC, width="small"),
+                "Pagar": st.column_config.CheckboxColumn("Pagar", width="small"),
+                "Fecha_Pago": st.column_config.TextColumn("Fecha Pago", width="medium"),
+                "Usuario": st.column_config.TextColumn("Usuario", width="small"),
+                "Estado": st.column_config.TextColumn("Estado", width="small")
+            }
+        )
+        
+        col_btn_guardar, col_vacia = st.columns([1, 3])
+        btn_guardar = col_btn_guardar.form_submit_button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True)
 
-    # Data Editor nativo
-    df_modificado = st.data_editor(
-        styled_df,
-        use_container_width=True,
-        hide_index=True,
-        height=500,
-        disabled=["Lote", "Manzana", "Prototipo", "Partida", "Precio", "Fecha_Pago", "Usuario", "Estado"],
-        column_config={
-            "Lote": st.column_config.TextColumn("Lote", width="small"),
-            "Manzana": st.column_config.TextColumn("Manzana", width="small"),
-            "Prototipo": st.column_config.TextColumn("Prototipo", width="small"),
-            "Partida": st.column_config.TextColumn("Partida", width="large"),
-            "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", width="small"),
-            "Destajista": st.column_config.SelectboxColumn("Destajista", options=[""] + LISTA_DESTAJISTAS, width="medium"),
-            "C.C": st.column_config.SelectboxColumn("C.C", options=[""] + LISTA_CC, width="small"),
-            "Pagar": st.column_config.CheckboxColumn("Pagar", width="small"),
-            "Fecha_Pago": st.column_config.TextColumn("Fecha Pago", width="medium"),
-            "Usuario": st.column_config.TextColumn("Usuario", width="small"),
-            "Estado": st.column_config.TextColumn("Estado", width="small")
-        }
-    )
-
-    # Cálculo aislado para la etiqueta superior
-    df_modificado['Pagar'] = df_modificado['Pagar'].astype(bool)
-    suma_en_vivo = df_modificado[(df_modificado['Pagar'] == True) & (df_modificado['Estado'] != 'Pagado')]['Precio'].sum()
-    
-    placeholder_total.markdown(
-        f"<div style='background-color: #F59E0B; padding: 10px; border-radius: 8px; color: white; text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 15px;'>"
-        f"Monto Total Seleccionado a Pagar: ${suma_en_vivo:,.2f}"
-        f"</div>", 
-        unsafe_allow_html=True
-    )
-
-    # -------------------------------------------------------------
-    # LÓGICA DE GUARDADO (CAPTURADA DESDE EL BOTÓN EN SIDEBAR)
-    # -------------------------------------------------------------
-    if btn_guardar_sidebar:
+    if btn_guardar:
         if not df_modificado.empty:
-            filas_a_pagar = df_modificado[(df_modificado['Pagar'] == True) & (df_modificado['Estado'] != 'Pagado')]
+            df_modificado['Pagar'] = df_modificado['Pagar'].astype(bool)
+            filas_a_pagar = df_modificado[df_modificado['Pagar'] == True]
             errores = False
             
             for idx, row in filas_a_pagar.iterrows():
                 if pd.isna(row['Destajista']) or str(row['Destajista']).strip() == "":
-                    st.error(f"⚠️ Error: No puedes pagar la partida '{row['Partida']}' en el Lote {row['Lote']} porque falta seleccionar Destajista.")
+                    st.error(f"⚠️ Error: Partida '{row['Partida']}' en Lote {row['Lote']} falta Destajista.")
                     errores = True
                 if pd.isna(row['C.C']) or str(row['C.C']).strip() == "":
-                    st.error(f"⚠️ Error: No puedes pagar la partida '{row['Partida']}' en el Lote {row['Lote']} porque falta el Centro de Costo (C.C).")
+                    st.error(f"⚠️ Error: Partida '{row['Partida']}' en Lote {row['Lote']} falta C.C.")
                     errores = True
 
-            if not errores:
+            if not errores and not filas_a_pagar.empty:
                 ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
                 usuario_actual = st.session_state.usuario
                 
-                cambios_realizados = False
-
                 for idx, row in df_modificado.iterrows():
                     proto_original = row['Prototipo'].replace("Prototipo ", "").strip()
                     
-                    # CANDADO DE SEGURIDAD ABSOLUTO: 
-                    # Si el estado original ya era 'Pagado', ignoramos completamente cualquier edición en esta fila.
-                    estado_actual = df.loc[(df['Lote'] == row['Lote']) & (df['Partida'] == row['Partida']), 'Estado'].values
-                    if len(estado_actual) > 0 and estado_actual[0] == 'Pagado':
-                        continue # Salta a la siguiente fila sin aplicar cambios
-
                     idx_real_lista = df.index[
                         (df['Lote'] == row['Lote']) & 
                         (df['Partida'] == row['Partida']) & 
@@ -421,20 +380,30 @@ if menu == "Registro de Destajos":
                             df.at[idx_real, 'Usuario'] = usuario_actual
                             df.at[idx_real, 'Estado'] = 'Pagado'
                             df.at[idx_real, 'Pagar'] = False 
-                        
-                        cambios_realizados = True
                 
-                if cambios_realizados:
-                    with st.spinner("Guardando y bloqueando filas (candado activado)..."):
-                        st.session_state.df = df
-                        actualizar_datos_gsheet(st.session_state.df)
-                        st.success("✅ Cambios guardados correctamente.")
-                        st.rerun()
-                else:
-                    st.info("No se detectaron cambios válidos para guardar.")
+                with st.spinner("Sincronizando con Google..."):
+                    st.session_state.df = df
+                    actualizar_datos_gsheet(st.session_state.df)
+                    st.success("✅ Cambios guardados. Las partidas han pasado al historial de pagadas.")
+                    st.rerun()
+
+    # --- 2. TABLA BLOQUEADA (PAGADAS) ---
+    st.markdown("### 🔒 Historial de Partidas Pagadas (Bloqueadas)")
+    if df_pagados.empty:
+        st.info("No hay partidas pagadas en esta selección.")
+    else:
+        def estilo_bloqueado(row):
+            return ['background-color: #f3f4f6; color: #9ca3af;'] * len(row)
+        
+        st.dataframe(
+            df_pagados.style.apply(estilo_bloqueado, axis=1).format({"Precio": "${:,.2f}"}),
+            use_container_width=True,
+            hide_index=True,
+            height=300
+        )
 
     # -------------------------------------------------------------
-    # BOTÓN DE REPORTES (Debajo de la tabla)
+    # BOTÓN DE REPORTES
     # -------------------------------------------------------------
     st.markdown("<hr>", unsafe_allow_html=True)
     
@@ -442,44 +411,40 @@ if menu == "Registro de Destajos":
     def modal_reportes():
         st.write("Selecciona el rango de fechas para el reporte:")
         
-        # Filtros separados para evitar que se cierre el modal
         col1, col2 = st.columns(2)
         f_ini = col1.date_input("🗓️ Fecha Inicio:", format="DD/MM/YYYY", key="r_ini")
         f_fin = col2.date_input("🗓️ Fecha Fin:", format="DD/MM/YYYY", key="r_fin")
         
         if f_ini and f_fin:
             if f_ini > f_fin:
-                st.error("La fecha de inicio no puede ser mayor a la fecha final.")
+                st.error("La fecha de inicio no puede ser mayor a la final.")
             else:
                 df_rep = df.copy()
                 df_rep['Fecha_DT'] = pd.to_datetime(df_rep['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
                 df_filtrado_rep = df_rep[(df_rep['Fecha_DT'] >= f_ini) & (df_rep['Fecha_DT'] <= f_fin) & (df_rep['Estado'] == 'Pagado')]
                 
                 if df_filtrado_rep.empty:
-                    st.warning("No hay pagos registrados en este rango de fechas.")
+                    st.warning("No hay pagos en este rango.")
                 else:
-                    st.success(f"Se encontraron {len(df_filtrado_rep)} registros pagados.")
+                    st.success(f"Se encontraron {len(df_filtrado_rep)} registros.")
                     
                     if st.button("📄 Procesar y Generar PDF", use_container_width=True):
-                        # Agrupar datos por Destajista y C.C
                         resumen_pdf = df_filtrado_rep.groupby(['Destajista', 'C.C'])['Precio'].sum().reset_index()
                         destajistas_unicos_rep = resumen_pdf['Destajista'].unique()
                         
                         pdf = PDFReporte(orientation='P', unit='mm', format='Letter')
                         pdf.add_page()
                         
-                        # Cabecera PDF
                         pdf.set_font("Arial", size=12)
                         pdf.cell(0, 10, f"Periodo: {f_ini.strftime('%d/%m/%Y')} al {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
                         pdf.ln(5)
                         
                         total_general_pdf = 0
                         
-                        # Imprimir desglosado por Destajista
                         for dest in destajistas_unicos_rep:
                             pdf.set_font("Arial", 'B', 11)
-                            pdf.set_fill_color(230, 230, 230)
-                            pdf.cell(0, 10, f"👷 Destajista: {dest}", border=1, ln=True, fill=True)
+                            pdf.set_fill_color(220, 220, 220)
+                            pdf.cell(0, 10, f" Destajista: {dest}", border=1, ln=True, fill=True)
                             
                             datos_dest = resumen_pdf[resumen_pdf['Destajista'] == dest]
                             subtotal_dest = 0
@@ -501,9 +466,8 @@ if menu == "Registro de Destajos":
                             
                             total_general_pdf += subtotal_dest
                         
-                        # Total General
                         pdf.set_font("Arial", 'B', 12)
-                        pdf.set_fill_color(200, 255, 200)
+                        pdf.set_fill_color(200, 200, 200)
                         pdf.cell(95, 10, "TOTAL GENERAL PAGADO", border=1, align='R', fill=True)
                         pdf.cell(95, 10, f"${total_general_pdf:,.2f}", border=1, align='R', ln=True, fill=True)
                         
@@ -518,7 +482,6 @@ if menu == "Registro de Destajos":
                             use_container_width=True
                         )
 
-    # Botón en la interfaz principal que abre el modal
     _, col_rep, _ = st.columns([1, 2, 1])
     if col_rep.button("📄 GENERAR REPORTES", use_container_width=True):
         modal_reportes()
@@ -673,7 +636,6 @@ elif menu == "Mapa Interactivo":
             return f"rgba({int(hex_val[0:2], 16)}, {int(hex_val[2:4], 16)}, {int(hex_val[4:6], 16)}, {opacity})"
         return "rgba(0,0,0,0)"
 
-    # --- ARCHIVO DE COORDENADAS INTERNO ---
     COORDENADAS_LOTES = {
         "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
         "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
@@ -727,29 +689,27 @@ elif menu == "Mapa Interactivo":
             porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
             pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             
-            # --- NUEVA LÓGICA DE ETAPAS DE OBRA ---
             if porcentaje == 0:
                 color_lote = "🔴 No iniciado"
-                hex_color = "#EF4444"      # Rojo
+                hex_color = "#EF4444"      
             elif 0 < porcentaje <= 50:
                 color_lote = "⚫ Obra negra"
-                hex_color = "#57534E"      # Gris oscuro
+                hex_color = "#57534E"      
             elif 50 < porcentaje <= 60:
                 color_lote = "⚪ Obra gris"
-                hex_color = "#752BA7"      # Morado
+                hex_color = "#752BA7"      
             elif 60 < porcentaje <= 70:
                 color_lote = "🟡 Obra blanca"
-                hex_color = "#FADE50"      # Amarillo
+                hex_color = "#FADE50"      
             elif 70 < porcentaje <= 80:
                 color_lote = "🟠 Pisos"
-                hex_color = "#F97316"      # Naranja
+                hex_color = "#F97316"      
             elif 80 < porcentaje <= 95:
                 color_lote = "🔵 Equipamientos (avalúos)"
-                hex_color = "#3B82F6"      # Azul
-            else: # Mayor a 95% hasta 100%
+                hex_color = "#3B82F6"      
+            else: 
                 color_lote = "🟢 Detallado y entrega"
-                hex_color = "#10B981"      # Verde
-            # --------------------------------------
+                hex_color = "#10B981"      
                 
             lotes_datos_mapa.append({
                 "Lote": f"Lote {lote_num}",
@@ -833,8 +793,6 @@ elif menu == "Mapa Interactivo":
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
-
-        # --- LEYENDA VISUAL DE AVANCES ---
     st.markdown("""
     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: rgba(255,255,255,0.05); border-radius: 8px; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #EF4444; border-radius: 50%;"></div><span style="font-size: 12px;">0% No iniciado</span></div>
@@ -846,8 +804,6 @@ elif menu == "Mapa Interactivo":
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #10B981; border-radius: 50%;"></div><span style="font-size: 12px;">96-100% Detallado y entrega</span></div>
     </div>
     """, unsafe_allow_html=True)
-    # ---------------------------------
-
 
     col_mapa, col_info_lote = st.columns([5, 3])
 
@@ -871,13 +827,7 @@ elif menu == "Mapa Interactivo":
                     st.rerun()
                     
             idx_t3 = opciones_selector.index(valor_defecto_mapa) if valor_defecto_mapa in opciones_selector else 0
-
-            mapa_sel = st.selectbox(
-                "Selector", 
-                opciones_selector, 
-                index=idx_t3, 
-                label_visibility="collapsed"
-            )
+            mapa_sel = st.selectbox("Selector", opciones_selector, index=idx_t3, label_visibility="collapsed")
                 
             if mapa_sel != valor_defecto_mapa:
                 if mapa_sel == "Mostrar Todos":
@@ -889,7 +839,6 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
-        # --- LÓGICA DE LA TABLA (SEPARACIÓN MOSTRAR TODOS vs LOTE ESPECÍFICO) ---
         if st.session_state.mostrar_todos_mapa:
             if filtros_activos:
                 st.markdown("**Desglose de Filtros Activos (Todos los Lotes):**")
@@ -942,9 +891,7 @@ elif menu == "Mapa Interactivo":
                 styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
                 st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
         else:
-            # MOSTRANDO LOTE ESPECÍFICO (Cruzando datos con filtros activos)
             lote_puro_num = str(st.session_state.lote_actual)
-            
             if filtros_activos:
                 st.markdown(f"**Desglose Filtrado (Lote {lote_puro_num}):**")
                 df_desglose_lote = df_filtered[df_filtered['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
@@ -974,7 +921,6 @@ elif menu == "Mapa Interactivo":
                 
                 for _, row_lote in df_desglose_lote.iterrows():
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
-                    # Reflejo opcional en opacidad por si es parcial y hay filtros
                     op_style = "1.0" if row_lote['Estado'] == 'Pagado' else "0.5" if filtros_activos else "1.0"
 
                     html_table += (
@@ -992,7 +938,6 @@ elif menu == "Mapa Interactivo":
                 st.info(msg)
 
     with col_mapa:
-        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
         nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
         archivo_encontrado = None
         
@@ -1046,25 +991,17 @@ elif menu == "Mapa Interactivo":
                 svg_tag = soup.find("svg")
                 
                 if svg_tag:
-                # 1. Rescatamos las medidas originales para crear el viewBox si el CAD no lo traía.
-                # Esto garantiza que el navegador conozca el tamaño real y escale todo sin cortar nada.
                     if not svg_tag.get('viewBox') and not svg_tag.get('viewbox'):
                         w_orig = str(svg_tag.get('width', '')).replace('px', '').replace('pt', '').strip()
                         h_orig = str(svg_tag.get('height', '')).replace('px', '').replace('pt', '').strip()
                         if w_orig and h_orig and w_orig.replace('.', '', 1).isdigit() and h_orig.replace('.', '', 1).isdigit():
                             svg_tag['viewBox'] = f"0 0 {float(w_orig)} {float(h_orig)}"
 
-                # 2. Permitimos que el ancho sea responsivo y el alto se ajuste automáticamente. hace zoom out para que quepa toda la imgaen
                 svg_tag['width'] = "100%"
                 svg_tag['height'] = "100%"
                 
                 if not svg_tag.get('preserveAspectRatio'):
                     svg_tag['preserveAspectRatio'] = "xMidYMid meet"
-                #if svg_tag:
-                #    svg_tag['width'] = "100%"
-                #    svg_tag['height'] = "100%"
-                #    if not svg_tag.get('preserveAspectRatio'):
-                        #svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                         
                     defs = soup.find('defs')
                     if not defs:
@@ -1118,18 +1055,14 @@ elif menu == "Mapa Interactivo":
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
 
-                                        # --- NUEVA LÓGICA DE CORTE RECTANGULAR AUTOCONTENIDA ---
                                         angulo_rotacion = 0
                                         try:
-                                            # Buscamos los números dentro del polígono
                                             d_attr = lote_path.get('d', '')
                                             numeros = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', d_attr)
                                             
                                             if len(numeros) >= 4:
                                                 max_dist = 0
                                                 best_dx, best_dy = 1, 0
-                                                
-                                                # Buscamos el vector (lado) más largo del lote
                                                 for idx in range(2, len(numeros)-1, 2):
                                                     dx = float(numeros[idx])
                                                     dy = float(numeros[idx+1])
@@ -1138,8 +1071,6 @@ elif menu == "Mapa Interactivo":
                                                         max_dist = dist
                                                         best_dx = dx
                                                         best_dy = dy
-                                                
-                                                # Convertimos a grados para inyectarlo en el SVG
                                                 if max_dist > 0:
                                                     angulo_rotacion = math.degrees(math.atan2(best_dy, best_dx))
                                         except Exception:
@@ -1151,15 +1082,12 @@ elif menu == "Mapa Interactivo":
                                         for i, (c, op) in enumerate(colores_opacidades):
                                             start_pct = (i / n_cols) * 100
                                             end_pct = ((i + 1) / n_cols) * 100
-                                            
                                             stop1 = soup.new_tag("stop", offset=f"{start_pct}%")
                                             stop1['stop-color'] = c
                                             stop1['stop-opacity'] = str(op)
-                                            
                                             stop2 = soup.new_tag("stop", offset=f"{end_pct}%")
                                             stop2['stop-color'] = c
                                             stop2['stop-opacity'] = str(op)
-                                            
                                             grad.append(stop1)
                                             grad.append(stop2)
                                         
@@ -1233,19 +1161,14 @@ elif menu == "Mapa Interactivo":
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
-                #ajuste de altura del contenedor a 850 px para el zoom out, cambiar este valor (height) en las 2 lineas de abajo para hacer mas grande o mas chica la imagen de los poligonos
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=1000, scrolling=False)  #cambiar scrolling a true si queremos que aparezca esa barra 
+                st.components.v1.html(html_final, height=1000, scrolling=False)
 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
-                st.write(f"Detalle del error técnico: {e}")
         else:
             st.error("⚠️ No se encontró el archivo del mapa.")
-            st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
-        # --- FIN DE LA INTEGRACIÓN DEL SVG ---
 
-    # --- INICIO DEL DIAGRAMA INTERACTIVO INYECTADO DEBAJO DEL MAPA ---
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("### 🔗 Diagrama Interactivo de Partidas")
     
@@ -1257,12 +1180,9 @@ elif menu == "Mapa Interactivo":
         if not df_lote_diag.empty:
             num_partidas = len(df_lote_diag)
             cols = math.ceil(math.sqrt(num_partidas))
-
             filas = math.ceil(num_partidas / cols) if cols > 0 else 1
             
             x_coords, y_coords, colores_relleno, textos_hover = [], [], [], []
-
-            # 1. Definimos la cuadrícula virtual perfecta. Cada celda medirá 10x10.
             ancho_celda = 10
             alto_celda = 5
             
@@ -1270,7 +1190,6 @@ elif menu == "Mapa Interactivo":
                 col_actual = i % cols
                 fila_actual = i // cols
                 
-                # 2. Posicionamos en la intersección sumando el "radio virtual" (la mitad de la celda)
                 x = (col_actual * ancho_celda) + (ancho_celda / 2.0)
                 y = (fila_actual * alto_celda) + (alto_celda / 2.0)
                     
@@ -1294,9 +1213,8 @@ elif menu == "Mapa Interactivo":
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
-            # 3. Calculamos la altura física (en píxeles) para que NUNCA colisionen
             diametro_esfera_px = 60
-            padding_px = 25 # Separación garantizada entre esferas
+            padding_px = 25 
             altura_grafico = max(350, filas * (diametro_esfera_px + padding_px))
 
             fig_diag = go.Figure(data=go.Scatter(
@@ -1313,12 +1231,10 @@ elif menu == "Mapa Interactivo":
                 hoverinfo='text'
             ))
 
-            # 4. El rectángulo delimita exactamente los bordes de la cuadrícula
             x_min, y_min = 0.0, 0.0
             x_max = cols * ancho_celda
             y_max = filas * alto_celda
             
-
             fig_diag.add_shape(
                 type="path",
                 path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
@@ -1326,84 +1242,13 @@ elif menu == "Mapa Interactivo":
                 fillcolor="rgba(0,0,0,0)",
                 layer="below"
             )
-            
-            #x_coords = []
-            #y_coords = []
-            #colores_relleno = []
-            #textos_hover = []
-            
-
-            # GEOMETRÍA CORREGIDA PARA EVITAR COLISIONES (Cuadrícula perfecta 1:1)
-            
-            #espaciado_x = 7.0 
-            #espaciado_y = 2
-
-            #for i, row in enumerate(df_lote_diag.itertuples()):
-                #x = (i % cols) * espaciado_x
-                #y = (i // cols) * espaciado_y 
-                
-                    
-                #x_coords.append(x)
-                #y_coords.append(y) 
-                
-
-                #estado = row.Estado
-                #costo = row.Precio
-                #pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
-                #destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
-                
-                #color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
-
-                #if estado == "Pagado":
-                #    colores_relleno.append(color_asignado)
-                #elif estado == "Pago Parcial":
-                #    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
-                #else:
-                #    colores_relleno.append("rgba(0,0,0,0)")
-
-                #hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}#<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
-                #textos_hover.append(hover_text)
-
-            #altura_grafico = max(350, (math.ceil(num_partidas/cols) * 60))
-
-            #fig_diag = go.Figure(data=go.Scatter(
-            #    x=x_coords,
-            #    y=y_coords,
-            #    mode='markers',
-            #    marker=dict(
-            #        size=50, 
-            #        color=colores_relleno,
-            #        symbol='circle',
-            #        line=dict(width=0) 
-            #    ),
-            #    text=textos_hover,
-            #    hoverinfo='text'
-            #))
-
-            #margen = 2.5 
-            #x_max = (cols - 1) * espaciado_x + margen
-            #y_max = max(y_coords) + margen if y_coords else margen
-            #x_min = -margen
-            #y_min = -margen
-
-            
-
-            #fig_diag.add_shape(
-            #    type="path",
-            #    path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
-            #    line=dict(color="rgba(14,232,144,0.8)", width=4), 
-            #    fillcolor="rgba(0,0,0,0)",
-            #    layer="below"
-            #)
 
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
-            # EJE Y BLOQUEADO A 1:1 PARA GARANTIZAR GEOMETRÍA CIRCULAR Y SIN CORTES
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", scaleanchor="x", scaleratio=1),
-                #yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
@@ -1418,4 +1263,3 @@ elif menu == "Mapa Interactivo":
             
         else:
             st.warning("⚠️ No hay partidas registradas para este lote.")
-    # --- FIN DEL DIAGRAMA INTERACTIVO ---
