@@ -39,9 +39,11 @@ st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets else ""
 
-def obtener_datos_gsheet():
+def obtener_datos_gsheet(nombre_pestana="Destajos"):
     try:
-        response = requests.get(URL_API_SHEET)
+        # Aquí le agregamos el nombre de la pestaña a la URL
+        url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
+        response = requests.get(url_completa)
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
@@ -67,10 +69,12 @@ def obtener_datos_gsheet():
         st.error(f"Error al conectar con Google Sheets: {e}")
         return pd.DataFrame()
 
-def actualizar_datos_gsheet(df):
+def actualizar_datos_gsheet(df, nombre_pestana="Destajos"):
     try:
+        # Aquí también le decimos a qué pestaña mandar los datos
+        url_completa = f"{URL_API_SHEET}?sheet={nombre_pestana}"
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
-        response = requests.post(URL_API_SHEET, json=datos_a_enviar)
+        response = requests.post(url_completa, json=datos_a_enviar)
         if response.status_code != 200:
             st.error("⚠️ Hubo un problema al guardar en la nube.")
     except Exception as e:
