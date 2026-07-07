@@ -71,7 +71,6 @@ def actualizar_datos_gsheet(df):
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
 # =========================================================================
 LISTA_DESTAJISTAS = [
-    "",
     " ",
     "Pablo Barragán (Albañilería)",
     "Andrés (Albañilería)",
@@ -82,7 +81,6 @@ LISTA_DESTAJISTAS = [
 ]
 
 LISTA_CC = [
-    "",
     " ",
     "N62",
     "N75",
@@ -394,7 +392,10 @@ if menu == "Registro de Destajos":
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = False
+        # 1. Filtramos para obtener solo los índices de las partidas que NO tienen fecha de pago
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        # 2. Desmarcamos solo esas partidas pendientes, respetando las bloqueadas
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
         st.session_state.grid_key += 1
         st.rerun()
 
@@ -1054,7 +1055,12 @@ elif menu == "Mapa Interactivo":
             for i, row in enumerate(df_lote_diag.itertuples()):
                 x_coords.append((i % cols * ancho_celda) + (ancho_celda / 2.0))
                 y_coords.append((i // cols * alto_celda) + (alto_celda / 2.0))
-                estado, costo, destajista = row.Estado, row.Precio, row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
+                # Modificamos para leer directamente 'Costo' y evitar errores
+                estado = row.Estado
+                costo = row.Costo if pd.notna(row.Costo) else 0.0
+                destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
                 color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
                 colores_relleno.append(color_asignado if estado == "Pagado" else "rgba(0,0,0,0)")
                 textos_hover.append(f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}")
