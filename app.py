@@ -22,7 +22,7 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     /* header {visibility: hidden;} Se elimina para permitir abrir/cerrar la barra lateral (Fix #12) */
     footer {visibility: hidden;}
-    .stAppToolbar {visibility: hidden;}
+    
     .stAppDeployButton {display: none;}
     </style>
     """,
