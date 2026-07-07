@@ -72,6 +72,7 @@ def actualizar_datos_gsheet(df):
 # =========================================================================
 LISTA_DESTAJISTAS = [
     "",
+    " ",
     "Pablo Barragán (Albañilería)",
     "Andrés (Albañilería)",
     "Miguel Leyva (Instalaciones)",
@@ -82,12 +83,12 @@ LISTA_DESTAJISTAS = [
 
 LISTA_CC = [
     "",
-    "CC-01 (Cimentación)",
-    "CC-02 (Estructura)",
-    "CC-03 (Albañilería)",
-    "CC-04 (Acabados)",
-    "CC-05 (Instalaciones)",
-    "CC-06 (Urbanización)"
+    " ",
+    "N62",
+    "N75",
+    "F13",
+    "S03",
+    "R01"
 ]
 
 ANCHO_LOGIN_ENTRADAS = "200px"    
@@ -191,29 +192,38 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
-        elif filas_a_pagar.empty:
-            st.sidebar.success("No hay nuevas partidas marcadas para guardar.")
         else:
             with st.spinner("Sincronizando con Google..."):
                 ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
                 usuario_actual = st.session_state.usuario
                 
-                for _, row in filas_a_pagar.iterrows():
-                    idx_original = int(row['_original_index'])
-                    st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
-                    st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip()
-                    st.session_state.df.at[idx_original, 'Pagar'] = True
-                    st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
-                    st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
+                # 1. Guardar partidas que se van a pagar
+                if not filas_a_pagar.empty:
+                    for _, row in filas_a_pagar.iterrows():
+                        idx_original = int(row['_original_index'])
+                        st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
+                        st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip()
+                        st.session_state.df.at[idx_original, 'Pagar'] = True
+                        st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
+                        st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
+                # 2. Guardar partidas que solo se editaron (Destajista o CC) sin pagar aún
                 filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha pago'] == '')]
                 for _, row in filas_solo_edicion.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
                     st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
 
-                actualizar_datos_gsheet(st.session_state.df)
+                # 3. Eliminar columnas temporales "fantasmas" antes de enviar a la API
+                df_envio = st.session_state.df.copy()
+                if 'Concepto_Limpio' in df_envio.columns:
+                    df_envio = df_envio.drop(columns=['Concepto_Limpio'])
+
+                actualizar_datos_gsheet(df_envio)
+                
+                # 4. Sincronizar memoria y forzar refresco limpio de pantalla
                 st.session_state.df_original = st.session_state.df.copy()
+                st.session_state.current_grid_state = pd.DataFrame() # Resetea estado para reflejar las fechas nuevas
                 st.session_state.grid_key += 1 
                 st.success("¡Datos guardados!")
                 st.rerun()
@@ -327,9 +337,12 @@ if menu == "Registro de Destajos":
     list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
     
-    df_actual['Concepto_Limpio'] = df_actual['Partida'].apply(lambda x: re.sub(r'^\d+\.-\s*|^\d+\s*', '', str(x)).strip())
+    # GENERACIÓN COPIA AISLADA (Para evitar la columna extra en Google Sheets)
+    df_temporal_filtros = df_actual.copy()
+    df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    
     conceptos_unicos_tuplas = {}
-    for _, row in df_actual.iterrows():
+    for _, row in df_temporal_filtros.iterrows():
         limpio = row['Concepto_Limpio']
         if limpio not in conceptos_unicos_tuplas:
             conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
@@ -348,7 +361,9 @@ if menu == "Registro de Destajos":
         st.selectbox("Destajista:", list_destajistas_filtro, key="sel_dest")
         st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
+    # Aplicamos la búsqueda usando la columna limpia sobre la marcha
     df_filtrado = df_actual.copy()
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -467,7 +482,7 @@ if menu == "Registro de Destajos":
         reload_data=False,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         theme='balham',
@@ -998,10 +1013,15 @@ elif menu == "Mapa Interactivo":
                                 num_esferas = len(df_lote_esferas)
                                 for idx, row in enumerate(df_lote_esferas.itertuples()):
                                     angulo = (2 * math.pi * idx) / num_esferas if num_esferas > 1 else 0
-                                    cx, cy = base_x + (radio_disp * math.cos(angulo) if num_esferas > 1 else 0), base_y + (radio_disp * math.sin(angulo) if num_esferas > 1 else 0)
+                                    cx = base_x + (radio_disp * math.cos(angulo) if num_esferas > 1 else 0)
+                                    cy = base_y + (radio_disp * math.sin(angulo) if num_esferas > 1 else 0)
+                                    
                                     if row.Estado == "Pagado":
-                                        circle_tag = soup.new_tag("circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(50 if num_esferas < 10 else 5), style=f"fill:{mapa_colores_partida.get(row.Partida, '#3B82F6')}; fill-opacity:1.0; stroke:#1f2937; stroke-width:1px;")
-                                        # (Corrección 2) Inyección de esferas segura y compatible para SVG
+                                        # Ajuste seguro del radio (Entre 3 y 5 px) para que no rompa la estructura del SVG
+                                        radio_esfera = 3 if num_esferas > 15 else 5
+                                        
+                                        circle_tag = soup.new_tag("circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(radio_esfera), style=f"fill:{mapa_colores_partida.get(row.Partida, '#3B82F6')}; fill-opacity:1.0; stroke:#1f2937; stroke-width:1px;")
+                                        
                                         parent = lote_path.parent
                                         if parent:
                                             parent.append(circle_tag)
