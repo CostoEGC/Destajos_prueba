@@ -16,7 +16,6 @@ from fpdf import FPDF
 import tempfile
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
-# Se eliminó la ocultación del header para solucionar el problema de la barra lateral (Punto 15)
 st.markdown(
     """
     <style>
@@ -42,7 +41,7 @@ def obtener_datos_gsheet():
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        # Asegurar que existan las columnas exactas (Punto 3)
+        # Asegurar que existan las columnas exactas
         cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']
         for col in cols_requeridas:
             if col not in df.columns:
@@ -52,10 +51,10 @@ def obtener_datos_gsheet():
         df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
         df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
         
-        # Formato de Prototipo (Punto 21)
+        # Formato de Prototipo
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
 
-        return df[cols_requeridas] # Retornamos estrictamente las columnas requeridas
+        return df[cols_requeridas] 
     except Exception as e:
         st.error(f"Error al conectar con Google Sheets: {e}")
         return pd.DataFrame()
@@ -81,7 +80,6 @@ LISTA_DESTAJISTAS = [
     "Gerardo Zamora (Yeso y pintura)"
 ]
 
-# (Punto 18) Lista para C.C
 LISTA_CC = [
     "CC-01 (Cimentación)",
     "CC-02 (Estructura)",
@@ -106,7 +104,7 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
         if os.path.exists("logo.png"):
             st.image("logo.png", use_container_width=True)
 
-# Función para ordenar números incrustados en texto (Puntos 2.6, 2.9, 2.10)
+# Función para ordenar números incrustados en texto
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, str(s))]
 
@@ -177,7 +175,6 @@ if st.session_state.menu_actual != menu:
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
-    # (Punto 10 y 19) Validar antes de guardar
     filas_a_pagar = st.session_state.df[st.session_state.df['Pagar'] == True]
     filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].str.strip() == '') | (filas_a_pagar['C.C'].str.strip() == '')]
     
@@ -188,8 +185,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
             ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
             usuario_actual = st.session_state.usuario
             
-            # (Punto 9) Colocar fecha de pago y usuario en las marcadas
-            # Filtrar donde Pagar es true y Fecha pago está vacía (para no sobreescribir las viejas)
             mask_nuevos_pagos = (st.session_state.df['Pagar'] == True) & (st.session_state.df['Fecha pago'] == '')
             st.session_state.df.loc[mask_nuevos_pagos, 'Fecha pago'] = ahora
             st.session_state.df.loc[mask_nuevos_pagos, 'Usuario'] = usuario_actual
@@ -199,7 +194,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
             st.success("¡Datos guardados!")
             st.rerun()
 
-# (Punto 14) Reportes en PDF
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### Selecciona el rango de fechas para el reporte")
@@ -217,7 +211,6 @@ def dialogo_reportes():
         else:
             df_agrupado = df_rep.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
             
-            # Generación de PDF
             pdf = FPDF(orientation='P', unit='mm', format='Letter')
             pdf.add_page()
             pdf.set_font("Arial", 'B', 16)
@@ -243,7 +236,6 @@ def dialogo_reportes():
             pdf.cell(150, 10, txt="TOTAL", border=1, align='R')
             pdf.cell(40, 10, txt=f"${total_global:,.2f}", border=1, ln=True, align='R')
             
-            # Guardar temporalmente para descarga
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                 pdf.output(tmp_file.name)
                 with open(tmp_file.name, "rb") as f:
@@ -268,8 +260,6 @@ if menu == "Registro de Destajos":
     
     df_actual = st.session_state.df
     
-    # (Punto 1) Tabla "Lote x - Prototipo x" al principio
-    # Calcular resumen global de lo que hay en df_actual
     costo_total_global = df_actual['Costo'].sum()
     pagado_global = df_actual.loc[df_actual['Fecha pago'] != '', 'Costo'].sum()
     pendiente_global = costo_total_global - pagado_global
@@ -298,7 +288,6 @@ if menu == "Registro de Destajos":
     
     st.markdown("##### ⏳ Filtros de Tabla")
     
-    # (Punto 24) Botón para limpiar filtros
     if 'limpiar_filtros' not in st.session_state:
         st.session_state.limpiar_filtros = False
         
@@ -307,15 +296,12 @@ if menu == "Registro de Destajos":
         
     st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-    # Preparar listas únicas ordenadas (Punto 2.9, 2.10, 2.11)
     list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
     list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_destajistas = sorted([x for x in df_actual['Destajista'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     
-    # Conceptos limpios de números
     df_actual['Concepto_Limpio'] = df_actual['Partida'].apply(lambda x: re.sub(r'^\d+\.-\s*|^\d+\s*', '', str(x)).strip())
-    # Ordenar por el número original para la lista desplegable
     conceptos_unicos_tuplas = {}
     for _, row in df_actual.iterrows():
         limpio = row['Concepto_Limpio']
@@ -324,40 +310,29 @@ if menu == "Registro de Destajos":
     
     list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # Reset de UI si se presionó limpiar
     if st.session_state.limpiar_filtros:
         sel_proto, sel_manzana, sel_lotes, sel_estado = "Todos", "Todos", [], "Todos"
         sel_destajista, sel_concepto = "Todos", []
         sel_fecha = []
         st.session_state.limpiar_filtros = False
     else:
-        # Valores por defecto para persistencia
         sel_proto, sel_manzana, sel_lotes, sel_estado = "Todos", "Todos", [], "Todos"
         sel_destajista, sel_concepto = "Todos", []
         sel_fecha = []
 
-    # (Punto 2.7) Filtros en 2 columnas
     f_col1, f_col2 = st.columns(2)
     
     with f_col1:
-        # (Punto 2.1) Prototipo (Solo uno)
         sel_proto = st.selectbox("Prototipo:", ["Todos"] + list_prototipos)
-        # (Punto 2.3) Lote (Múltiple)
         sel_lotes = st.multiselect("Lote(s):", options=list_lotes)
-        # (Punto 2.6) Concepto (Quita números, muestra únicos)
         sel_concepto = st.multiselect("Concepto / Partida:", options=list_conceptos)
         
     with f_col2:
-        # (Punto 2.2) Manzana (Solo uno)
         sel_manzana = st.selectbox("Manzana:", ["Todos"] + list_manzanas)
-        # (Punto 2.4) Estado (Solo uno)
         sel_estado = st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"])
-        # Destajista
         sel_destajista = st.selectbox("Destajista:", ["Todos"] + list_destajistas)
-        # (Punto 2.5) Rango de fechas
         sel_fecha = st.date_input("Fecha de Pago (Rango):", value=[], format="DD/MM/YYYY")
 
-    # (Punto 2.8) Filtros cruzados aplicados a df_filtrado
     df_filtrado = df_actual.copy()
     if sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == sel_proto]
     if sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == sel_manzana]
@@ -375,7 +350,6 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[(df_filtrado['Fecha_Obj_Temp'] >= sel_fecha[0]) & (df_filtrado['Fecha_Obj_Temp'] <= sel_fecha[1])]
         df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp'])
 
-    # (Punto 12) KPI justo arriba de la tabla con la palabra "Pagos"
     sum_precio = df_filtrado['Costo'].sum()
     sum_pagos = df_filtrado.loc[df_filtrado['Fecha pago'] != '', 'Costo'].sum()
     sum_pendiente = sum_precio - sum_pagos
@@ -383,18 +357,15 @@ if menu == "Registro de Destajos":
     st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${sum_precio:,.2f} | Pagos: ${sum_pagos:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- BOTONES MASIVOS (Punto 13, 23 y 26) ---
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        # Selecciona (Pagar=True) solo a las filas filtradas, respetando lo que ya se ingresó
         idx_filtrados = df_filtrado.index
         st.session_state.df.loc[idx_filtrados, 'Pagar'] = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         idx_filtrados = df_filtrado.index
-        # No borrar Destajista ni CC, solo apagar el checkbox (Punto 26)
         st.session_state.df.loc[idx_filtrados, 'Pagar'] = False
         st.rerun()
 
@@ -414,27 +385,28 @@ if menu == "Registro de Destajos":
             st.success("C.C asignado masivamente a las filas visibles.")
             st.rerun()
             
-    # (Punto 11) Label dinámico de Costo de Checkboxes
     costo_seleccionado = df_filtrado.loc[(df_filtrado['Pagar'] == True) & (df_filtrado['Fecha pago'] == ''), 'Costo'].sum()
     b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
 
     st.markdown("<hr style='margin:10px 0 10px 0;'>", unsafe_allow_html=True)
 
-    # (Punto 7) Si Costo es 0, poner N/A. AgGrid no permite strings en boolean easily if editable,
-    # so we handle it visually via Javascript o solo ignorando costo 0.
+    # --- RENDERIZADO DE TABLA INTERACTIVA CON AGGRID (SOLUCIÓN INDEX ERROR) ---
+    df_filtrado_grid = df_filtrado.copy()
     
-    # --- RENDERIZADO DE TABLA INTERACTIVA CON AGGRID (Puntos 3, 4, 5, 6, 17, 20) ---
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']])
+    # Esta es la columna mágica que evitará el IndexError:
+    df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
-    # (Punto 6) Eliminar filtros de columna
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
+    
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     
-    # Ajustar alineaciones y columnas editables (Punto 16, 17, 5, 20)
+    # Ocultamos la columna auxiliar
+    gb.configure_column("_original_index", hide=True)
+    
     gb.configure_column("Lote", editable=False, cellStyle={'textAlign': 'center'}, width=90)
     gb.configure_column("Manzana", editable=False, cellStyle={'textAlign': 'center'}, width=100)
     gb.configure_column("Prototipo", editable=False, cellStyle={'textAlign': 'center'}, width=110)
-    gb.configure_column("Partida", editable=False, width=300) # Más ancho para un solo renglón
-    # (Punto 22) Formato Moneda Costo
+    gb.configure_column("Partida", editable=False, width=300) 
     gb.configure_column("Costo", editable=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellStyle={'textAlign': 'right'}, width=120)
     
     gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200)
@@ -445,32 +417,28 @@ if menu == "Registro de Destajos":
     gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, width=160)
     gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, width=120)
 
-    # (Punto 4, 8 y 9) Estilos de fila, candado visual y colores
     rowStyle = JsCode("""
     function(params) {
-        // (Punto 9) Fila bloqueada si ya está pagada
         if (params.data['Fecha pago'] != '' && params.data['Fecha pago'] != null) {
             return {
-                'backgroundColor': '#e0e0e0', // Gris claro
+                'backgroundColor': '#e0e0e0',
                 'color': '#808080',
                 'pointerEvents': 'none',
                 'borderBottom': '1px solid #d3d3d3'
             };
         }
         
-        // (Punto 4) Fila normal: Fondo negro, texto verde, líneas grises
         let style = {
             'backgroundColor': '#000000',
             'color': '#39FF14',
             'borderBottom': '1px solid #4a4a4a'
         };
         
-        // (Punto 8) Candado visual si está marcado pero faltan datos
         if (params.data['Pagar'] === true) {
             let dest = params.data['Destajista'];
             let cc = params.data['C.C'];
             if (!dest || dest.trim() === '' || !cc || cc.trim() === '') {
-                style['backgroundColor'] = '#4a0000'; // Aviso rojo oscuro visual
+                style['backgroundColor'] = '#4a0000';
             }
         }
         return style;
@@ -481,35 +449,34 @@ if menu == "Registro de Destajos":
     grid_options = gb.build()
 
     response = AgGrid(
-        df_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']],
+        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.MODEL_CHANGED, # Para que devuelva valores al cambiar
+        update_mode=GridUpdateMode.MODEL_CHANGED, 
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         theme='balham',
         height=600
     )
 
-    # Actualizar st.session_state con los cambios del AgGrid sin perder datos filtrados (Punto 25 y 26)
-    if not response['data'].empty:
-        df_editado = response['data']
-        for index, row in df_editado.iterrows():
-            idx_original = df_filtrado.index[index]
-            # Solo actualizar las columnas editables
-            st.session_state.df.at[idx_original, 'Destajista'] = row['Destajista']
-            st.session_state.df.at[idx_original, 'C.C'] = row['C.C']
-            st.session_state.df.at[idx_original, 'Pagar'] = row['Pagar']
+    # Aquí hacemos el cruce seguro leyendo _original_index de cada fila devuelta
+    if response['data'] is not None and len(response['data']) > 0:
+        df_editado = pd.DataFrame(response['data'])
+        for _, row in df_editado.iterrows():
+            if '_original_index' in row and pd.notna(row['_original_index']):
+                idx_original = int(row['_original_index'])
+                st.session_state.df.at[idx_original, 'Destajista'] = row['Destajista']
+                st.session_state.df.at[idx_original, 'C.C'] = row['C.C']
+                st.session_state.df.at[idx_original, 'Pagar'] = row['Pagar']
 
 
 # =========================================================================
-# PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL (Ajustado a nuevas columnas)
+# PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
 elif menu == "Dashboard (Gráficos y Visor)":
     mostrar_cabecera_con_logo("📊 Visor Estadístico e Indicadores")
     
-    # Mapeo temporal para no quebrar el dashboard original
     df_dash_base = df.copy()
     df_dash_base['Precio'] = df_dash_base['Costo']
     df_dash_base['Total_Pagado_Real'] = df_dash_base.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
@@ -636,12 +603,11 @@ elif menu == "Dashboard (Gráficos y Visor)":
 
 
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (Ajustado a nuevas columnas)
+# PESTAÑA 3: MAPA INTERACTIVO 
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # Mapeo temporal para que el mapa no se rompa
     df_map_base = df.copy()
     df_map_base['Precio'] = df_map_base['Costo']
     df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if r['Fecha pago'] != '' else 'Pendiente', axis=1)
