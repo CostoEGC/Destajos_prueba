@@ -11,18 +11,16 @@ import math
 from zoneinfo import ZoneInfo
 from PIL import Image
 from bs4 import BeautifulSoup
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
-from fpdf import FPDF
-import base64
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
-    /* header {visibility: hidden;} Se elimina para permitir abrir/cerrar la barra lateral (Fix #12) */
+    header {visibility: hidden;}
     footer {visibility: hidden;}
-    
+    .stAppToolbar {visibility: hidden;}
     .stAppDeployButton {display: none;}
     </style>
     """,
@@ -43,18 +41,22 @@ def obtener_datos_gsheet():
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        # Asegurar que existan las nuevas columnas si la hoja está vacía o en transición
-        columnas_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']
-        for col in columnas_requeridas:
-            if col not in df.columns:
-                df[col] = ''
+        if 'Fecha_Pago' in df.columns:
+            df['Fecha_Pago'] = pd.to_datetime(df['Fecha_Pago'], errors='coerce')
+            df['Fecha_Pago'] = df['Fecha_Pago'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('-')
 
-        # Formateos iniciales
-        df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0.0)
-        df['Pagar'] = df['Pagar'].apply(lambda x: True if str(x).strip().upper() == 'TRUE' else False)
+        df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
         
-        # Guardamos el índice original para no perder la referencia al actualizar
-        df['_IndexOriginal'] = df.index 
+        # INICIALIZACIÓN DE NUEVAS COLUMNAS
+        if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
+        if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
+        if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
+        if 'Usuario_2' not in df.columns: df['Usuario_2'] = ''
+        
+        df['Pago_1'] = pd.to_numeric(df['Pago_1'], errors='coerce').fillna(0.0)
+        df['Pago_2'] = pd.to_numeric(df['Pago_2'], errors='coerce').fillna(0.0)
+        
+        df.loc[(df['Estado'] == 'Pagado') & (df['Pago_1'] == 0), 'Pago_1'] = df['Precio']
 
         return df
     except Exception as e:
@@ -63,13 +65,7 @@ def obtener_datos_gsheet():
 
 def actualizar_datos_gsheet(df):
     try:
-        # Preparamos el dataframe para enviar (sin la columna auxiliar de índice)
-        df_a_enviar = df.drop(columns=['_IndexOriginal'], errors='ignore').copy()
-        
-        # Convertimos booleanos a strings para Google Sheets
-        df_a_enviar['Pagar'] = df_a_enviar['Pagar'].astype(str).str.upper()
-        
-        datos_a_enviar = [df_a_enviar.columns.values.tolist()] + df_a_enviar.values.tolist()
+        datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
         response = requests.post(URL_API_SHEET, json=datos_a_enviar)
         if response.status_code != 200:
             st.error("⚠️ Hubo un problema al guardar en la nube.")
@@ -88,20 +84,78 @@ LISTA_DESTAJISTAS = [
     "Gerardo Zamora (yaso y pintura)"
 ]
 
+# Lista CC añadida para que puedas alimentar valores como pediste originalmente
 LISTA_CC = [
-    "CC-001 (Cimentación)",
-    "CC-002 (Estructura)",
-    "CC-003 (Acabados)",
-    "CC-004 (Instalaciones Hidro)",
-    "CC-005 (Instalaciones Elec)"
+    "CC-001",
+    "CC-002",
+    "CC-003",
+    "CC-004"
 ]
 
 ANCHO_LOGIN_ENTRADAS = "200px"    
 ESPACIO_ENTRE_RENGLONES = "8px"
+TAMANO_LETRA_PAGADO = "14px"
+GROSOR_ETIQUETA_PAGADO = "2px -25px"
 TAMANO_LETRA_TABLA = "11px" 
 TAMANO_LETRA_BOTONES = "12px"
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
 COLOR_TEXTO_PROTOTIPO = "#FFFFFF"
+
+# ESTILOS CSS ORIGINALES
+st.markdown(f"""
+<style>
+    div[data-testid="stTextInput"] {{
+        max-width: {ANCHO_LOGIN_ENTRADAS} !important;
+    }}
+    .stSelectbox label, .stTextInput label {{
+        font-size: {TAMANO_LETRA_TABLA} !important;
+    }}
+    .stButton > button {{
+        font-size: {TAMANO_LETRA_BOTONES} !important;
+        width: 100%;
+    }}
+    div[data-testid="stButton"] button {{
+        padding: 1px 5px !important;
+        font-size: 5px !important;
+        height: auto !important;
+    }}
+    button[kind="primary"] {{
+        background-color: #39FF14 !important;
+        color: black !important;
+        border: none !important;
+        padding: 2px !important;
+        font-size: 10px !important;
+        min-height: 24px !important;
+        height: 24px !important;
+        font-weight: bold !important;
+    }}
+    div[data-testid="stNumberInput"] input {{
+        font-size: 11px !important;
+        padding: 4px !important;
+    }}
+    [data-testid="stDataFrame"] {{
+        display: flex;
+        justify-content: center;
+    }}
+    [data-testid="stDataFrame"] div[data-testid="stTable"] th,
+    [data-testid="stTable"] th {{
+        text-align: center !important;
+        justify-content: center !important;
+    }}
+    [data-testid="stDataFrame"] div[data-testid="stTable"] td,
+    [data-testid="stTable"] td {{
+        text-align: center !important;
+    }}
+    
+    /* CSS para centrar encabezados en AgGrid excepto las clases específicas */
+    .ag-header-cell-label {{
+        justify-content: center !important;
+    }}
+    .ag-header-cell.left-align-header .ag-header-cell-label {{
+        justify-content: flex-start !important;
+    }}
+</style>
+""", unsafe_allow_html=True)
 
 # --- CABECERA UNIVERSAL CON LOGO ---
 def mostrar_cabecera_con_logo(titulo, subtitulo=None):
@@ -125,10 +179,6 @@ if 'df' not in st.session_state:
     st.session_state.df_original = st.session_state.df.copy()
 
 df = st.session_state.df
-
-# Función para extraer Estado (Para el mapa y dashboard)
-def calcular_estado(pagar_val):
-    return "Pagado" if pagar_val in [True, "TRUE", "True"] else "Pendiente"
 
 # --- PALETA DE COLORES GLOBAL ---
 partidas_unicas_global = df['Partida'].unique() if not df.empty else []
@@ -160,18 +210,46 @@ if st.session_state.usuario is None:
     login()
     st.stop()
 
+@st.dialog("⚠️ CONFIRMACIÓN DE PAGO")
+def dialogo_confirmacion(indice, lote, partida, destajista, precio, monto_pago, es_pago_2):
+    st.warning(f"¿Confirmas el pago por **${monto_pago:,.2f}** de la partida **{partida}** para el **{lote}**?")
+    if not es_pago_2:
+        st.markdown(f"**Destajista asignado:** {destajista}")
+    st.markdown(f"**Monto a liberar:** `${monto_pago:,.2f}`")
+    
+    col1, col2 = st.columns(2)
+    if col1.button("✅ ACEPTAR"):
+        ahora = datetime.now(ZoneInfo("America/Mexico_City"))
+        fecha_hora_str = ahora.strftime("%d/%m/%Y %H:%M:%S")
+        usuario_actual = st.session_state.usuario
+
+        if es_pago_2:
+            st.session_state.df.at[indice, 'Pago_2'] = monto_pago
+            st.session_state.df.at[indice, 'Fecha_Pago_2'] = fecha_hora_str
+            st.session_state.df.at[indice, 'Usuario_2'] = usuario_actual
+        else:
+            st.session_state.df.at[indice, 'Pago_1'] = monto_pago
+            st.session_state.df.at[indice, 'Fecha_Pago'] = fecha_hora_str
+            st.session_state.df.at[indice, 'Usuario'] = usuario_actual
+            st.session_state.df.at[indice, 'Destajista'] = destajista
+        
+        # Recalcular Estado
+        fila = st.session_state.df.loc[indice]
+        pagado_tot = float(fila.get('Pago_1', 0)) + float(fila.get('Pago_2', 0))
+        costo_tot = float(fila['Precio'])
+        
+        if pagado_tot >= costo_tot:
+            st.session_state.df.at[indice, 'Estado'] = 'Pagado'
+        else:
+            st.session_state.df.at[indice, 'Estado'] = 'Pago Parcial'
+            
+        st.rerun()
+
+    if col2.button("❌ CANCELAR"):
+        st.rerun()
+
 def clave_ordenamiento(val):
     return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', str(val))]
-
-def sort_prototipo(val):
-    v_limpio = str(val).replace("Prototipo", "").strip()
-    return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', v_limpio)]
-
-def sort_concepto(val):
-    match = re.search(r'^(\d+)', str(val))
-    num = int(match.group(1)) if match else 9999
-    texto = re.sub(r'^\d+\.-\s*', '', str(val)).strip()
-    return (num, texto)
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
 st.sidebar.title(f"👷 {st.session_state.usuario}")
@@ -190,358 +268,160 @@ if st.session_state.menu_actual != menu:
     st.session_state.menu_actual = menu
     st.rerun()
 
+if st.sidebar.button("💾 GUARDAR CAMBIOS"):
+    with st.spinner("Sincronizando con Google..."):
+        actualizar_datos_gsheet(st.session_state.df)
+        st.session_state.df_original = st.session_state.df.copy()
+        st.success("¡Datos guardados!")
+        st.rerun()
+
+if 'df_original' in st.session_state:
+    if not st.session_state.df.equals(st.session_state.df_original):
+        st.sidebar.warning("⚠️ Tienes cambios pendientes. ¡Presiona el botón Guardar!")
+
+if st.sidebar.button("🔒 Cerrar Sesión"):
+    st.session_state.usuario = None
+    st.rerun()
+
 st.sidebar.markdown("---")
+st.sidebar.markdown("### 🏗️ Resumen Total")
+
+df_unicos = st.session_state.df[['Lote', 'Prototipo']].drop_duplicates()
+resumen_df = df_unicos.groupby('Prototipo').size().reset_index(name='Cantidad')
+resumen_df = resumen_df.sort_values(by='Prototipo', key=lambda x: x.map(clave_ordenamiento))
+
+resumen_df_final = resumen_df.rename(columns={'Prototipo': 'Proto', 'Cantidad': 'Total'}).set_index('Proto')
+st.sidebar.table(resumen_df_final)
+
+total_general = resumen_df['Cantidad'].sum()
+st.sidebar.markdown(f"**Total Prototipos: {total_general}**")    
+
 
 # =========================================================================
 # PESTAÑA 1: REGISTRO DE DESTAJOS
 # =========================================================================
 if menu == "Registro de Destajos":
-    
-    # 11. REPORTE PDF (Botón en Barra Lateral)
-    if st.sidebar.button("📄 Generar Reporte PDF", type="secondary"):
-        st.session_state.mostrar_modal_pdf = True
-
-    if st.sidebar.button("💾 GUARDAR CAMBIOS", type="primary"):
-        # Se captura el estado actual antes de guardar
-        hubo_error = False
-        cambios_realizados = 0
-        ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
-        usuario_actual = st.session_state.usuario
-
-        # Validaciones
-        for idx, row in st.session_state.df.iterrows():
-            if row['Pagar'] == True and str(row['Fecha pago']).strip() == '':
-                # Si se marcó para pagar y no tiene fecha (es un pago nuevo)
-                if str(row['Destajista']).strip() == '' or str(row['C.C']).strip() == '' or str(row['Destajista']).strip() == 'None' or str(row['C.C']).strip() == 'None':
-                    hubo_error = True
-                    break
-        
-        if hubo_error:
-            st.sidebar.error("⚠️ Error: Hay partidas marcadas en 'Pagar' sin Destajista o C.C asignado. Revisa la tabla.")
-        else:
-            with st.spinner("Sincronizando con Google..."):
-                for idx, row in st.session_state.df.iterrows():
-                    if row['Pagar'] == True and str(row['Fecha pago']).strip() == '':
-                        st.session_state.df.at[idx, 'Fecha pago'] = ahora
-                        st.session_state.df.at[idx, 'Usuario'] = usuario_actual
-                        cambios_realizados += 1
-                
-                if cambios_realizados > 0:
-                    actualizar_datos_gsheet(st.session_state.df)
-                    st.session_state.df_original = st.session_state.df.copy()
-                    st.sidebar.success(f"¡{cambios_realizados} partidas guardadas con éxito!")
-                else:
-                    st.sidebar.info("No se detectaron partidas nuevas por pagar.")
-                st.rerun()
-
-    if st.sidebar.button("🔒 Cerrar Sesión"):
-        st.session_state.usuario = None
-        st.rerun()
-
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
-
-    # MODAL REPORTE PDF
-    if st.session_state.get('mostrar_modal_pdf', False):
-        st.markdown("### 🖨️ Configuración de Reporte PDF")
-        col_f1, col_f2 = st.columns(2)
-        fecha_inicio = col_f1.date_input("Fecha Inicio")
-        fecha_fin = col_f2.date_input("Fecha Fin")
-        
-        if st.button("Descargar Reporte PDF"):
-            # Lógica para PDF
-            try:
-                # Filtrar DF (Asumiendo que 'Fecha pago' tiene formato '%d/%m/%Y %H:%M:%S')
-                df_rep = st.session_state.df.copy()
-                df_rep = df_rep[df_rep['Fecha pago'].astype(str).str.strip() != '']
-                df_rep['Fecha_dt'] = pd.to_datetime(df_rep['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
-                
-                mask = (df_rep['Fecha_dt'].dt.date >= fecha_inicio) & (df_rep['Fecha_dt'].dt.date <= fecha_fin)
-                df_filtrado_pdf = df_rep.loc[mask]
-                
-                # Agrupar
-                resumen_pdf = df_filtrado_pdf.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
-                
-                # Crear PDF
-                pdf = FPDF(orientation='P', unit='mm', format='Letter')
-                pdf.add_page()
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, txt="Reporte de Pagos por Destajista y C.C", ln=True, align='C')
-                pdf.set_font("Arial", '', 12)
-                pdf.cell(200, 10, txt=f"Periodo: {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
-                pdf.ln(10)
-                
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(80, 10, "Destajista", 1)
-                pdf.cell(70, 10, "Centro de Costo (C.C)", 1)
-                pdf.cell(40, 10, "Cantidad Pagada", 1, ln=True)
-                
-                pdf.set_font("Arial", '', 10)
-                total_general = 0
-                for _, row_pdf in resumen_pdf.iterrows():
-                    pdf.cell(80, 10, str(row_pdf['Destajista'])[:40], 1)
-                    pdf.cell(70, 10, str(row_pdf['C.C'])[:35], 1)
-                    pdf.cell(40, 10, f"${row_pdf['Costo']:,.2f}", 1, ln=True)
-                    total_general += float(row_pdf['Costo'])
-                
-                pdf.ln(5)
-                pdf.set_font("Arial", 'B', 12)
-                pdf.cell(150, 10, "Total Pagado en el Periodo:", 0, 0, 'R')
-                pdf.cell(40, 10, f"${total_general:,.2f}", 0, 1, 'L')
-                
-                # Generar archivo en memoria
-                pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                b64 = base64.b64encode(pdf_bytes).decode()
-                
-                href = f'<a href="data:application/pdf;base64,{b64}" download="Reporte_{fecha_inicio}_al_{fecha_fin}.pdf" target="_blank" style="background-color:#3B82F6; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;">📥 Haz clic aquí para guardar/imprimir el PDF</a>'
-                st.markdown(href, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Error al generar PDF: {e}")
-                
-        if st.button("Cerrar Modal"):
-            st.session_state.mostrar_modal_pdf = False
-            st.rerun()
-        
-        st.markdown("---")
-
-    # --- 1. RESUMEN ENCABEZADO LOTE - PROTOTIPO ---
-    lotes_disponibles = sorted(list(df['Lote'].astype(str).unique()), key=clave_ordenamiento)
-    lote_display = st.session_state.get('filtro_lotes', lotes_disponibles)
     
-    if lote_display:
-        df_encabezado = df[df['Lote'].astype(str).isin(lote_display)]
-        prototipos_encabezado = ", ".join(df_encabezado['Prototipo'].astype(str).unique())
-        costo_total_filtrado = df_encabezado['Costo'].sum()
-        
-        st.markdown(f"""
-        <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO}; text-align:center;">
-            <div style="font-size:24px; font-weight:bold; margin-bottom: 5px;">🏠 Lote(s): {', '.join(lote_display)}</div>
-            <div style="font-size:18px; margin-bottom: 5px;">Prototipo(s): {prototipos_encabezado}</div>
-            <div style="font-size:16px; opacity:0.9;">Costo Total Estimado: ${costo_total_filtrado:,.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # --- 2. FILTROS DE TABLA (CRUZADOS) ---
+    # Aseguramos la existencia de las nuevas columnas para no fallar
+    cols_requeridas = ['Manzana', 'Costo', 'C.C', 'Pagar', 'Fecha pago']
+    for col in cols_requeridas:
+        if col not in df.columns:
+            df[col] = ''
+    
+    # Casting de valores para la tabla
+    df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0.0)
+    df['Pagar'] = df['Pagar'].apply(lambda x: True if str(x).lower() == 'true' else False)
+    
+    # 1. Tabla Lote al principio
+    st.markdown(f"""
+    <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
+        <div style="font-size:24px; font-weight:bold;">🏠 Vista General Lotes y Prototipos</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("##### ⏳ Filtros de Tabla")
     
-    if st.button("🔄 Limpiar todos los filtros"):
-        keys_to_clear = ['filtro_proto', 'filtro_mz', 'filtro_lotes', 'filtro_estado', 'filtro_fecha', 'filtro_conc', 'filtro_dest']
-        for k in keys_to_clear:
-            if k in st.session_state:
-                del st.session_state[k]
-        st.rerun()
-
-    col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns([1.5, 1.5, 2, 1.5, 2, 2])
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     
-    # Preparación de datos para filtros
-    df_f = df.copy()
+    # Prototipo (único) - Ordenado (1, 1+, 2...)
+    protos = df['Prototipo'].dropna().unique().tolist()
+    protos_sorted = sorted(protos, key=lambda x: [int(t) if t.isdigit() else t.lower() for t in re.split('([0-9]+)', str(x))])
+    f_proto = col_f1.selectbox("Prototipo:", ["Mostrar todos"] + [f"Prototipo {p}" if "Prototipo" not in str(p) else str(p) for p in protos_sorted])
     
-    # Prototipo (Formateo y Orden)
-    df_f['Proto_Format'] = df_f['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else str(x))
-    protos_unicos = sorted(df_f['Proto_Format'].unique(), key=sort_prototipo)
+    # Manzana (único)
+    manzanas = sorted(df['Manzana'].dropna().astype(str).unique().tolist())
+    f_mz = col_f2.selectbox("Manzana:", ["Mostrar todos"] + manzanas)
     
-    # Manzana
-    mz_unicos = sorted(df_f['Manzana'].dropna().astype(str).unique(), key=clave_ordenamiento)
+    # Destajista (único) - Ordenado alfabeticamente
+    destajistas_ord = sorted(LISTA_DESTAJISTAS)
+    f_dest = col_f3.selectbox("Destajista:", ["Mostrar todos"] + destajistas_ord)
     
-    # Conceptos (Partida)
-    conceptos_unicos = sorted(df_f['Partida'].dropna().unique(), key=sort_concepto)
-    # Remover numero para visualización en el selectbox
-    conceptos_display = [re.sub(r'^\d+\.-\s*', '', str(c)).strip() for c in conceptos_unicos]
-    dict_conceptos = dict(zip(conceptos_display, conceptos_unicos)) # Mapeo inverso
+    # Estado de pago (único)
+    f_estado = col_f4.selectbox("Estado de pago:", ["Mostrar todos", "Pagado", "Pendiente"])
+    
+    # Buscar concepto - Ordenado numéricamente y sin número
+    def extract_num_name(val):
+        match = re.match(r'^(\d+)\.-\s*(.*)', str(val))
+        return (int(match.group(1)), match.group(2)) if match else (9999, str(val))
 
-    # Destajistas
-    dest_unicos = sorted([d for d in df_f['Destajista'].unique() if str(d).strip() != ''], key=clave_ordenamiento)
-
-    # UI Filtros
-    f_proto = col_f1.selectbox("Prototipo:", ["Mostrar todos"] + protos_unicos, key="filtro_proto")
-    f_mz = col_f2.selectbox("Manzana:", ["Mostrar todos"] + mz_unicos, key="filtro_mz")
-    f_lotes = col_f3.multiselect("Lote(s):", options=lotes_disponibles, default=st.session_state.get('filtro_lotes', []), key="filtro_lotes")
-    f_concepto_disp = col_f4.selectbox("Concepto:", ["Mostrar todos"] + conceptos_display, key="filtro_conc")
-    f_dest = col_f5.selectbox("Destajista:", ["Mostrar todos"] + dest_unicos, key="filtro_dest")
-    f_estado = col_f6.selectbox("Estado de Pago:", ["Mostrar todos", "Pagado", "Pendiente"], key="filtro_estado")
-    f_fecha = st.date_input("Filtrar por Rango de Fecha:", value=None, key="filtro_fecha") # Rango devuelve una tupla de 2
-
+    conceptos_raw = df['Partida'].dropna().unique()
+    conceptos_parsed = sorted([extract_num_name(c) for c in conceptos_raw], key=lambda x: x[0])
+    conceptos_display = [c[1] for c in conceptos_parsed]
+    mapa_conceptos = {c[1]: f"{c[0]}.- {c[1]}" for c in conceptos_parsed}
+    
+    f_concepto = col_f5.selectbox("Buscar concepto:", ["Mostrar todos"] + conceptos_display)
+    
+    # Fecha (Entre 2 fechas)
+    f_fecha = st.date_input("Filtrar por fecha:", value=[])
+    
     # Aplicar Filtros
-    df_filtrado = df_f.copy()
-    
+    df_filtrado = df.copy()
     if f_proto != "Mostrar todos":
-        df_filtrado = df_filtrado[df_filtrado['Proto_Format'] == f_proto]
+        df_filtrado = df_filtrado[df_filtrado['Prototipo'] == f_proto.replace("Prototipo ", "")]
     if f_mz != "Mostrar todos":
         df_filtrado = df_filtrado[df_filtrado['Manzana'].astype(str) == f_mz]
-    if f_lotes:
-        df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(f_lotes)]
-    if f_concepto_disp != "Mostrar todos":
-        df_filtrado = df_filtrado[df_filtrado['Partida'] == dict_conceptos[f_concepto_disp]]
     if f_dest != "Mostrar todos":
         df_filtrado = df_filtrado[df_filtrado['Destajista'] == f_dest]
     if f_estado != "Mostrar todos":
         bool_estado = True if f_estado == "Pagado" else False
         df_filtrado = df_filtrado[df_filtrado['Pagar'] == bool_estado]
+    if f_concepto != "Mostrar todos":
+        df_filtrado = df_filtrado[df_filtrado['Partida'] == mapa_conceptos[f_concepto]]
     
-    if isinstance(f_fecha, tuple) and len(f_fecha) == 2:
-        # Asumiendo que 'Fecha pago' tiene formato 'dd/mm/yyyy hh:mm:ss'
-        df_filtrado['Fecha_temp'] = pd.to_datetime(df_filtrado['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-        df_filtrado = df_filtrado[(df_filtrado['Fecha_temp'] >= f_fecha[0]) & (df_filtrado['Fecha_temp'] <= f_fecha[1])]
-        df_filtrado.drop(columns=['Fecha_temp'], inplace=True)
-
-    # Eliminar columna formato temporal
-    df_filtrado.drop(columns=['Proto_Format'], inplace=True, errors='ignore')
-
-    # --- 8 y 9. SUMATORIAS EN TIEMPO REAL ---
-    # La suma "Costo" dinámica se calcula basada en las celdas marcadas.
-    # Dado que Streamlit AgGrid devuelve el DataFrame modificado, usamos session_state temporal o recalculamos.
+    if len(f_fecha) == 2:
+        df_filtrado['Fecha_dt'] = pd.to_datetime(df_filtrado['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+        df_filtrado = df_filtrado[(df_filtrado['Fecha_dt'] >= f_fecha[0]) & (df_filtrado['Fecha_dt'] <= f_fecha[1])]
     
-    # Filtramos las columnas exactas solicitadas
-    columnas_tabla = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_IndexOriginal']
+    # Extraemos solo las columnas requeridas
+    columnas_tabla = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']
     df_tabla = df_filtrado[columnas_tabla].copy()
-
-    # --- 10. ASIGNACIONES MASIVAS y 19. CHECKBOXES MASIVOS ---
+    
     st.markdown("<br>", unsafe_allow_html=True)
-    c_masivo1, c_masivo2, c_masivo3, c_masivo4 = st.columns(4)
     
-    # Selectores temporales para masivos
-    dest_masivo = c_masivo1.selectbox("Destajista Masivo", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
-    if c_masivo1.button("Asignar Destajista Masivo", use_container_width=True):
-        if dest_masivo != "Seleccionar...":
-            for idx in df_tabla['_IndexOriginal']:
-                if st.session_state.df.at[idx, 'Fecha pago'] == '': # Solo editar si no está pagado
-                    st.session_state.df.at[idx, 'Destajista'] = dest_masivo
-            st.rerun()
-
-    cc_masivo = c_masivo2.selectbox("C.C Masivo", ["Seleccionar..."] + LISTA_CC, label_visibility="collapsed")
-    if c_masivo2.button("Asignar C.C Masivo", use_container_width=True):
-        if cc_masivo != "Seleccionar...":
-            for idx in df_tabla['_IndexOriginal']:
-                if st.session_state.df.at[idx, 'Fecha pago'] == '':
-                    st.session_state.df.at[idx, 'C.C'] = cc_masivo
-            st.rerun()
-
-    # Seleccionar / Deseleccionar Todos
-    c_masivo3.markdown("<br>", unsafe_allow_html=True)
-    if c_masivo3.button("✅ Seleccionar Todos", use_container_width=True):
-        for idx in df_tabla['_IndexOriginal']:
-            if st.session_state.df.at[idx, 'Fecha pago'] == '': # Proteger los ya pagados
-                st.session_state.df.at[idx, 'Pagar'] = True
-        st.rerun()
-        
-    c_masivo4.markdown("<br>", unsafe_allow_html=True)
-    if c_masivo4.button("⬜ Seleccionar Ninguno", use_container_width=True):
-        for idx in df_tabla['_IndexOriginal']:
-            if st.session_state.df.at[idx, 'Fecha pago'] == '':
-                st.session_state.df.at[idx, 'Pagar'] = False
-        st.rerun()
-
-    # --- CONFIGURACIÓN DE AGGRID ---
-    # Aplicar regla: Si costo es 0, no se puede pagar (o en AgGrid no lo permitimos/visualizamos igual)
-    # Sin embargo la instrucción pide colocar "N/A" si es 0, al ser booleano lo desactivamos por seguridad.
-    
-    # Renderizamos la tabla usando AgGrid para permitir edición inline rica y estilos por fila
+    # Renderizar AgGrid
     gd = GridOptionsBuilder.from_dataframe(df_tabla)
     
-    # Configuración de columnas
-    gd.configure_column('_IndexOriginal', hide=True)
-    gd.configure_columns(['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Fecha pago', 'Usuario'], editable=False)
+    # Ninguna columna con filtros/sort
+    gd.configure_default_column(sortable=False, filter=False)
     
-    # Formato Moneda
-    gd.configure_column('Costo', valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", type=["numericColumn"])
+    # Todas las columnas no editables por defecto
+    gd.configure_columns(columnas_tabla, editable=False)
     
-    # Dropdowns Editables
-    gd.configure_column('Destajista', editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS})
-    gd.configure_column('C.C', editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC})
+    # Encabezados centrados para todos, excepto Partida y Costo
+    gd.configure_columns(['Lote', 'Manzana', 'Prototipo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario'], cellStyle={'textAlign': 'center'})
+    gd.configure_column('Partida', headerClass='left-align-header', cellStyle={'textAlign': 'left'})
+    gd.configure_column('Costo', headerClass='left-align-header', cellStyle={'textAlign': 'left'}, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})")
     
-    # Checkbox de pago
+    # Editables y Listas Desplegables Ordenadas
+    lista_cc_ord = sorted(LISTA_CC)
+    gd.configure_column('Destajista', editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': destajistas_ord})
+    gd.configure_column('C.C', editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': lista_cc_ord})
     gd.configure_column('Pagar', editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor')
-
-    # Deshabilitar ordenamiento de cabecera como se solicitó
-    gd.configure_default_column(sortable=False, filter=False, cellStyle={'textAlign': 'center'})
-    gd.configure_column('Partida', cellStyle={'textAlign': 'left'}) # Mejor lectura
     
-    # Inyección de código JS para dar formato a la fila bloqueada (Gris) y Normal (Negro/Verde)
-    jscode_row_style = JsCode("""
+    # Diseño de la tabla (Bloqueo y N/A)
+    jscode_style = JsCode("""
     function(params) {
-        if (params.data['Fecha pago'] !== null && params.data['Fecha pago'] !== '') {
-            return {
-                'color': '#888888',
-                'backgroundColor': '#2A2A2A',
-                'pointerEvents': 'none'
-            };
+        if (params.data['Fecha pago'] != null && params.data['Fecha pago'] !== '') {
+            return {'backgroundColor': '#404040', 'color': 'lightgray', 'pointerEvents': 'none'};
         }
-        return {
-            'color': '#39FF14',
-            'backgroundColor': 'black'
-        };
+        return {'backgroundColor': 'black', 'color': '#39FF14'};
     }
     """)
-    gd.configure_grid_options(getRowStyle=jscode_row_style)
-
+    gd.configure_grid_options(getRowStyle=jscode_style)
+    
     gridOptions = gd.build()
-
-    # Etiquetas de suma en tiempo real (Calculadas a partir del DataFrame principal que Streamlit conoce)
-    # Costo = Suma de Costo de partidas "Pagar" = True y "Fecha pago" == '' (Las que se están por guardar)
-    # Pagos = Suma de Costo de partidas "Pagar" = True y "Fecha pago" != '' (Las ya guardadas)
     
-    costo_a_pagar = df_tabla[(df_tabla['Pagar'] == True) & (df_tabla['Fecha pago'] == '')]['Costo'].sum()
-    total_pagos_historicos = df_tabla[(df_tabla['Pagar'] == True) & (df_tabla['Fecha pago'] != '')]['Costo'].sum()
-    
-    st.markdown(f"""
-    <div style='display:flex; justify-content:space-between; align-items:center; background-color:#1E1E1E; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #3B82F6;'>
-        <div style='font-size: 20px; font-weight: bold; color: #39FF14;'>💸 Monto Actual por Pagar: ${costo_a_pagar:,.2f}</div>
-        <div style='font-size: 16px; font-weight: bold; color: #3B82F6;'>🔹 Pagos (Realizados en tabla): ${total_pagos_historicos:,.2f}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Inyección CSS general para AgGrid y la pantalla
-    st.markdown("""
-        <style>
-            .ag-header-cell-label { justify-content: center; }
-            .ag-theme-streamlit { --ag-header-background-color: black; --ag-header-foreground-color: white; --ag-row-border-color: lightgray; }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Render de la tabla
-    grid_response = AgGrid(
+    AgGrid(
         df_tabla,
         gridOptions=gridOptions,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        data_return_mode=DataReturnMode.AS_INPUT,
+        update_mode="MODEL_CHANGED",
         allow_unsafe_jscode=True,
         theme='streamlit',
         height=600,
         fit_columns_on_grid_load=True
     )
 
-    # Actualizar sesión con los cambios hechos en AgGrid en tiempo real
-    if grid_response['data'] is not None:
-        df_editado = grid_response['data']
-        cambio_detectado = False
-        
-        for idx_row, row_editada in df_editado.iterrows():
-            idx_original = row_editada['_IndexOriginal']
-            
-            # Solo actualizar si no está bloqueado (Fecha pago vacía)
-            if st.session_state.df.at[idx_original, 'Fecha pago'] == '':
-                # Actualizar Pagar
-                if st.session_state.df.at[idx_original, 'Pagar'] != row_editada['Pagar']:
-                    # Regla de Costo 0 = N/A -> No permitir Pagar
-                    if row_editada['Pagar'] == True and float(row_editada['Costo']) == 0.0:
-                        st.warning(f"No se puede pagar la partida '{row_editada['Partida']}' porque su costo es 0.")
-                        st.session_state.df.at[idx_original, 'Pagar'] = False
-                    else:
-                        st.session_state.df.at[idx_original, 'Pagar'] = row_editada['Pagar']
-                        cambio_detectado = True
-                
-                # Actualizar Destajista
-                if st.session_state.df.at[idx_original, 'Destajista'] != row_editada['Destajista']:
-                    st.session_state.df.at[idx_original, 'Destajista'] = row_editada['Destajista']
-                    cambio_detectado = True
-                    
-                # Actualizar C.C
-                if st.session_state.df.at[idx_original, 'C.C'] != row_editada['C.C']:
-                    st.session_state.df.at[idx_original, 'C.C'] = row_editada['C.C']
-                    cambio_detectado = True
-
-        if cambio_detectado:
-            st.rerun() # Fuerza la actualización de las sumatorias en la cabecera
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL
@@ -576,11 +456,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
     if df_dash.empty:
         st.warning("⚠️ No hay datos para mostrar con los filtros seleccionados.")
     else:
-        # Adaptación a la nueva estructura: El pagado real depende de si Pagar es True
-        df_dash['Total_Pagado_Real'] = df_dash.apply(lambda x: float(x['Costo']) if x['Pagar'] else 0.0, axis=1)
-        df_dash['Estado'] = df_dash['Pagar'].apply(calcular_estado)
+        df_dash['Total_Pagado_Real'] = pd.to_numeric(df_dash['Pago_1']) + pd.to_numeric(df_dash['Pago_2'])
         
-        monto_total = df_dash['Costo'].sum()
+        monto_total = df_dash['Precio'].sum()
         monto_pagado = df_dash['Total_Pagado_Real'].sum()
         monto_pendiente = monto_total - monto_pagado
         
@@ -610,9 +488,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
         st.markdown("<h3 style='text-align: center;'>📋 Resumen Individual por Lote y Prototipo</h3>", unsafe_allow_html=True)
         
         df_dash_clean = df_dash.copy()
-        df_dash_clean['Deuda_Pendiente'] = df_dash_clean['Costo'] - df_dash_clean['Total_Pagado_Real']
+        df_dash_clean['Deuda_Pendiente'] = df_dash_clean['Precio'] - df_dash_clean['Total_Pagado_Real']
         
-        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo'])[['Costo', 'Total_Pagado_Real', 'Deuda_Pendiente']].sum().reset_index()
+        df_resumen = df_dash_clean.groupby(['Lote', 'Prototipo'])[['Precio', 'Total_Pagado_Real', 'Deuda_Pendiente']].sum().reset_index()
         df_resumen.columns = ['Lote', 'Prototipo', 'Valor Total', 'Total Pagado', 'Deuda Pendiente']
         
         styled_resumen = df_resumen.style.format({
@@ -634,25 +512,25 @@ elif menu == "Dashboard (Gráficos y Visor)":
         with tab_graf1:
             g_col1, g_col2 = st.columns(2)
             
-            df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Costo'].sum().reset_index()
-            fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Costo', color='Estado', 
+            df_proto_graf = df_dash.groupby(['Prototipo', 'Estado'])['Precio'].sum().reset_index()
+            fig_proto = px.bar(df_proto_graf, x='Prototipo', y='Precio', color='Estado', 
                                title="Comportamiento Financiero por Prototipo",
                                barmode='group', text_auto='.2s',
-                               color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444'})
+                               color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444'})
             fig_proto.update_traces(textposition='outside')
             g_col1.plotly_chart(fig_proto, use_container_width=True)
             
-            fig_tree = px.treemap(df_dash, path=[px.Constant("Proyecto EGC"), 'Prototipo', 'Lote', 'Estado'], values='Costo',
+            fig_tree = px.treemap(df_dash, path=[px.Constant("Proyecto EGC"), 'Prototipo', 'Lote', 'Estado'], values='Precio',
                                   title="Distribución del Presupuesto (Clic para explorar)",
-                                  color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
+                                  color='Estado', color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444', '(?)': '#cbd5e1'})
             fig_tree.update_traces(root_color="lightgrey")
             fig_tree.update_layout(margin=dict(t=50, l=25, r=25, b=25))
             g_col2.plotly_chart(fig_tree, use_container_width=True)
             
-            df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Costo'].sum().reset_index()
-            fig_lote = px.bar(df_lotes_graf, x='Lote', y='Costo', color='Estado', 
+            df_lotes_graf = df_dash.groupby(['Lote', 'Estado'])['Precio'].sum().reset_index()
+            fig_lote = px.bar(df_lotes_graf, x='Lote', y='Precio', color='Estado', 
                               title="Avance Financiero Específico por Lote",
-                              color_discrete_map={'Pagado': '#10B981', 'Pendiente': '#EF4444'})
+                              color_discrete_map={'Pagado': '#10B981', 'Pago Parcial': '#F59E0B', 'Pendiente': '#EF4444'})
             st.plotly_chart(fig_lote, use_container_width=True)
             
         with tab_graf2:
@@ -669,9 +547,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
             else:
                 g_col3.info("Aún no hay pagos ejecutados en la selección actual para mostrar.")
                 
-            df_deudores = df_dash[df_dash['Total_Pagado_Real'] < df_dash['Costo']].copy()
+            df_deudores = df_dash[df_dash['Total_Pagado_Real'] < df_dash['Precio']].copy()
             if not df_deudores.empty:
-                df_deudores['Deuda'] = df_deudores['Costo'] - df_deudores['Total_Pagado_Real']
+                df_deudores['Deuda'] = df_deudores['Precio'] - df_deudores['Total_Pagado_Real']
                 df_deudores_clean = df_deudores.fillna("Sin Asignar")
                 df_deuda = df_deudores_clean.groupby('Destajista')['Deuda'].sum().reset_index().sort_values('Deuda', ascending=True)
                 fig_deuda = px.bar(df_deuda, y='Destajista', x='Deuda', orientation='h',
@@ -680,6 +558,7 @@ elif menu == "Dashboard (Gráficos y Visor)":
                 g_col4.plotly_chart(fig_deuda, use_container_width=True)
             else:
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
+
 
 # =========================================================================
 # PESTAÑA 3: MAPA INTERACTIVO (CON INTEGRACIÓN SVG Y ESFERAS INYECTADAS)
@@ -734,23 +613,20 @@ elif menu == "Mapa Interactivo":
         "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
     }
 
-    # Asignar 'Estado' y 'Total_Pagado_Real' basado en Pagar
-    df['Total_Pagado_Real'] = df.apply(lambda x: float(x['Costo']) if x['Pagar'] else 0.0, axis=1)
-    df['Estado'] = df['Pagar'].apply(calcular_estado)
-
     lotes_datos_mapa = []
     for lote_num, coords in COORDENADAS_LOTES.items():
         df_lote_mapa = df[df['Lote'].astype(str).str.strip() == str(lote_num)].copy()
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            total_precio_lote = df_lote_mapa['Costo'].sum()
+            df_lote_mapa['Total_Pagado_Real'] = pd.to_numeric(df_lote_mapa['Pago_1']) + pd.to_numeric(df_lote_mapa['Pago_2'])
+            total_precio_lote = df_lote_mapa['Precio'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
             
             porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
             pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             
-            # --- LÓGICA DE ETAPAS DE OBRA ---
+            # --- NUEVA LÓGICA DE ETAPAS DE OBRA ---
             if porcentaje == 0:
                 color_lote = "🔴 No iniciado"
                 hex_color = "#EF4444"      # Rojo
@@ -795,7 +671,8 @@ elif menu == "Mapa Interactivo":
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
-    costo_total_mapa = df_kpi['Costo'].sum()
+    df_kpi['Total_Pagado_Real'] = pd.to_numeric(df_kpi['Pago_1']) + pd.to_numeric(df_kpi['Pago_2'])
+    costo_total_mapa = df_kpi['Precio'].sum()
     pagado_mapa = df_kpi['Total_Pagado_Real'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
 
@@ -849,12 +726,14 @@ elif menu == "Mapa Interactivo":
     
     filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
     
-    df_filtered = df[df['Estado'].isin(['Pagado'])].copy()
+    df_filtered = df[df['Estado'].isin(['Pagado', 'Pago Parcial'])].copy()
     if filtro_partidas_mapa:
         df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
+
+        # --- LEYENDA VISUAL DE AVANCES ---
     st.markdown("""
     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: rgba(255,255,255,0.05); border-radius: 8px; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #EF4444; border-radius: 50%;"></div><span style="font-size: 12px;">0% No iniciado</span></div>
@@ -866,6 +745,8 @@ elif menu == "Mapa Interactivo":
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #10B981; border-radius: 50%;"></div><span style="font-size: 12px;">96-100% Detallado y entrega</span></div>
     </div>
     """, unsafe_allow_html=True)
+    # ---------------------------------
+
 
     col_mapa, col_info_lote = st.columns([5, 3])
 
@@ -890,7 +771,12 @@ elif menu == "Mapa Interactivo":
                     
             idx_t3 = opciones_selector.index(valor_defecto_mapa) if valor_defecto_mapa in opciones_selector else 0
 
-            mapa_sel = st.selectbox("Selector", opciones_selector, index=idx_t3, label_visibility="collapsed")
+            mapa_sel = st.selectbox(
+                "Selector", 
+                opciones_selector, 
+                index=idx_t3, 
+                label_visibility="collapsed"
+            )
                 
             if mapa_sel != valor_defecto_mapa:
                 if mapa_sel == "Mostrar Todos":
@@ -902,6 +788,7 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
+        # --- LÓGICA DE LA TABLA (SEPARACIÓN MOSTRAR TODOS vs LOTE ESPECÍFICO) ---
         if st.session_state.mostrar_todos_mapa:
             if filtros_activos:
                 st.markdown("**Desglose de Filtros Activos (Todos los Lotes):**")
@@ -910,16 +797,27 @@ elif menu == "Mapa Interactivo":
                         "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
                         "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
                         "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
-                        "<tr><th style='padding: 10px; border-bottom: 2px solid #ddd;'></th><th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Lote</th><th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Partida</th><th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Destajista</th></tr></thead><tbody>"
+                        "<tr>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Lote</th>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Partida</th>"
+                        "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left;'>Destajista</th>"
+                        "</tr></thead><tbody>"
                     )
                     
                     for _, row_lote in df_filtered.iterrows():
                         c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
+                        estado_row = row_lote['Estado']
                         destajista_str = row_lote['Destajista'] if pd.notna(row_lote['Destajista']) and row_lote['Destajista'] != "" else "Sin Asignar"
+                        op_style = "1.0" if estado_row == 'Pagado' else "0.5"
                         
                         html_table += (
-                            f"<tr style='border-bottom: 1px solid #eee;'><td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:1.0; margin:auto;'></div></td>"
-                            f"<td style='padding: 8px; text-align: left;'>{row_lote['Lote']}</td><td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td><td style='padding: 8px; text-align: left;'>{destajista_str}</td></tr>"
+                            "<tr style='border-bottom: 1px solid #eee;'>"
+                            f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:{op_style}; margin:auto;'></div></td>"
+                            f"<td style='padding: 8px; text-align: left;'>{row_lote['Lote']}</td>"
+                            f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
+                            f"<td style='padding: 8px; text-align: left;'>{destajista_str}</td>"
+                            "</tr>"
                         )
                     html_table += "</tbody></table></div>"
                     st.markdown(html_table, unsafe_allow_html=True)
@@ -928,11 +826,12 @@ elif menu == "Mapa Interactivo":
             else:
                 st.markdown("**Resumen General por Lote (Financiero):**")
                 df_resumen_global = df.copy()
+                df_resumen_global['Total_Pagado_Real'] = pd.to_numeric(df_resumen_global['Pago_1']) + pd.to_numeric(df_resumen_global['Pago_2'])
                 
                 df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
                     Total_Partidas=('Partida', 'count'),
                     Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
-                    Costo_Total=('Costo', 'sum'),
+                    Costo_Total=('Precio', 'sum'),
                     Pagado_Acum=('Total_Pagado_Real', 'sum')
                 ).reset_index()
                 
@@ -942,18 +841,20 @@ elif menu == "Mapa Interactivo":
                 styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
                 st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
         else:
+            # MOSTRANDO LOTE ESPECÍFICO (Cruzando datos con filtros activos)
             lote_puro_num = str(st.session_state.lote_actual)
             
             if filtros_activos:
                 st.markdown(f"**Desglose Filtrado (Lote {lote_puro_num}):**")
-                df_desglose_lote = df_filtered[df_filtered['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
+                df_desglose_lote = df_filtered[df_filtered['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
             else:
                 st.markdown(f"**Desglose General (Lote {lote_puro_num}):**")
-                df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
+                df_desglose_lote = df[df['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
             
             if not df_desglose_lote.empty:
                 def formatear_estado_icono(val):
                     if val == "Pagado": return "🟢 100% PAGADO"
+                    elif val == "Pago Parcial": return "🟡 PAGO PARCIAL"
                     return "🔴 PENDIENTE"
                     
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(formatear_estado_icono)
@@ -962,16 +863,26 @@ elif menu == "Mapa Interactivo":
                     "<div style='height: 700px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%'>" 
                     "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>" 
                     "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>" 
-                    "<tr><th style='padding: 10px; border-bottom: 2px solid #ddd;'></th><th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th><th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th><th style='padding: 10px; border-bottom: 2px solid #ddd;'>Costo</th></tr></thead><tbody>"
+                    "<tr>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
+                    "</tr></thead><tbody>"
                 )
                 
                 for _, row_lote in df_desglose_lote.iterrows():
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
-                    op_style = "1.0" if row_lote['Estado'] == 'Pagado' else "0.3"
+                    # Reflejo opcional en opacidad por si es parcial y hay filtros
+                    op_style = "1.0" if row_lote['Estado'] == 'Pagado' else "0.5" if filtros_activos else "1.0"
 
                     html_table += (
-                        f"<tr style='border-bottom: 1px solid #eee;'><td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:{op_style}; margin:auto;'></div></td>"
-                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td><td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td><td style='padding: 8px;'>${row_lote['Costo']:,.2f}</td></tr>"
+                        "<tr style='border-bottom: 1px solid #eee;'>"
+                        f"<td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:{op_style}; margin:auto;'></div></td>"
+                        f"<td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td>"
+                        f"<td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td>"
+                        f"<td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td>"
+                        "</tr>"
                     )
                 html_table += "</tbody></table></div>"
                 st.markdown(html_table, unsafe_allow_html=True)
@@ -980,8 +891,10 @@ elif menu == "Mapa Interactivo":
                 st.info(msg)
 
     with col_mapa:
+        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS ---
         nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
         archivo_encontrado = None
+        
         for nombre in nombres_posibles:
             if os.path.exists(nombre):
                 archivo_encontrado = nombre
@@ -1032,16 +945,25 @@ elif menu == "Mapa Interactivo":
                 svg_tag = soup.find("svg")
                 
                 if svg_tag:
+                # 1. Rescatamos las medidas originales para crear el viewBox si el CAD no lo traía.
+                # Esto garantiza que el navegador conozca el tamaño real y escale todo sin cortar nada.
                     if not svg_tag.get('viewBox') and not svg_tag.get('viewbox'):
                         w_orig = str(svg_tag.get('width', '')).replace('px', '').replace('pt', '').strip()
                         h_orig = str(svg_tag.get('height', '')).replace('px', '').replace('pt', '').strip()
                         if w_orig and h_orig and w_orig.replace('.', '', 1).isdigit() and h_orig.replace('.', '', 1).isdigit():
                             svg_tag['viewBox'] = f"0 0 {float(w_orig)} {float(h_orig)}"
 
-                    svg_tag['width'] = "100%"
-                    svg_tag['height'] = "100%"
-                    if not svg_tag.get('preserveAspectRatio'):
-                        svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                # 2. Permitimos que el ancho sea responsivo y el alto se ajuste automáticamente. hace zoom out para que quepa toda la imgaen
+                svg_tag['width'] = "100%"
+                svg_tag['height'] = "100%"
+                
+                if not svg_tag.get('preserveAspectRatio'):
+                    svg_tag['preserveAspectRatio'] = "xMidYMid meet"
+                #if svg_tag:
+                #    svg_tag['width'] = "100%"
+                #    svg_tag['height'] = "100%"
+                #    if not svg_tag.get('preserveAspectRatio'):
+                        #svg_tag['preserveAspectRatio'] = "xMidYMid meet"
                         
                     defs = soup.find('defs')
                     if not defs:
@@ -1094,13 +1016,19 @@ elif menu == "Mapa Interactivo":
                                     elif len(colores_opacidades) > 1:
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
+
+                                        # --- NUEVA LÓGICA DE CORTE RECTANGULAR AUTOCONTENIDA ---
                                         angulo_rotacion = 0
                                         try:
+                                            # Buscamos los números dentro del polígono
                                             d_attr = lote_path.get('d', '')
                                             numeros = re.findall(r'[-+]?(?:\d*\.\d+|\d+)', d_attr)
+                                            
                                             if len(numeros) >= 4:
                                                 max_dist = 0
                                                 best_dx, best_dy = 1, 0
+                                                
+                                                # Buscamos el vector (lado) más largo del lote
                                                 for idx in range(2, len(numeros)-1, 2):
                                                     dx = float(numeros[idx])
                                                     dy = float(numeros[idx+1])
@@ -1109,6 +1037,8 @@ elif menu == "Mapa Interactivo":
                                                         max_dist = dist
                                                         best_dx = dx
                                                         best_dy = dy
+                                                
+                                                # Convertimos a grados para inyectarlo en el SVG
                                                 if max_dist > 0:
                                                     angulo_rotacion = math.degrees(math.atan2(best_dy, best_dx))
                                         except Exception:
@@ -1184,41 +1114,54 @@ elif menu == "Mapa Interactivo":
                                 if row.Estado == "Pagado":
                                     fill_style = color_burbuja
                                     fill_opacity = "1.0"
+                                elif row.Estado == "Pago Parcial":
+                                    fill_style = color_burbuja
+                                    fill_opacity = "0.5"
                                 else:
                                     fill_style = "none" 
                                     fill_opacity = "0.0"
                                     
                                 if fill_opacity != "0.0":
                                     circle_tag = soup.new_tag(
-                                        "circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(r_esfera), 
+                                        "circle", 
+                                        cx=f"{cx:.2f}", 
+                                        cy=f"{cy:.2f}", 
+                                        r=str(r_esfera), 
                                         style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
                                     )
                                     lote_path.insert_after(circle_tag)
 
                 html_final = str(soup).replace("viewbox=", "viewBox=")
+                #ajuste de altura del contenedor a 850 px para el zoom out, cambiar este valor (height) en las 2 lineas de abajo para hacer mas grande o mas chica la imagen de los poligonos
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
-                st.components.v1.html(html_final, height=1000, scrolling=False)
+                st.components.v1.html(html_final, height=1000, scrolling=False)  #cambiar scrolling a true si queremos que aparezca esa barra 
 
             except Exception as e:
                 st.error("⚠️ Hubo un problema al procesar el archivo SVG.")
+                st.write(f"Detalle del error técnico: {e}")
         else:
             st.error("⚠️ No se encontró el archivo del mapa.")
+            st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
+        # --- FIN DE LA INTEGRACIÓN DEL SVG ---
 
+    # --- INICIO DEL DIAGRAMA INTERACTIVO INYECTADO DEBAJO DEL MAPA ---
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("### 🔗 Diagrama Interactivo de Partidas")
     
     if st.session_state.mostrar_todos_mapa:
-        st.info("⚠️ Selecciona un Lote específico desde el panel 'Desglose' para visualizar este diagrama.")
+        st.info("⚠️ Selecciona un Lote específico desde el panel 'Desglose' (arriba a la derecha) para visualizar este diagrama.")
     else:
         df_lote_diag = df[df['Lote'].astype(str).str.strip() == str(st.session_state.lote_actual)]
 
         if not df_lote_diag.empty:
             num_partidas = len(df_lote_diag)
             cols = math.ceil(math.sqrt(num_partidas))
+
             filas = math.ceil(num_partidas / cols) if cols > 0 else 1
             
             x_coords, y_coords, colores_relleno, textos_hover = [], [], [], []
 
+            # 1. Definimos la cuadrícula virtual perfecta. Cada celda medirá 10x10.
             ancho_celda = 10
             alto_celda = 5
             
@@ -1226,6 +1169,7 @@ elif menu == "Mapa Interactivo":
                 col_actual = i % cols
                 fila_actual = i // cols
                 
+                # 2. Posicionamos en la intersección sumando el "radio virtual" (la mitad de la celda)
                 x = (col_actual * ancho_celda) + (ancho_celda / 2.0)
                 y = (fila_actual * alto_celda) + (alto_celda / 2.0)
                     
@@ -1233,46 +1177,65 @@ elif menu == "Mapa Interactivo":
                 y_coords.append(y)
 
                 estado = row.Estado
-                costo = float(row.Costo)
-                destajista = row.Destajista if pd.notna(row.Destajista) and str(row.Destajista).strip() != "" else "Sin Asignar"
+                costo = row.Precio
+                pago_real = float(getattr(row, 'Pago_1', 0)) + float(getattr(row, 'Pago_2', 0))
+                destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                
                 color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
 
                 if estado == "Pagado":
                     colores_relleno.append(color_asignado)
+                elif estado == "Pago Parcial":
+                    colores_relleno.append(hex_to_rgba(color_asignado, 0.5))
                 else:
                     colores_relleno.append("rgba(0,0,0,0)")
 
-                hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo:</b> ${costo:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
+                hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
+            # 3. Calculamos la altura física (en píxeles) para que NUNCA colisionen
             diametro_esfera_px = 60
-            padding_px = 25 
+            padding_px = 25 # Separación garantizada entre esferas
             altura_grafico = max(350, filas * (diametro_esfera_px + padding_px))
 
             fig_diag = go.Figure(data=go.Scatter(
-                x=x_coords, y=y_coords, mode='markers',
-                marker=dict(size=diametro_esfera_px, color=colores_relleno, symbol='circle', line=dict(width=0)),
-                text=textos_hover, hoverinfo='text'
+                x=x_coords,
+                y=y_coords,
+                mode='markers',
+                marker=dict(
+                    size=diametro_esfera_px, 
+                    color=colores_relleno,
+                    symbol='circle',
+                    line=dict(width=0) 
+                ),
+                text=textos_hover,
+                hoverinfo='text'
             ))
 
+            # 4. El rectángulo delimita exactamente los bordes de la cuadrícula
             x_min, y_min = 0.0, 0.0
             x_max = cols * ancho_celda
             y_max = filas * alto_celda
+            
 
             fig_diag.add_shape(
                 type="path",
                 path=f"M {x_min} {y_min} L {x_min} {y_max} L {x_max} {y_max} L {x_max} {y_min} Z",
                 line=dict(color="rgba(14,232,144,0.8)", width=8), 
-                fillcolor="rgba(0,0,0,0)", layer="below"
+                fillcolor="rgba(0,0,0,0)",
+                layer="below"
             )
-            
+
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
+            # EJE Y BLOQUEADO A 1:1 PARA GARANTIZAR GEOMETRÍA CIRCULAR Y SIN CORTES
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – Prototipo {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
                 yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed", scaleanchor="x", scaleratio=1),
-                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                #yaxis=dict(visible=False, showgrid=False, zeroline=False, autorange="reversed"),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=altura_grafico, 
                 hoverlabel=dict(bgcolor="black", font_color="white", font_size=14, font_family="Arial") 
             )
@@ -1281,4 +1244,8 @@ elif menu == "Mapa Interactivo":
             
             pagadas_diag = len(df_lote_diag[df_lote_diag['Estado'] == 'Pagado'])
             pendientes_diag = num_partidas - pagadas_diag
-            st.markdown(f"**🟢 Total Pagadas (100%):** {pagadas_diag} | **🔴 Pendientes:** {pendientes_diag}")
+            st.markdown(f"**🟢 Total Pagadas (100%):** {pagadas_diag} | **🔴 Pendientes/Parciales:** {pendientes_diag}")
+            
+        else:
+            st.warning("⚠️ No hay partidas registradas para este lote.")
+    # --- FIN DEL DIAGRAMA INTERACTIVO ---
