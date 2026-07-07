@@ -487,7 +487,7 @@ if menu == "Registro de Destajos":
         --ag-header-background-color: #111111;  #Fondo de encabezados
         --ag-header-foreground-color: #ffffff;  #Texto encabezados
         --ag-row-border-color: #333333;         #lienas horizontales
-        --ag-font-size: 17px;
+        --ag-font-size: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
