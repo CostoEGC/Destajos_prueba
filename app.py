@@ -156,7 +156,11 @@ menu = st.sidebar.radio("Menú Principal:", [
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     df_grid = st.session_state.get('aggrid_data', None)
     if df_grid is not None:
-        df_actualizado = pd.DataFrame(df_grid)
+        # Si AgGrid devuelve un diccionario con la llave 'data', extraemos los registros directamente
+        if isinstance(df_grid, dict) and 'data' in df_grid:
+            df_actualizado = pd.DataFrame(df_grid['data'])
+        else:
+            df_actualizado = pd.DataFrame(df_grid)
         
         filas_invalidas = df_actualizado[(df_actualizado['Pagar'] == True) & 
                                          ((df_actualizado['Destajista'] == '') | (df_actualizado['C.C'] == '') | 
@@ -354,13 +358,21 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[(df_filtrado['Fecha_dt'] >= st.session_state.f_fechas[0]) & (df_filtrado['Fecha_dt'] <= st.session_state.f_fechas[1])]
         df_filtrado = df_filtrado.drop(columns=['Fecha_dt'])
 
+    # --- RESUMEN DE COSTOS EN TIEMPO REAL ---
     sum_precio = df_filtrado['Costo'].sum()
     
+    # Capturar los datos en tiempo real directo del estado actual de la grilla
     df_interactivo = st.session_state.get('aggrid_data', df_filtrado.to_dict('records'))
-    df_interactivo_pd = pd.DataFrame(df_interactivo)
+    if isinstance(df_interactivo, dict) and 'data' in df_interactivo:
+        df_interactivo_pd = pd.DataFrame(df_interactivo['data'])
+    else:
+        df_interactivo_pd = pd.DataFrame(df_interactivo)
     
+    # Calcular de forma exacta basándonos en las filas que tienen el checkbox Pagar en True
     if not df_interactivo_pd.empty and 'Pagar' in df_interactivo_pd.columns:
-        pagos_realizados = df_interactivo_pd[df_interactivo_pd['Pagar'] == True]['Costo'].sum()
+        # Asegurar conversión a booleano de los checks activos
+        df_interactivo_pd['Pagar'] = df_interactivo_pd['Pagar'].apply(lambda x: True if str(x).strip().upper() == 'TRUE' or x is True else False)
+        pagos_realizados = df_interactivo_pd[df_interactivo_pd['Pagar'] == True]['Costo'].astype(float).sum()
     else:
         pagos_realizados = df_filtrado[df_filtrado['Pagar'] == True]['Costo'].sum()
         
@@ -503,7 +515,7 @@ if menu == "Registro de Destajos":
     grid_response = AgGrid(
         df_filtrado,
         gridOptions=gridOptions,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         allow_unsafe_jscode=True,
         theme='alpine-dark',
