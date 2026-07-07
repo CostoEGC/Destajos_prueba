@@ -195,14 +195,19 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         # Forzar booleanos limpios por seguridad de evaluación
         df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
         
-        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha pago'] == '')]
+        # CORRECCIÓN: Limpieza absoluta para detectar de forma segura las celdas vacías devueltas por AgGrid (evita fallos por None o NaN)
+        df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+        
+        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
         filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].astype(str).str.strip() == '') | (filas_a_pagar['C.C'].astype(str).str.strip() == '')]
         
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
         else:
             with st.spinner("Sincronizando con Google..."):
-                ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
+                # CORRECCIÓN DE HORA: Forzamos una diferencia horaria UTC-6 exacta e independiente del servidor de GitHub/Streamlit
+                from datetime import timezone, timedelta
+                ahora = datetime.now(timezone(timedelta(hours=-6))).strftime("%d/%m/%Y %H:%M:%S")
                 usuario_actual = st.session_state.usuario
                 
                 # 1. Guardar partidas que se van a pagar
@@ -216,7 +221,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
                 # 2. Guardar partidas que solo se editaron (Destajista o CC) sin pagar aún
-                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha pago'] == '')]
+                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
                 for _, row in filas_solo_edicion.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
@@ -231,8 +236,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 
                 # 4. Sincronizar memoria y forzar refresco limpio de pantalla
                 st.session_state.df_original = st.session_state.df.copy()
-                st.session_state.current_grid_state = pd.DataFrame() # Resetea estado para reflejar las fechas nuevas
-                st.session_state.reload_trigger = True
+                st.session_state.current_grid_state = pd.DataFrame() 
                 st.session_state.grid_key += 1 
                 st.success("¡Datos guardados!")
                 st.rerun()
@@ -292,6 +296,34 @@ if st.sidebar.button("📄 Reportes"):
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
+
+    # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
+if not st.session_state.df.empty:
+    df_side = st.session_state.df.copy()
+    df_side['Costo'] = pd.to_numeric(df_side['Costo'], errors='coerce').fillna(0)
+    
+    # Agrupar por prototipo y sumar montos
+    df_resumen_proto = df_side.groupby('Prototipo')['Costo'].sum().reset_index()
+    
+    # Aplicar ordenamiento natural nativo (1, 1+, 2, 2+, 2A, 2A+...)
+    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(natural_sort_key)
+    df_resumen_proto = df_resumen_proto.sort_values(by='sort_key').drop(columns=['sort_key'])
+    
+    total_general_protos = df_resumen_proto['Costo'].sum()
+    
+    # Dar formato estético de moneda
+    df_mostrar_sidebar = df_resumen_proto.copy()
+    df_mostrar_sidebar['Total'] = df_mostrar_sidebar['Costo'].apply(lambda x: f"${x:,.2f}")
+    df_mostrar_sidebar = df_mostrar_sidebar[['Prototipo', 'Total']]
+    
+    # Añadir renglón final con la sumatoria completa de los prototipos
+    fila_total = pd.DataFrame([{'Prototipo': 'TOTAL', 'Total': f"${total_general_protos:,.2f}"}])
+    df_mostrar_sidebar = pd.concat([df_mostrar_sidebar, fila_total], ignore_index=True)
+    
+    # Dibujar la tabla limpia en el panel de la izquierda
+    st.sidebar.markdown("<br><hr>", unsafe_allow_html=True)
+    st.sidebar.markdown("##### 📊 Costo por Prototipo")
+    st.sidebar.dataframe(df_mostrar_sidebar, hide_index=True, use_container_width=True)
 
 # =========================================================================
 # PESTAÑA 1: REGISTRO DE DESTAJOS
