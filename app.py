@@ -20,7 +20,7 @@ st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
+    /* Se eliminó la regla que ocultaba el header para que el botón de expandir la barra lateral (>) NO desaparezca */
     footer {visibility: hidden;}
     .stAppToolbar {visibility: hidden;}
     .stAppDeployButton {display: none;}
@@ -51,11 +51,14 @@ def obtener_datos_gsheet():
             if col not in df.columns:
                 df[col] = ''
 
-        # Limpieza de datos estricta para evitar bloqueos falsos
+        # Limpieza de datos estricta
         df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0.0)
         df['Pagar'] = df['Pagar'].apply(lambda x: True if str(x).strip().upper() == 'TRUE' else False)
         
-        df['Fecha pago'] = df['Fecha pago'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'null'], '')
+        # LIMPIEZA EXTREMA DE FECHAS: Si no tiene un formato con '/' (ej. 12/05/2026), se borra por completo
+        df['Fecha pago'] = df['Fecha pago'].astype(str).str.strip()
+        df.loc[~df['Fecha pago'].str.contains(r'/', na=False), 'Fecha pago'] = ''
+        
         df['Usuario'] = df['Usuario'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'null'], '')
         df['Destajista'] = df['Destajista'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'null'], '')
         df['C.C'] = df['C.C'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'null'], '')
@@ -70,7 +73,6 @@ def obtener_datos_gsheet():
 
 def actualizar_datos_gsheet(df):
     try:
-        # Convertir booleanos a texto para GS
         df_export = df.copy()
         df_export['Pagar'] = df_export['Pagar'].astype(str)
         
@@ -101,7 +103,6 @@ LISTA_CC = [
     "CC 005 - Urbanización"
 ]
 
-# --- CABECERA UNIVERSAL CON LOGO ---
 def mostrar_cabecera_con_logo(titulo, subtitulo=None):
     col_texto, col_logo = st.columns([8, 2])
     with col_texto:
@@ -169,7 +170,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     if df_grid is not None:
         df_actualizado = pd.DataFrame(df_grid)
         
-        # Validación de candados
         filas_invalidas = df_actualizado[(df_actualizado['Pagar'] == True) & 
                                          ((df_actualizado['Destajista'] == '') | (df_actualizado['C.C'] == '') | 
                                           (df_actualizado['Destajista'].isnull()) | (df_actualizado['C.C'].isnull()))]
@@ -430,17 +430,17 @@ if menu == "Registro de Destajos":
     if '_index' in df_filtrado.columns:
         gb.configure_column('_index', hide=True)
 
-    # JsCode ajustado: Valida estrictamente cadenas nulas o vacías para evitar falsos positivos
+    # JsCode MÁS ESTRICTO: Solo bloquea si encuentra una cadena que contenga '/' (es decir, una fecha genuina)
     bloqueo_js = JsCode("""
     function(params) {
         var fp = params.data['Fecha pago'];
         if (fp != null && fp !== undefined) {
-            var fpStr = String(fp).trim().toLowerCase();
-            if (fpStr !== '' && fpStr !== 'nan' && fpStr !== 'nat' && fpStr !== 'none' && fpStr !== 'null') {
-                return false; // No editable, ya tiene fecha real
+            var fpStr = String(fp).trim();
+            if (fpStr.length >= 8 && fpStr.indexOf('/') !== -1) {
+                return false; // Bloqueado, tiene fecha real
             }
         }
-        return true; // Editable
+        return true; // Editable, no es una fecha válida
     }
     """)
     
@@ -449,9 +449,9 @@ if menu == "Registro de Destajos":
         var baseStyle = {'color': '#39FF14', 'backgroundColor': '#0a0a0a', 'borderBottom': '1px solid #333333'};
         var fp = params.data['Fecha pago'];
         if (fp != null && fp !== undefined) {
-            var fpStr = String(fp).trim().toLowerCase();
-            if (fpStr !== '' && fpStr !== 'nan' && fpStr !== 'nat' && fpStr !== 'none' && fpStr !== 'null') {
-                baseStyle['backgroundColor'] = '#2d2d2d'; // Gris muy oscuro para indicar bloqueo real
+            var fpStr = String(fp).trim();
+            if (fpStr.length >= 8 && fpStr.indexOf('/') !== -1) {
+                baseStyle['backgroundColor'] = '#2d2d2d'; 
                 baseStyle['color'] = '#888888';
             }
         }
