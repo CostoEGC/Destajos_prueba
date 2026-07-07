@@ -15,18 +15,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 from fpdf import FPDF
 import io
 
-# --- OCULTAR BARRAS DE STREAMLIT ---
-st.markdown(
-    """
-    <style>
-    #MainMenu {visibility: hidden;}
-    /* Se eliminó la regla que ocultaba el header para que el botón de expandir la barra lateral (>) NO desaparezca */
-    footer {visibility: hidden;}
-    .stAppToolbar {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+
 # -----------------------------------
 
 # =========================================================================
