@@ -22,6 +22,7 @@ st.markdown(
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
+    .stAppDeployButton {display: none;}
     </style>
     """,
     unsafe_allow_html=True
