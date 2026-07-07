@@ -110,7 +110,7 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
             st.image("logo.png", use_container_width=True)
 
 # =========================================================================
-# INICIALIZACIÓN DE ESTADOS GLOBALES (LA BASE DE LAS 3 PESTAÑAS)
+# INICIALIZACIÓN DE ESTADOS GLOBALES 
 # =========================================================================
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
@@ -118,7 +118,6 @@ if 'usuario' not in st.session_state:
 if 'df' not in st.session_state:
     st.session_state.df = obtener_datos_gsheet()
 
-# Siempre apuntamos a st.session_state.df para que los cambios se reflejen en todas partes
 df = st.session_state.df
 
 partidas_unicas_global = df['Partida'].unique() if not df.empty else []
@@ -131,14 +130,17 @@ if 'lote_actual' not in st.session_state:
 if 'mostrar_todos_mapa' not in st.session_state:
     st.session_state.mostrar_todos_mapa = False
 
-# --- 1. FORMULARIO DE ACCESO ---
+# --- 1. FORMULARIO DE ACCESO (REDUCIDO EN TAMAÑO) ---
 def login():
     mostrar_cabecera_con_logo("🔐 Control de estimaciones", "Por favor, introduce tus credenciales para ingresar.")
-    with st.container():
+    
+    col_espacio_izq, col_login, col_espacio_der = st.columns([1, 1, 1])
+    with col_login:
+        st.markdown("<br><br>", unsafe_allow_html=True)
         usuario = st.text_input("Usuario", key="input_user")
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
-        if st.button("Ingresar", use_container_width=False):
+        if st.button("Ingresar", use_container_width=True):
             usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {"admin":"123"}
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
                 st.session_state.usuario = usuario
@@ -303,6 +305,28 @@ if menu == "Registro de Destajos":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # -------------------------------------------------------------
+    # BOTONES DE SELECCIONAR TODOS / DESELECCIONAR TODOS
+    # -------------------------------------------------------------
+    if 'acc_seleccionar' not in st.session_state:
+        st.session_state.acc_seleccionar = None
+
+    c_btn1, c_btn2, c_btn3 = st.columns([2, 2, 6])
+    if c_btn1.button("☑️ Seleccionar Todos los Filtrados", use_container_width=True):
+        st.session_state.acc_seleccionar = True
+        st.rerun()
+    if c_btn2.button("☐ Deseleccionar Todos", use_container_width=True):
+        st.session_state.acc_seleccionar = False
+        st.rerun()
+
+    # Aplicamos la selección al dataframe visual si el botón fue presionado
+    if st.session_state.acc_seleccionar is True:
+        df_filtrado.loc[(df_filtrado['Estado'] != 'Pagado') & (df_filtrado['Precio'] > 0), 'Pagar'] = True
+        st.session_state.acc_seleccionar = None
+    elif st.session_state.acc_seleccionar is False:
+        df_filtrado['Pagar'] = False
+        st.session_state.acc_seleccionar = None
+
+    # -------------------------------------------------------------
     # CONFIGURACIÓN DE AG-GRID (UNA SOLA TABLA, BLOQUEOS MEDIANTE JS)
     # -------------------------------------------------------------
     st.markdown("### 📋 Edición y Pago de Destajos")
@@ -312,20 +336,26 @@ if menu == "Registro de Destajos":
     df_grid['Prototipo'] = df_grid['Prototipo'].apply(lambda x: f"Prototipo {x}" if not str(x).startswith("Prototipo") else x)
 
     gb = GridOptionsBuilder.from_dataframe(df_grid)
-    gb.configure_default_column(editable=False, wrapText=True, autoHeight=True)
+    # Se deshabilita filtro y orden en los encabezados según lo requerido
+    gb.configure_default_column(editable=False, sortable=False, filter=False, wrapText=True, autoHeight=True)
     
-    # Configuramos el ancho de columnas (Partida más grande)
     gb.configure_column("Lote", width=80, cellStyle={'textAlign': 'center'})
     gb.configure_column("Manzana", width=100, cellStyle={'textAlign': 'center'})
     gb.configure_column("Prototipo", width=120, cellStyle={'textAlign': 'center'})
     gb.configure_column("Partida", width=250) 
-    gb.configure_column("Precio", header_name="Costo", width=100, type=["numericColumn","numberColumnFilter","customNumericFormat"], precision=2, cellStyle={'textAlign': 'center'})
     
-    # Columnas Editables con Listas Desplegables
+    # Formato de Moneda para el Costo
+    js_formato_moneda = JsCode("""
+    function(params) {
+        if (params.value == null) return '';
+        return '$ ' + params.value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    """)
+    gb.configure_column("Precio", header_name="Costo", width=100, valueFormatter=js_formato_moneda, cellStyle={'textAlign': 'center'})
+    
     gb.configure_column('Destajista', width=180, editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [""] + LISTA_DESTAJISTAS})
     gb.configure_column('C.C', width=130, editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [""] + LISTA_CC})
     
-    # Lógica de Checkbox (No permite checkear si el costo es 0 o si ya está Pagado)
     js_checkbox = JsCode("""
     function(params) {
         if (params.data.Estado === 'Pagado' || params.data.Precio === 0) {
@@ -340,7 +370,6 @@ if menu == "Registro de Destajos":
     gb.configure_column("Usuario", width=100, cellStyle={'textAlign': 'center'})
     gb.configure_column("Estado", hide=True)
 
-    # BLOQUEO VISUAL Y FUNCIONAL (GRIS CLARO) PARA FILAS PAGADAS
     jscode_row_style = JsCode("""
     function(params) {
         if (params.data.Estado === 'Pagado') {
@@ -353,45 +382,53 @@ if menu == "Registro de Destajos":
         return null;
     }
     """)
+    
     gb.configure_grid_options(
         getRowStyle=jscode_row_style,
         enableRangeSelection=True,
+        enableFillHandle=True, # Habilita arrastrar para rellenar
         suppressCopyRowsToClipboard=False,
         fillHandleDirection='y'
     )
     
     gridOptions = gb.build()
 
-    # FORMULARIO: Envuelve la tabla para eliminar el lag y evitar el doble clic
-    with st.form("form_edicion_tabla"):
-        st.info("💡 **Tip:** Puedes arrastrar valores desde la esquina de una celda para copiarlos hacia abajo. Cuando termines tus ediciones, presiona el botón 'GUARDAR CAMBIOS'.")
-        
-        grid_response = AgGrid(
-            df_grid,
-            gridOptions=gridOptions,
-            update_mode=GridUpdateMode.MODEL_CHANGED,
-            data_return_mode=DataReturnMode.AS_INPUT,
-            allow_unsafe_jscode=True,
-            theme='alpine',
-            height=500
-        )
-        
-        # El botón DEBE ir dentro del formulario para capturar todos los datos de golpe sin lag
-        col_espacio, col_btn = st.columns([3, 1])
-        btn_guardar_form = col_btn.form_submit_button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True)
+    # Renderizamos la tabla fuera de un formulario para evitar el problema del doble clic
+    grid_response = AgGrid(
+        df_grid,
+        gridOptions=gridOptions,
+        update_mode=GridUpdateMode.VALUE_CHANGED, # Se actualiza al momento de hacer click en checkbox
+        data_return_mode=DataReturnMode.AS_INPUT,
+        allow_unsafe_jscode=True,
+        theme='alpine',
+        height=500
+    )
+    
+    # -------------------------------------------------------------
+    # SUMADOR EN TIEMPO REAL (ACUMULADO SELECCIONADO)
+    # -------------------------------------------------------------
+    df_modificado = pd.DataFrame(grid_response['data'])
+    suma_en_vivo = 0.0
+    if not df_modificado.empty:
+        df_modificado['Pagar'] = df_modificado['Pagar'].apply(lambda x: str(x).lower() == 'true')
+        suma_en_vivo = df_modificado[(df_modificado['Pagar'] == True) & (df_modificado['Estado'] != 'Pagado')]['Precio'].sum()
+
+    st.markdown(
+        f"<div style='background-color:#F59E0B; padding:10px; border-radius:8px; color:white; text-align:center; font-size:20px; font-weight:bold; margin-top:10px; margin-bottom:15px;'>"
+        f"Monto Acumulado Seleccionado: ${suma_en_vivo:,.2f}"
+        f"</div>", 
+        unsafe_allow_html=True
+    )
 
     # -------------------------------------------------------------
     # LÓGICA AL PRESIONAR GUARDAR (CAPTURA DEL GRID)
     # -------------------------------------------------------------
-    if btn_guardar_form:
-        df_modificado = pd.DataFrame(grid_response['data'])
-        
+    col_esp_guardar, col_btn_guardar = st.columns([3, 1])
+    if col_btn_guardar.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
         if not df_modificado.empty:
-            df_modificado['Pagar'] = df_modificado['Pagar'].apply(lambda x: str(x).lower() == 'true')
             filas_a_pagar = df_modificado[(df_modificado['Pagar'] == True) & (df_modificado['Estado'] != 'Pagado')]
             errores = False
             
-            # Validación de candados
             for idx, row in filas_a_pagar.iterrows():
                 if pd.isna(row['Destajista']) or str(row['Destajista']).strip() == "":
                     st.error(f"⚠️ Error: Partida '{row['Partida']}' (Lote {row['Lote']}) no se guardó. Falta el Destajista.")
@@ -434,10 +471,10 @@ if menu == "Registro de Destajos":
                         cambios_realizados = True
                 
                 if cambios_realizados:
-                    with st.spinner("Guardando, bloqueando filas y actualizando el Dashboard y Mapa..."):
-                        # ASIGNAR DE VUELTA AL ESTADO GLOBAL GARANTIZA ACTUALIZACIÓN EN TABS 2 Y 3
-                        st.session_state.df = df
-                        actualizar_datos_gsheet(st.session_state.df)
+                    with st.spinner("Sincronizando con Google Sheets para actualizar Dashboard y Mapa..."):
+                        actualizar_datos_gsheet(df)
+                        # OBLIGATORIO: Volver a descargar los datos para forzar la actualización en todas las pestañas
+                        st.session_state.df = obtener_datos_gsheet()
                         st.success("✅ Cambios guardados correctamente.")
                         st.rerun()
                 else:
@@ -450,78 +487,76 @@ if menu == "Registro de Destajos":
     
     @st.dialog("🖨️ Generar Reporte PDF")
     def modal_reportes():
-        st.write("Selecciona el rango de fechas para el reporte:")
+        st.write("Selecciona el rango de fechas para el reporte (haz clic en la fecha de inicio y luego en la fecha final):")
         
-        col1, col2 = st.columns(2)
-        f_ini = col1.date_input("🗓️ Fecha Inicio:", format="DD/MM/YYYY", key="r_ini")
-        f_fin = col2.date_input("🗓️ Fecha Fin:", format="DD/MM/YYYY", key="r_fin")
+        # Al pasar un value vacío a date_input, se activa el modo de rango (2 fechas en un mismo cuadro)
+        rango_fechas = st.date_input("Rango de Fechas (Inicio - Fin):", value=[], format="DD/MM/YYYY")
         
-        if f_ini and f_fin:
-            if f_ini > f_fin:
-                st.error("La fecha de inicio no puede ser mayor a la final.")
+        if len(rango_fechas) == 2:
+            f_ini, f_fin = rango_fechas
+            
+            df_rep = df.copy()
+            df_rep['Fecha_DT'] = pd.to_datetime(df_rep['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            df_filtrado_rep = df_rep[(df_rep['Fecha_DT'] >= f_ini) & (df_rep['Fecha_DT'] <= f_fin) & (df_rep['Estado'] == 'Pagado')]
+            
+            if df_filtrado_rep.empty:
+                st.warning("No hay pagos en este rango.")
             else:
-                df_rep = df.copy()
-                df_rep['Fecha_DT'] = pd.to_datetime(df_rep['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-                df_filtrado_rep = df_rep[(df_rep['Fecha_DT'] >= f_ini) & (df_rep['Fecha_DT'] <= f_fin) & (df_rep['Estado'] == 'Pagado')]
+                st.success(f"Se encontraron {len(df_filtrado_rep)} registros.")
                 
-                if df_filtrado_rep.empty:
-                    st.warning("No hay pagos en este rango.")
-                else:
-                    st.success(f"Se encontraron {len(df_filtrado_rep)} registros.")
+                if st.button("📄 Procesar y Generar PDF", use_container_width=True):
+                    resumen_pdf = df_filtrado_rep.groupby(['Destajista', 'C.C'])['Precio'].sum().reset_index()
+                    destajistas_unicos_rep = resumen_pdf['Destajista'].unique()
                     
-                    if st.button("📄 Procesar y Generar PDF", use_container_width=True):
-                        resumen_pdf = df_filtrado_rep.groupby(['Destajista', 'C.C'])['Precio'].sum().reset_index()
-                        destajistas_unicos_rep = resumen_pdf['Destajista'].unique()
+                    pdf = PDFReporte(orientation='P', unit='mm', format='Letter')
+                    pdf.add_page()
+                    
+                    pdf.set_font("Arial", size=12)
+                    pdf.cell(0, 10, f"Periodo: {f_ini.strftime('%d/%m/%Y')} al {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
+                    pdf.ln(5)
+                    
+                    total_general_pdf = 0
+                    
+                    for dest in destajistas_unicos_rep:
+                        pdf.set_font("Arial", 'B', 11)
+                        pdf.set_fill_color(220, 220, 220)
+                        pdf.cell(0, 10, f" Destajista: {dest}", border=1, ln=True, fill=True)
                         
-                        pdf = PDFReporte(orientation='P', unit='mm', format='Letter')
-                        pdf.add_page()
+                        datos_dest = resumen_pdf[resumen_pdf['Destajista'] == dest]
+                        subtotal_dest = 0
                         
-                        pdf.set_font("Arial", size=12)
-                        pdf.cell(0, 10, f"Periodo: {f_ini.strftime('%d/%m/%Y')} al {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
+                        pdf.set_font("Arial", 'B', 10)
+                        pdf.cell(95, 8, "Centro de Costo (C.C)", border=1, align='C')
+                        pdf.cell(95, 8, "Monto Pagado", border=1, align='C', ln=True)
+                        
+                        pdf.set_font("Arial", size=10)
+                        for _, row_pdf in datos_dest.iterrows():
+                            pdf.cell(95, 8, str(row_pdf['C.C']), border=1, align='C')
+                            pdf.cell(95, 8, f"${row_pdf['Precio']:,.2f}", border=1, align='R', ln=True)
+                            subtotal_dest += row_pdf['Precio']
+                            
+                        pdf.set_font("Arial", 'B', 10)
+                        pdf.cell(95, 8, "SUBTOTAL", border=1, align='R')
+                        pdf.cell(95, 8, f"${subtotal_dest:,.2f}", border=1, align='R', ln=True)
                         pdf.ln(5)
                         
-                        total_general_pdf = 0
-                        
-                        for dest in destajistas_unicos_rep:
-                            pdf.set_font("Arial", 'B', 11)
-                            pdf.set_fill_color(220, 220, 220)
-                            pdf.cell(0, 10, f" Destajista: {dest}", border=1, ln=True, fill=True)
-                            
-                            datos_dest = resumen_pdf[resumen_pdf['Destajista'] == dest]
-                            subtotal_dest = 0
-                            
-                            pdf.set_font("Arial", 'B', 10)
-                            pdf.cell(95, 8, "Centro de Costo (C.C)", border=1, align='C')
-                            pdf.cell(95, 8, "Monto Pagado", border=1, align='C', ln=True)
-                            
-                            pdf.set_font("Arial", size=10)
-                            for _, row_pdf in datos_dest.iterrows():
-                                pdf.cell(95, 8, str(row_pdf['C.C']), border=1, align='C')
-                                pdf.cell(95, 8, f"${row_pdf['Precio']:,.2f}", border=1, align='R', ln=True)
-                                subtotal_dest += row_pdf['Precio']
-                                
-                            pdf.set_font("Arial", 'B', 10)
-                            pdf.cell(95, 8, "SUBTOTAL", border=1, align='R')
-                            pdf.cell(95, 8, f"${subtotal_dest:,.2f}", border=1, align='R', ln=True)
-                            pdf.ln(5)
-                            
-                            total_general_pdf += subtotal_dest
-                        
-                        pdf.set_font("Arial", 'B', 12)
-                        pdf.set_fill_color(200, 200, 200)
-                        pdf.cell(95, 10, "TOTAL GENERAL PAGADO", border=1, align='R', fill=True)
-                        pdf.cell(95, 10, f"${total_general_pdf:,.2f}", border=1, align='R', ln=True, fill=True)
-                        
-                        pdf_bytes = pdf.output(dest='S').encode('latin-1')
-                        
-                        st.download_button(
-                            label="📥 IMPRIMIR / GUARDAR REPORTE EN PDF",
-                            data=pdf_bytes,
-                            file_name=f"Reporte_Pagos_{f_ini}_{f_fin}.pdf",
-                            mime="application/pdf",
-                            type="primary",
-                            use_container_width=True
-                        )
+                        total_general_pdf += subtotal_dest
+                    
+                    pdf.set_font("Arial", 'B', 12)
+                    pdf.set_fill_color(200, 200, 200)
+                    pdf.cell(95, 10, "TOTAL GENERAL PAGADO", border=1, align='R', fill=True)
+                    pdf.cell(95, 10, f"${total_general_pdf:,.2f}", border=1, align='R', ln=True, fill=True)
+                    
+                    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+                    
+                    st.download_button(
+                        label="📥 IMPRIMIR / GUARDAR REPORTE EN PDF",
+                        data=pdf_bytes,
+                        file_name=f"Reporte_Pagos_{f_ini}_{f_fin}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                        use_container_width=True
+                    )
 
     _, col_rep, _ = st.columns([1, 2, 1])
     if col_rep.button("📄 GENERAR REPORTES", use_container_width=True):
