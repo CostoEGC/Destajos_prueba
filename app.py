@@ -142,11 +142,19 @@ if 'sel_fecha' not in st.session_state: st.session_state.sel_fecha = ()
 # --- 1. FORMULARIO DE ACCESO ---
 def login():
     mostrar_cabecera_con_logo("🔐 Control de estimaciones", "Por favor, introduce tus credenciales para ingresar.")
-    with st.container():
+    
+    # Creamos 3 columnas: las de los extremos ([1.2] y [1.2]) sirven como espacio en blanco 
+    # para empujar y centrar la columna del medio ([1]), dándole un tamaño estético y proporcional.
+    col_izq, col_centro, col_der = st.columns([1.2, 1, 1.2])
+    
+    with col_centro:
+        st.markdown("<br>", unsafe_allow_html=True) # Pequeño espacio para que no quede pegado a la cabecera
+        
         usuario = st.text_input("Usuario", key="input_user")
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
-        if st.button("Ingresar", use_container_width=False):
+        # Agregamos use_container_width=True para que el botón abarque exactamente el mismo ancho de las celdas
+        if st.button("Ingresar", use_container_width=True, type="primary"):
             usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {"admin":"123"}
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
                 st.session_state.usuario = usuario
