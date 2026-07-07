@@ -488,6 +488,14 @@ if menu == "Registro de Destajos":
         --ag-header-foreground-color: #ffffff;  #Texto encabezados
         --ag-row-border-color: #333333;         #lienas horizontales
         --ag-font-size: 20px;
+                
+        /* CAMBIA ESTA LÍNEA PARA EL COLOR DE FONDO DEL DESPLEGABLE (Pon el color que gustes, ej: #111111 u oscuro) */
+        --ag-card-background-color: #272b33;
+    }
+    /* Esta regla extra asegura que el texto dentro del selector sea visible y no se quede en blanco */
+    .ag-theme-alpine-dark .ag-select-list {
+        background-color: #111111 !important;
+        color: #39FF14 !important;            
     }
     </style>
     """, unsafe_allow_html=True)
