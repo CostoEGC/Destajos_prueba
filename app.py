@@ -46,6 +46,9 @@ def obtener_datos_gsheet():
             if col not in df.columns:
                 df[col] = ''
 
+        # (Corrección 1) Limpieza absoluta de la Fecha para evitar que se bloqueen celdas por falsos positivos ('nan')
+        df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '')
+        
         df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
         df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
@@ -67,7 +70,6 @@ def actualizar_datos_gsheet(df):
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
 # =========================================================================
-# (Punto 2) Agregar un espacio en blanco ("") al principio de las listas
 LISTA_DESTAJISTAS = [
     "",
     "Pablo Barragán (Albañilería)",
@@ -118,7 +120,6 @@ if 'df' not in st.session_state:
     st.session_state.df = obtener_datos_gsheet()
     st.session_state.df_original = st.session_state.df.copy()
 
-# (Punto 1, 3, 11) Memoria para la tabla AgGrid para que no parpadee ni pierda el estado al cambiar de pestaña
 if 'grid_key' not in st.session_state: st.session_state.grid_key = 0
 if 'current_grid_state' not in st.session_state: st.session_state.current_grid_state = pd.DataFrame()
 
@@ -131,7 +132,6 @@ mapa_colores_partida = {partida: paleta_colores_global[i % len(paleta_colores_gl
 if 'lote_actual' not in st.session_state: st.session_state.lote_actual = str(df['Lote'].unique()[0]) if not df.empty else "1"
 if 'mostrar_todos_mapa' not in st.session_state: st.session_state.mostrar_todos_mapa = False
 
-# --- VARIABLES DE ESTADO PARA LOS FILTROS (Punto 6) ---
 if 'sel_proto' not in st.session_state: st.session_state.sel_proto = "Todos"
 if 'sel_manzana' not in st.session_state: st.session_state.sel_manzana = "Todos"
 if 'sel_lotes' not in st.session_state: st.session_state.sel_lotes = []
@@ -178,14 +178,15 @@ if st.session_state.menu_actual != menu:
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
-    # (Punto 12) Leer directamente del estado en pantalla, no del df maestro que aún no se actualiza
     df_actual_pantalla = st.session_state.current_grid_state
     
     if df_actual_pantalla.empty:
         st.sidebar.warning("No hay cambios en pantalla para guardar.")
     else:
-        # Filtrar los que están marcados para pagar y que aún no tienen fecha de pago
-        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar'] == True) & (df_actual_pantalla['Fecha pago'] == '')]
+        # Forzar booleanos limpios por seguridad de evaluación
+        df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
+        
+        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha pago'] == '')]
         filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].astype(str).str.strip() == '') | (filas_a_pagar['C.C'].astype(str).str.strip() == '')]
         
         if not filas_invalidas.empty:
@@ -197,7 +198,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
                 usuario_actual = st.session_state.usuario
                 
-                # Sincronizamos solo las filas válidas usando su índice original hacia el DF maestro
                 for _, row in filas_a_pagar.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
@@ -206,8 +206,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                     st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
                     st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
-                # Limpiar cualquier edición a medias en las otras filas que no se pagaron pero sí se les asignó destajista
-                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar'] == False) & (df_actual_pantalla['Fecha pago'] == '')]
+                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha pago'] == '')]
                 for _, row in filas_solo_edicion.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
@@ -215,58 +214,58 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
 
                 actualizar_datos_gsheet(st.session_state.df)
                 st.session_state.df_original = st.session_state.df.copy()
-                st.session_state.grid_key += 1 # Recargar forzosamente la tabla para bloquear lo pagado
+                st.session_state.grid_key += 1 
                 st.success("¡Datos guardados!")
                 st.rerun()
 
-# (Punto 10) Corrección del diálogo de reportes cerrándose
+# (Corrección 4) Rango de fechas unificado para evitar cierre del modal
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### Selecciona el rango de fechas para el reporte")
-    # Al colocar keys en el date_input se evita el reinicio del modal
-    c_f1, c_f2 = st.columns(2)
-    f_inicio = c_f1.date_input("Fecha Inicio", format="DD/MM/YYYY", key="r_inicio")
-    f_fin = c_f2.date_input("Fecha Fin", format="DD/MM/YYYY", key="r_fin")
+    st.info("Selecciona la fecha de inicio y luego la fecha final en el mismo calendario.")
+    rango = st.date_input("Rango de fechas", value=[], format="DD/MM/YYYY")
     
-    if st.button("Imprimir PDF", type="primary"):
-        df_rep = st.session_state.df[st.session_state.df['Fecha pago'] != ''].copy()
-        df_rep['Fecha_Obj'] = pd.to_datetime(df_rep['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-        df_rep = df_rep[(df_rep['Fecha_Obj'] >= f_inicio) & (df_rep['Fecha_Obj'] <= f_fin)]
-        
-        if df_rep.empty:
-            st.warning("No hay pagos registrados en este rango de fechas.")
-        else:
-            df_agrupado = df_rep.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
+    if len(rango) == 2:
+        f_inicio, f_fin = rango[0], rango[1]
+        if st.button("Imprimir PDF", type="primary"):
+            df_rep = st.session_state.df[st.session_state.df['Fecha pago'] != ''].copy()
+            df_rep['Fecha_Obj'] = pd.to_datetime(df_rep['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            df_rep = df_rep[(df_rep['Fecha_Obj'] >= f_inicio) & (df_rep['Fecha_Obj'] <= f_fin)]
             
-            pdf = FPDF(orientation='P', unit='mm', format='Letter')
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(200, 10, txt=f"Reporte de Pagos", ln=True, align='C')
-            pdf.set_font("Arial", '', 12)
-            pdf.cell(200, 10, txt=f"Del: {f_inicio.strftime('%d/%m/%Y')} Al: {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
-            pdf.ln(10)
-            
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(80, 10, txt="Destajista", border=1)
-            pdf.cell(70, 10, txt="Centro de Costo (C.C)", border=1)
-            pdf.cell(40, 10, txt="Cantidad Pagada", border=1, ln=True, align='R')
-            
-            pdf.set_font("Arial", '', 10)
-            total_global = 0
-            for _, r in df_agrupado.iterrows():
-                pdf.cell(80, 10, txt=str(r['Destajista'])[:35], border=1)
-                pdf.cell(70, 10, txt=str(r['C.C'])[:30], border=1)
-                pdf.cell(40, 10, txt=f"${float(r['Costo']):,.2f}", border=1, ln=True, align='R')
-                total_global += float(r['Costo'])
-            
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(150, 10, txt="TOTAL", border=1, align='R')
-            pdf.cell(40, 10, txt=f"${total_global:,.2f}", border=1, ln=True, align='R')
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                pdf.output(tmp_file.name)
-                with open(tmp_file.name, "rb") as f:
-                    st.download_button("📥 Descargar Reporte PDF", data=f, file_name=f"Reporte_Pagos_{f_inicio}_{f_fin}.pdf", mime="application/pdf")
+            if df_rep.empty:
+                st.warning("No hay pagos registrados en este rango de fechas.")
+            else:
+                df_agrupado = df_rep.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
+                
+                pdf = FPDF(orientation='P', unit='mm', format='Letter')
+                pdf.add_page()
+                pdf.set_font("Arial", 'B', 16)
+                pdf.cell(200, 10, txt=f"Reporte de Pagos", ln=True, align='C')
+                pdf.set_font("Arial", '', 12)
+                pdf.cell(200, 10, txt=f"Del: {f_inicio.strftime('%d/%m/%Y')} Al: {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
+                pdf.ln(10)
+                
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(80, 10, txt="Destajista", border=1)
+                pdf.cell(70, 10, txt="Centro de Costo (C.C)", border=1)
+                pdf.cell(40, 10, txt="Cantidad Pagada", border=1, ln=True, align='R')
+                
+                pdf.set_font("Arial", '', 10)
+                total_global = 0
+                for _, r in df_agrupado.iterrows():
+                    pdf.cell(80, 10, txt=str(r['Destajista'])[:35], border=1)
+                    pdf.cell(70, 10, txt=str(r['C.C'])[:30], border=1)
+                    pdf.cell(40, 10, txt=f"${float(r['Costo']):,.2f}", border=1, ln=True, align='R')
+                    total_global += float(r['Costo'])
+                
+                pdf.set_font("Arial", 'B', 11)
+                pdf.cell(150, 10, txt="TOTAL", border=1, align='R')
+                pdf.cell(40, 10, txt=f"${total_global:,.2f}", border=1, ln=True, align='R')
+                
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    pdf.output(tmp_file.name)
+                    with open(tmp_file.name, "rb") as f:
+                        st.download_button("📥 Descargar Reporte PDF", data=f, file_name=f"Reporte_Pagos_{f_inicio}_{f_fin}.pdf", mime="application/pdf")
 
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
@@ -311,7 +310,6 @@ if menu == "Registro de Destajos":
     
     st.markdown("##### ⏳ Filtros de Tabla")
     
-    # (Punto 6) Resetear filtros forzando las variables de sesión
     def limpiar_cb():
         st.session_state.sel_proto = "Todos"
         st.session_state.sel_manzana = "Todos"
@@ -320,14 +318,13 @@ if menu == "Registro de Destajos":
         st.session_state.sel_dest = "Todos"
         st.session_state.sel_estado = "Todos"
         st.session_state.sel_fecha = ()
+        st.session_state.grid_key += 1 # Recargar grid tras limpiar
         
     st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
     list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
     list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    
-    # (Punto 5) Mostrar todos los destajistas existentes, no solo los que están en uso actualmente
     list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
     
     df_actual['Concepto_Limpio'] = df_actual['Partida'].apply(lambda x: re.sub(r'^\d+\.-\s*|^\d+\s*', '', str(x)).strip())
@@ -376,7 +373,6 @@ if menu == "Registro de Destajos":
 
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
-    # Asignaciones masivas. Cuando hacen click, actualizamos df maestro y forzamos recarga del grid
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
         st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
         st.session_state.grid_key += 1
@@ -403,19 +399,14 @@ if menu == "Registro de Destajos":
             st.success("C.C asignado masivamente.")
             st.rerun()
 
-    # --- PLACEHOLDERS DINÁMICOS (Punto 8 y 9) ---
-    # Estos contenedores se llenarán al final, leyendo los datos VIVOS del AgGrid
     ph_label_azul = st.empty()
-    
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
-    # Preparamos los datos para AgGrid (Inyectamos _original_index para seguridad)
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
     gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
     
-    # (Punto 7) Forzamos deshabilitar filtros
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
     
@@ -432,9 +423,13 @@ if menu == "Registro de Destajos":
     gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, width=160)
     gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, width=120)
 
+    # (Corrección 1) Comprobación segura en el front-end para saber si está pagado o no (sin evaluar basura de texto)
     rowStyle = JsCode("""
     function(params) {
-        if (params.data['Fecha pago'] != '' && params.data['Fecha pago'] != null) {
+        let fp = params.data['Fecha pago'];
+        let esta_pagado = (fp && fp.toString().trim() !== '' && fp !== 'nan' && fp !== 'null' && fp !== '<NA>');
+        
+        if (esta_pagado) {
             return {
                 'backgroundColor': '#e0e0e0',
                 'color': '#808080',
@@ -449,7 +444,8 @@ if menu == "Registro de Destajos":
             'borderBottom': '1px solid #4a4a4a'
         };
         
-        if (params.data['Pagar'] === true || params.data['Pagar'] === 'true') {
+        let check_pagar = params.data['Pagar'];
+        if (check_pagar === true || check_pagar === 'true' || check_pagar === 1) {
             let dest = params.data['Destajista'];
             let cc = params.data['C.C'];
             if (!dest || dest.trim() === '' || !cc || cc.trim() === '') {
@@ -463,30 +459,30 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # (Puntos 1, 3, 9) Al usar key dinámica y cambiar update_mode, AgGrid ya no parpadeará ni perderá el foco de escritura.
+    # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     response = AgGrid(
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
         key=f"grid_destajos_{st.session_state.grid_key}",
+        reload_data=False,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.VALUE_CHANGED, # Captura el cambio SIN forzar la recarga total del componente.
+        update_mode=GridUpdateMode.MODEL_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         theme='balham',
         height=600
     )
 
-    # Inyección de cálculos en vivo (Punto 8 y 9)
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
-        st.session_state.current_grid_state = df_grid # Guardamos el estado para poder usarlo en "Guardar cambios" o en el cambio de pestañas.
+        st.session_state.current_grid_state = df_grid 
         
         total_filas = len(df_grid)
-        df_pagar = df_grid[(df_grid['Pagar'] == True) | (df_grid['Pagar'] == 'true') | (df_grid['Pagar'] == 1)]
+        df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
+        df_pagar = df_grid[df_grid['Pagar_Bool'] == True]
         total_checked = len(df_pagar)
         
-        # Filtramos costo solo de las que no han sido pagadas
         costo_seleccionado = df_pagar[df_pagar['Fecha pago'] == '']['Costo'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox activados: {total_checked}</div>", unsafe_allow_html=True)
@@ -633,8 +629,13 @@ elif menu == "Dashboard (Gráficos y Visor)":
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
+    # (Corrección 2) Manejo seguro de datos de costo a precio para el mapa
     df_map_base = df.copy()
-    df_map_base['Precio'] = df_map_base['Costo']
+    if 'Costo' in df_map_base.columns:
+        df_map_base['Precio'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
+    else:
+        df_map_base['Precio'] = 0.0
+        
     df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if r['Fecha pago'] != '' else 'Pendiente', axis=1)
 
     def hex_to_rgba(hex_val, opacity):
@@ -898,7 +899,6 @@ elif menu == "Mapa Interactivo":
                 st.info(f"No se encontraron partidas para el lote {lote_puro_num}.")
 
     with col_mapa:
-        # (Punto 4) Solución del bug del parser SVG con validaciones de seguridad (try-except envolventes para evitar colapso de página entera)
         nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
         archivo_encontrado = None
         for nombre in nombres_posibles:
@@ -1001,9 +1001,14 @@ elif menu == "Mapa Interactivo":
                                     cx, cy = base_x + (radio_disp * math.cos(angulo) if num_esferas > 1 else 0), base_y + (radio_disp * math.sin(angulo) if num_esferas > 1 else 0)
                                     if row.Estado == "Pagado":
                                         circle_tag = soup.new_tag("circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(50 if num_esferas < 10 else 5), style=f"fill:{mapa_colores_partida.get(row.Partida, '#3B82F6')}; fill-opacity:1.0; stroke:#1f2937; stroke-width:1px;")
-                                        lote_path.insert_after(circle_tag)
+                                        # (Corrección 2) Inyección de esferas segura y compatible para SVG
+                                        parent = lote_path.parent
+                                        if parent:
+                                            parent.append(circle_tag)
+                                        else:
+                                            lote_path.insert_after(circle_tag)
                     except Exception:
-                        pass # Si falla el cálculo de un polígono en particular, continúa con el resto de manera segura.
+                        pass
 
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{str(soup).replace('viewbox=', 'viewBox=')}</div>"
                 st.components.v1.html(html_final, height=1000, scrolling=False) 
