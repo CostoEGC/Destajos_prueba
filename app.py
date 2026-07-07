@@ -432,14 +432,15 @@ if menu == "Registro de Destajos":
     }
     """)
     
+    #celdas editables en la tabla
     estilo_js = JsCode("""
     function(params) {
-        var baseStyle = {'color': '#39FF14', 'backgroundColor': '#0a0a0a', 'borderBottom': '1px solid #333333'};
+        var baseStyle = {'color': '#ffffff', 'backgroundColor': '#000000', 'borderBottom': '1px solid #333333'};  // Celdas normales
         var fp = params.data['Fecha pago'];
         if (fp != null && fp !== undefined) {
             var fpStr = String(fp).trim();
             if (fpStr.length >= 8 && fpStr.indexOf('/') !== -1) {
-                baseStyle['backgroundColor'] = '#2d2d2d'; 
+                baseStyle['backgroundColor'] = '#2d2d2d';  // Celdas bloqueadas al guardar
                 baseStyle['color'] = '#888888';
             }
         }
@@ -478,14 +479,15 @@ if menu == "Registro de Destajos":
 
     gridOptions = gb.build()
 
+    #cambio de color tabla registro destajos fondo general y encabezados
     st.markdown("""
     <style>
     .ag-theme-alpine-dark {
-        --ag-background-color: #000000;
-        --ag-header-background-color: #111111;
-        --ag-header-foreground-color: #ffffff;
-        --ag-row-border-color: #333333;
-        --ag-font-size: 12px;
+        --ag-background-color: #000000;         #fondo de la tabla
+        --ag-header-background-color: #111111;  #Fondo de encabezados
+        --ag-header-foreground-color: #ffffff;  #Texto encabezados
+        --ag-row-border-color: #333333;         #lienas horizontales
+        --ag-font-size: 14px;
     }
     </style>
     """, unsafe_allow_html=True)
