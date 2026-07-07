@@ -121,6 +121,8 @@ if 'df' not in st.session_state:
 
 if 'grid_key' not in st.session_state: st.session_state.grid_key = 0
 if 'current_grid_state' not in st.session_state: st.session_state.current_grid_state = pd.DataFrame()
+# ➡️ AÑADE ESTA LÍNEA JUSTO AQUÍ ABAJO:
+if 'reload_trigger' not in st.session_state: st.session_state.reload_trigger = False
 
 df = st.session_state.df
 
@@ -155,7 +157,7 @@ def login():
         
         # Agregamos use_container_width=True para que el botón abarque exactamente el mismo ancho de las celdas
         if st.button("Ingresar", use_container_width=True, type="primary"):
-            usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {"admin":"123"}
+            usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {}
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
                 st.session_state.usuario = usuario
                 st.rerun()
@@ -230,6 +232,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 # 4. Sincronizar memoria y forzar refresco limpio de pantalla
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() # Resetea estado para reflejar las fechas nuevas
+                st.session_state.reload_trigger = True
                 st.session_state.grid_key += 1 
                 st.success("¡Datos guardados!")
                 st.rerun()
@@ -488,7 +491,7 @@ if menu == "Registro de Destajos":
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
         key=f"grid_destajos_{st.session_state.grid_key}",
-        reload_data=False,
+        reload_data=st.session_state.reload_trigger,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
         update_mode=GridUpdateMode.VALUE_CHANGED,
@@ -497,6 +500,7 @@ if menu == "Registro de Destajos":
         theme='balham',
         height=600
     )
+    st.session_state.reload_trigger = False
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
