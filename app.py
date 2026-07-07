@@ -494,7 +494,7 @@ if menu == "Registro de Destajos":
     }
     /* Esta regla extra asegura que el texto dentro del selector sea visible y no se quede en blanco */
     .ag-theme-alpine-dark .ag-select-list {
-        background-color: #111111 !important;
+        background-color: #272b33 !important;
         color: #39FF14 !important;            
     }
     </style>
