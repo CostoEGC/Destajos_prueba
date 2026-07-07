@@ -435,7 +435,7 @@ if menu == "Registro de Destajos":
     #celdas editables en la tabla
     estilo_js = JsCode("""
     function(params) {
-        var baseStyle = {'color': '#ffffff', 'backgroundColor': '#000000', 'borderBottom': '1px solid #333333'};  // Celdas normales
+        var baseStyle = {'color': '#ffffff', 'backgroundColor': '#272b33', 'borderBottom': '1px solid #333333'};  // Celdas normales
         var fp = params.data['Fecha pago'];
         if (fp != null && fp !== undefined) {
             var fpStr = String(fp).trim();
