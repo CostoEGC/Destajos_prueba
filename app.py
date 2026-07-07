@@ -23,7 +23,6 @@ st.markdown(
     /* Se eliminó la regla que ocultaba el header para que el botón de expandir la barra lateral (>) NO desaparezca */
     footer {visibility: hidden;}
     .stAppToolbar {visibility: hidden;}
-    .stAppDeployButton {display: none;}
     </style>
     """,
     unsafe_allow_html=True
