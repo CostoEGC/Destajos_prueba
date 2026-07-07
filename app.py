@@ -13,6 +13,7 @@ from PIL import Image
 from bs4 import BeautifulSoup
 from fpdf import FPDF
 import base64
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
@@ -47,7 +48,6 @@ def obtener_datos_gsheet():
 
         df['Precio'] = pd.to_numeric(df['Precio'], errors='coerce').fillna(0)
         
-        # INICIALIZACIÓN DE NUEVAS COLUMNAS REQUERIDAS
         if 'Pago_1' not in df.columns: df['Pago_1'] = 0.0
         if 'Pago_2' not in df.columns: df['Pago_2'] = 0.0
         if 'Fecha_Pago_2' not in df.columns: df['Fecha_Pago_2'] = '-'
@@ -110,7 +110,7 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
             st.image("logo.png", use_container_width=True)
 
 # =========================================================================
-# INICIALIZACIÓN DE ESTADOS
+# INICIALIZACIÓN DE ESTADOS GLOBALES (LA BASE DE LAS 3 PESTAÑAS)
 # =========================================================================
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
@@ -118,6 +118,7 @@ if 'usuario' not in st.session_state:
 if 'df' not in st.session_state:
     st.session_state.df = obtener_datos_gsheet()
 
+# Siempre apuntamos a st.session_state.df para que los cambios se reflejen en todas partes
 df = st.session_state.df
 
 partidas_unicas_global = df['Partida'].unique() if not df.empty else []
@@ -207,7 +208,6 @@ if menu == "Registro de Destajos":
     if 'Pagar' not in df.columns:
         df['Pagar'] = False
     
-    # KPI GLOBAL Y FILTRADO INICIAL
     costo_total_filtrado = df['Precio'].sum()
     df['Total_Pagado_Temp'] = pd.to_numeric(df.get('Pago_1', 0)) + pd.to_numeric(df.get('Pago_2', 0))
     pagado_filtrado = df['Total_Pagado_Temp'].sum()
@@ -235,11 +235,9 @@ if menu == "Registro de Destajos":
     </div>
     """, unsafe_allow_html=True)
     
-    # FILTROS DE TABLA CRUZADOS
     st.markdown("##### ⏳ Filtros de Tabla")
     
-    def limpiar_partida(p):
-        return re.sub(r'^\d+\.-\s*', '', str(p))
+    def limpiar_partida(p): return re.sub(r'^\d+\.-\s*', '', str(p))
     def extraer_num_partida(p):
         match = re.match(r'^(\d+)', str(p))
         return int(match.group(1)) if match else 9999
@@ -262,6 +260,7 @@ if menu == "Registro de Destajos":
     manzanas_unicas = sorted(df['Manzana'].dropna().unique(), key=clave_ordenamiento)
     lotes_unicos = sorted(df['Lote'].dropna().unique(), key=clave_ordenamiento)
     destajistas_unicos = sorted(df['Destajista'].dropna().unique(), key=clave_ordenamiento)
+    estados_unicos = sorted(df['Estado'].dropna().unique())
     
     col_f1, col_f2 = st.columns(2)
     with col_f1:
@@ -272,8 +271,8 @@ if menu == "Registro de Destajos":
     with col_f2:
         filtro_manzana = st.selectbox("Manzana:", ["Todas"] + manzanas_unicas)
         filtro_concepto = st.selectbox("Buscar Concepto:", ["Todos"] + partidas_limpias)
+        filtro_estado = st.selectbox("Estado de Pago:", ["Todos"] + estados_unicos)
         
-        # Filtro doble de fechas sin que se cierre
         c_fecha1, c_fecha2 = st.columns(2)
         fecha_inicio = c_fecha1.date_input("Filtrar Desde:", value=None, format="DD/MM/YYYY")
         fecha_fin = c_fecha2.date_input("Filtrar Hasta:", value=None, format="DD/MM/YYYY")
@@ -292,6 +291,8 @@ if menu == "Registro de Destajos":
     if filtro_concepto != "Todos":
         partida_original = partidas_dict[filtro_concepto]
         df_filtrado = df_filtrado[df_filtrado['Partida'] == partida_original]
+    if filtro_estado != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['Estado'] == filtro_estado]
     
     if fecha_inicio and fecha_fin:
         df_filtrado['Fecha_Pago_DT'] = pd.to_datetime(df_filtrado['Fecha_Pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
@@ -302,66 +303,115 @@ if menu == "Registro de Destajos":
     st.markdown("<br>", unsafe_allow_html=True)
 
     # -------------------------------------------------------------
-    # SEPARACIÓN DE TABLAS (LA CLAVE PARA EL BLOQUEO TOTAL)
+    # CONFIGURACIÓN DE AG-GRID (UNA SOLA TABLA, BLOQUEOS MEDIANTE JS)
     # -------------------------------------------------------------
+    st.markdown("### 📋 Edición y Pago de Destajos")
+    
     columnas_mostrar = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Precio', 'Destajista', 'C.C', 'Pagar', 'Fecha_Pago', 'Usuario', 'Estado']
     df_grid = df_filtrado[columnas_mostrar].copy()
     df_grid['Prototipo'] = df_grid['Prototipo'].apply(lambda x: f"Prototipo {x}" if not str(x).startswith("Prototipo") else x)
 
-    # Dividimos los datos
-    df_pendientes = df_grid[df_grid['Estado'] != 'Pagado'].copy()
-    df_pagados = df_grid[df_grid['Estado'] == 'Pagado'].copy()
-
-    # --- 1. TABLA EDITABLE (PENDIENTES) ---
-    st.markdown("### 📋 Partidas por Pagar (Editables)")
+    gb = GridOptionsBuilder.from_dataframe(df_grid)
+    gb.configure_default_column(editable=False, wrapText=True, autoHeight=True)
     
-    # Usamos st.form para ELIMINAR el lag y el doble clic
-    with st.form("form_edicion"):
-        df_modificado = st.data_editor(
-            df_pendientes,
-            use_container_width=True,
-            hide_index=True,
-            height=400,
-            disabled=["Lote", "Manzana", "Prototipo", "Partida", "Precio", "Fecha_Pago", "Usuario", "Estado"],
-            column_config={
-                "Lote": st.column_config.TextColumn("Lote", width="small"),
-                "Manzana": st.column_config.TextColumn("Manzana", width="small"),
-                "Prototipo": st.column_config.TextColumn("Prototipo", width="small"),
-                "Partida": st.column_config.TextColumn("Partida", width="large"),
-                "Precio": st.column_config.NumberColumn("Costo", format="$%.2f", width="small"),
-                "Destajista": st.column_config.SelectboxColumn("Destajista", options=[""] + LISTA_DESTAJISTAS, width="medium"),
-                "C.C": st.column_config.SelectboxColumn("C.C", options=[""] + LISTA_CC, width="small"),
-                "Pagar": st.column_config.CheckboxColumn("Pagar", width="small"),
-                "Fecha_Pago": st.column_config.TextColumn("Fecha Pago", width="medium"),
-                "Usuario": st.column_config.TextColumn("Usuario", width="small"),
-                "Estado": st.column_config.TextColumn("Estado", width="small")
-            }
+    # Configuramos el ancho de columnas (Partida más grande)
+    gb.configure_column("Lote", width=80, cellStyle={'textAlign': 'center'})
+    gb.configure_column("Manzana", width=100, cellStyle={'textAlign': 'center'})
+    gb.configure_column("Prototipo", width=120, cellStyle={'textAlign': 'center'})
+    gb.configure_column("Partida", width=250) 
+    gb.configure_column("Precio", header_name="Costo", width=100, type=["numericColumn","numberColumnFilter","customNumericFormat"], precision=2, cellStyle={'textAlign': 'center'})
+    
+    # Columnas Editables con Listas Desplegables
+    gb.configure_column('Destajista', width=180, editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [""] + LISTA_DESTAJISTAS})
+    gb.configure_column('C.C', width=130, editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [""] + LISTA_CC})
+    
+    # Lógica de Checkbox (No permite checkear si el costo es 0 o si ya está Pagado)
+    js_checkbox = JsCode("""
+    function(params) {
+        if (params.data.Estado === 'Pagado' || params.data.Precio === 0) {
+            return false;
+        }
+        return true;
+    }
+    """)
+    gb.configure_column("Pagar", width=80, editable=js_checkbox, cellDataType='boolean', cellStyle={'textAlign': 'center'})
+    
+    gb.configure_column("Fecha_Pago", header_name="Fecha Pago", width=150, cellStyle={'textAlign': 'center'})
+    gb.configure_column("Usuario", width=100, cellStyle={'textAlign': 'center'})
+    gb.configure_column("Estado", hide=True)
+
+    # BLOQUEO VISUAL Y FUNCIONAL (GRIS CLARO) PARA FILAS PAGADAS
+    jscode_row_style = JsCode("""
+    function(params) {
+        if (params.data.Estado === 'Pagado') {
+            return {
+                'backgroundColor': '#f3f4f6',
+                'color': '#9ca3af',
+                'pointerEvents': 'none'
+            };
+        }
+        return null;
+    }
+    """)
+    gb.configure_grid_options(
+        getRowStyle=jscode_row_style,
+        enableRangeSelection=True,
+        suppressCopyRowsToClipboard=False,
+        fillHandleDirection='y'
+    )
+    
+    gridOptions = gb.build()
+
+    # FORMULARIO: Envuelve la tabla para eliminar el lag y evitar el doble clic
+    with st.form("form_edicion_tabla"):
+        st.info("💡 **Tip:** Puedes arrastrar valores desde la esquina de una celda para copiarlos hacia abajo. Cuando termines tus ediciones, presiona el botón 'GUARDAR CAMBIOS'.")
+        
+        grid_response = AgGrid(
+            df_grid,
+            gridOptions=gridOptions,
+            update_mode=GridUpdateMode.MODEL_CHANGED,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            allow_unsafe_jscode=True,
+            theme='alpine',
+            height=500
         )
         
-        col_btn_guardar, col_vacia = st.columns([1, 3])
-        btn_guardar = col_btn_guardar.form_submit_button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True)
+        # El botón DEBE ir dentro del formulario para capturar todos los datos de golpe sin lag
+        col_espacio, col_btn = st.columns([3, 1])
+        btn_guardar_form = col_btn.form_submit_button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True)
 
-    if btn_guardar:
+    # -------------------------------------------------------------
+    # LÓGICA AL PRESIONAR GUARDAR (CAPTURA DEL GRID)
+    # -------------------------------------------------------------
+    if btn_guardar_form:
+        df_modificado = pd.DataFrame(grid_response['data'])
+        
         if not df_modificado.empty:
-            df_modificado['Pagar'] = df_modificado['Pagar'].astype(bool)
-            filas_a_pagar = df_modificado[df_modificado['Pagar'] == True]
+            df_modificado['Pagar'] = df_modificado['Pagar'].apply(lambda x: str(x).lower() == 'true')
+            filas_a_pagar = df_modificado[(df_modificado['Pagar'] == True) & (df_modificado['Estado'] != 'Pagado')]
             errores = False
             
+            # Validación de candados
             for idx, row in filas_a_pagar.iterrows():
                 if pd.isna(row['Destajista']) or str(row['Destajista']).strip() == "":
-                    st.error(f"⚠️ Error: Partida '{row['Partida']}' en Lote {row['Lote']} falta Destajista.")
+                    st.error(f"⚠️ Error: Partida '{row['Partida']}' (Lote {row['Lote']}) no se guardó. Falta el Destajista.")
                     errores = True
                 if pd.isna(row['C.C']) or str(row['C.C']).strip() == "":
-                    st.error(f"⚠️ Error: Partida '{row['Partida']}' en Lote {row['Lote']} falta C.C.")
+                    st.error(f"⚠️ Error: Partida '{row['Partida']}' (Lote {row['Lote']}) no se guardó. Falta el C.C.")
                     errores = True
 
-            if not errores and not filas_a_pagar.empty:
+            if not errores:
                 ahora = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y %H:%M:%S")
                 usuario_actual = st.session_state.usuario
-                
+                cambios_realizados = False
+
                 for idx, row in df_modificado.iterrows():
                     proto_original = row['Prototipo'].replace("Prototipo ", "").strip()
                     
+                    estado_actual = df.loc[(df['Lote'] == row['Lote']) & (df['Partida'] == row['Partida']), 'Estado'].values
+                    if len(estado_actual) > 0 and estado_actual[0] == 'Pagado':
+                        continue 
+
                     idx_real_lista = df.index[
                         (df['Lote'] == row['Lote']) & 
                         (df['Partida'] == row['Partida']) & 
@@ -380,30 +430,21 @@ if menu == "Registro de Destajos":
                             df.at[idx_real, 'Usuario'] = usuario_actual
                             df.at[idx_real, 'Estado'] = 'Pagado'
                             df.at[idx_real, 'Pagar'] = False 
+                        
+                        cambios_realizados = True
                 
-                with st.spinner("Sincronizando con Google..."):
-                    st.session_state.df = df
-                    actualizar_datos_gsheet(st.session_state.df)
-                    st.success("✅ Cambios guardados. Las partidas han pasado al historial de pagadas.")
-                    st.rerun()
-
-    # --- 2. TABLA BLOQUEADA (PAGADAS) ---
-    st.markdown("### 🔒 Historial de Partidas Pagadas (Bloqueadas)")
-    if df_pagados.empty:
-        st.info("No hay partidas pagadas en esta selección.")
-    else:
-        def estilo_bloqueado(row):
-            return ['background-color: #f3f4f6; color: #9ca3af;'] * len(row)
-        
-        st.dataframe(
-            df_pagados.style.apply(estilo_bloqueado, axis=1).format({"Precio": "${:,.2f}"}),
-            use_container_width=True,
-            hide_index=True,
-            height=300
-        )
+                if cambios_realizados:
+                    with st.spinner("Guardando, bloqueando filas y actualizando el Dashboard y Mapa..."):
+                        # ASIGNAR DE VUELTA AL ESTADO GLOBAL GARANTIZA ACTUALIZACIÓN EN TABS 2 Y 3
+                        st.session_state.df = df
+                        actualizar_datos_gsheet(st.session_state.df)
+                        st.success("✅ Cambios guardados correctamente.")
+                        st.rerun()
+                else:
+                    st.info("No se detectaron pagos nuevos ni cambios válidos para guardar.")
 
     # -------------------------------------------------------------
-    # BOTÓN DE REPORTES
+    # BOTÓN DE REPORTES (DEBAJO DE LA TABLA)
     # -------------------------------------------------------------
     st.markdown("<hr>", unsafe_allow_html=True)
     
