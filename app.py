@@ -291,66 +291,166 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.success("¡Datos guardados!")
                 st.rerun()
 
-# (Corrección 4) Rango de fechas unificado para evitar cierre del modal
+# (Corrección 4) Rango de fechas unificado para evitar cierre del modal y agregar filtros avanzados
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
-    st.markdown("### Selecciona el rango de fechas para el reporte")
-    st.info("Selecciona la fecha de inicio y luego la fecha final en el mismo calendario.")
-    rango = st.date_input("Rango de fechas", value=[], format="DD/MM/YYYY")
+    st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
+    st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
     
-    if len(rango) == 2:
-        f_inicio, f_fin = rango[0], rango[1]
-        if st.button("Imprimir PDF", type="primary"):
-            df_rep = st.session_state.df[st.session_state.df['Fecha pago'] != ''].copy()
-            
-            # --- PARSER PARA LEER EL NUEVO FORMATO DD/MMM/AAAA ---
-            meses_regex = {
-                r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
-                r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
-                r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
-            }
-            df_rep['Fecha_Temp'] = df_rep['Fecha pago'].replace(meses_regex, regex=True)
-            df_rep['Fecha_Obj'] = pd.to_datetime(df_rep['Fecha_Temp'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-            
-            df_rep = df_rep[(df_rep['Fecha_Obj'] >= f_inicio) & (df_rep['Fecha_Obj'] <= f_fin)]
-            
-            if df_rep.empty:
-                st.warning("No hay pagos registrados en este rango de fechas.")
-            else:
-                df_agrupado = df_rep.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
-                
-                pdf = FPDF(orientation='P', unit='mm', format='Letter')
-                pdf.add_page()
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, txt=f"Reporte de Pagos", ln=True, align='C')
-                pdf.set_font("Arial", '', 12)
-                pdf.cell(200, 10, txt=f"Del: {f_inicio.strftime('%d/%m/%Y')} Al: {f_fin.strftime('%d/%m/%Y')}", ln=True, align='C')
-                pdf.ln(10)
-                
-                pdf.set_font("Arial", 'B', 11)
-                pdf.cell(80, 10, txt="Destajista", border=1)
-                pdf.cell(70, 10, txt="Centro de Costo (C.C)", border=1)
-                pdf.cell(40, 10, txt="Cantidad Pagada", border=1, ln=True, align='R')
-                
-                pdf.set_font("Arial", '', 10)
-                total_global = 0
-                for _, r in df_agrupado.iterrows():
-                    pdf.cell(80, 10, txt=str(r['Destajista'])[:35], border=1)
-                    pdf.cell(70, 10, txt=str(r['C.C'])[:30], border=1)
-                    pdf.cell(40, 10, txt=f"${float(r['Costo']):,.2f}", border=1, ln=True, align='R')
-                    total_global += float(r['Costo'])
-                
-                pdf.set_font("Arial", 'B', 11)
-                pdf.cell(150, 10, txt="TOTAL", border=1, align='R')
-                pdf.cell(40, 10, txt=f"${total_global:,.2f}", border=1, ln=True, align='R')
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    pdf.output(tmp_file.name)
-                    with open(tmp_file.name, "rb") as f:
-                        st.download_button("📥 Descargar Reporte PDF", data=f, file_name=f"Reporte_Pagos_{f_inicio}_{f_fin}.pdf", mime="application/pdf")
+    df_base_rep = st.session_state.df.copy()
+    
+    # Extraer catálogos dinámicos idénticos a la pestaña de registros
+    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
+    list_manzanas = sorted([x for x in df_base_rep['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+    list_lotes = sorted([str(x) for x in df_base_rep['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+    list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
+    
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    conceptos_unicos_tuplas = {}
+    for _, row in df_base_rep.iterrows():
+        limpio = row['Concepto_Limpio']
+        if limpio not in conceptos_unicos_tuplas:
+            conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+    list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-if st.sidebar.button("📄 Reportes"):
-    dialogo_reportes()
+    # Distribución visual de los filtros en dos columnas dentro del modal
+    r_col1, r_col2 = st.columns(2)
+    with r_col1:
+        st.selectbox("Prototipo:", ["Todos"] + list_prototipos, key="rep_sel_proto")
+        st.multiselect("Lote(s):", options=list_lotes, key="rep_sel_lotes")
+        st.multiselect("Concepto / Partida:", options=list_conceptos, key="rep_sel_concepto")
+    with r_col2:
+        st.selectbox("Manzana:", ["Todos"] + list_manzanas, key="rep_sel_manzana")
+        st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="rep_sel_estado")
+        st.selectbox("Destajista:", list_destajistas_filtro, key="rep_sel_dest")
+        
+    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+    st.markdown("##### 📅 Filtrar por Rango de Fechas de Pago (Opcional)")
+    rango = st.date_input("Rango de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
+
+    # Ejecución de la lógica de filtrado sobre el clon de datos
+    df_rep_filtrado = df_base_rep.copy()
+    
+    if st.session_state.rep_sel_proto != "Todos": 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'] == st.session_state.rep_sel_proto]
+    if st.session_state.rep_sel_manzana != "Todos": 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'] == st.session_state.rep_sel_manzana]
+    if st.session_state.rep_sel_lotes: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Lote'].astype(str).isin(st.session_state.rep_sel_lotes)]
+    if st.session_state.rep_sel_concepto: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Concepto_Limpio'].isin(st.session_state.rep_sel_concepto)]
+    if st.session_state.rep_sel_dest != "Todos": 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'] == st.session_state.rep_sel_dest]
+    
+    if st.session_state.rep_sel_estado != "Todos":
+        if st.session_state.rep_sel_estado == "Pagado": 
+            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
+        else: 
+            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
+            
+    if rango and len(rango) == 2:
+        meses_regex = {
+            r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
+            r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
+            r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
+        }
+        df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado['Fecha pago'].replace(meses_regex, regex=True)
+        df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+        df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
+        df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
+
+    st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
+
+    if st.button("🖨️ Generar Vista de Impresión PDF", type="primary", use_container_width=True):
+        if df_rep_filtrado.empty:
+            st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
+        else:
+            # Inicialización del documento en formato Carta (Letter: 215.9mm x 279.4mm)
+            # Margen de 10mm por lado deja un espacio de impresión exacto de 195.9mm
+            pdf = FPDF(orientation='P', unit='mm', format='Letter')
+            pdf.add_page()
+            
+            # Encabezado principal del Reporte
+            pdf.set_font("Arial", 'B', 14)
+            pdf.set_text_color(30, 58, 138) # Tono azul corporativo (#1E3A8A)
+            pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
+            
+            # Pie de cabecera con marcas de tiempo en zona horaria local
+            pdf.set_font("Arial", 'I', 9)
+            pdf.set_text_color(108, 117, 125)
+            from zoneinfo import ZoneInfo
+            tz_mx = ZoneInfo("America/Mexico_City")
+            fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
+            pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
+            pdf.ln(5)
+            
+            # Cuadro resumen de los criterios impresos
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
+            pdf.set_font("Arial", '', 9)
+            criterios = f"Prototipo: {st.session_state.rep_sel_proto} | Mz: {st.session_state.rep_sel_manzana} | Destajista: {st.session_state.rep_sel_dest} | Estado: {st.session_state.rep_sel_estado}"
+            if rango and len(rango) == 2:
+                criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
+            pdf.cell(195, 5, txt=criterios[:115], ln=True)
+            pdf.ln(4)
+            
+            # Definición milimétrica de columnas (Suma exacta = 15 + 15 + 25 + 60 + 50 + 30 = 195mm)
+            w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
+            
+            # Estilizado de los encabezados de la tabla
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(30, 58, 138) 
+            pdf.set_text_color(255, 255, 255) 
+            
+            pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
+            pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
+            pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
+            pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
+            pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+            pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
+            pdf.ln(8)
+            
+            # Estilizado y llenado del contenido de la tabla
+            pdf.set_font("Arial", '', 9)
+            pdf.set_text_color(0, 0, 0)
+            
+            total_acumulado = 0
+            fondo_cebra = False
+            
+            for _, row in df_rep_filtrado.iterrows():
+                if fondo_cebra:
+                    pdf.set_fill_color(245, 247, 250) # Gris muy tenue para guiar la vista
+                else:
+                    pdf.set_fill_color(255, 255, 255)
+                    
+                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                
+                # Slices estructurados para truncar textos largos y evitar encimado de líneas
+                pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
+                pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
+                pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
+                pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
+                pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                pdf.ln(7)
+                
+                total_acumulado += float(row['Costo'])
+                fondo_cebra = not fondo_cebra
+            
+            # Fila de Cierre con los Totales Financieros Generales
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(230, 235, 245)
+            # Combinación espacial de columnas de texto (15+15+25+60+50 = 165mm)
+            pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
+            pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
+            
+            # Procesamiento en búfer para descarga transparente
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                pdf.output(tmp_file.name)
+                with open(tmp_file.name, "rb") as f:
+                    st.download_button("📥 Descargar Reporte PDF Personalizado", data=f, file_name=f"Reporte_Destajos_Personalizado.pdf", mime="application/pdf", use_container_width=True)
 
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
@@ -619,7 +719,7 @@ if menu == "Registro de Destajos":
         
         costo_seleccionado = df_pagar_actual['Costo'].sum()
         
-        ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox activados: {total_checked}</div>", unsafe_allow_html=True)
+        ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
