@@ -295,6 +295,14 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
 # (Corrección 5) Reporte a 1 clic, con agrupador alfabético expandido y generación al vuelo
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
+    # Ocultamos por CSS cualquier elemento residual, etiquetas vacías o "None" dentro del diálogo
+    st.markdown("""
+    <style>
+    div[data-testid="stNotification"] { display: none !important; }
+    div.stMarkdown p:contains("None") { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
     st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
 
@@ -368,128 +376,120 @@ def dialogo_reportes():
 
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
-    # === ELIMINACIÓN DE VALORES "NONE" EN DATOS FILTRADOS ===
-    # Forzamos cadenas vacías en los textos del dataframe para evitar que rompan la interfaz visual
+    # Limpieza absoluta de los datos para que el motor de PDF no procese textos nulos
     df_rep_filtrado = df_rep_filtrado.fillna("")
     for col in df_rep_filtrado.columns:
         df_rep_filtrado[col] = df_rep_filtrado[col].astype(str).replace(['None', 'none', 'nan', 'NaN', '<NA>', 'null'], '')
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if df_rep_filtrado.empty:
-        st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada.")
-    else:
-        # Generación del PDF en memoria
-        pdf = FPDF(orientation='P', unit='mm', format='Letter')
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.set_text_color(30, 58, 138) 
-        titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_ui).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
-        pdf.cell(195, 8, txt=titulo_doc, ln=True, align='C')
-        
-        pdf.set_font("Arial", 'I', 9)
-        pdf.set_text_color(108, 117, 125)
-        from zoneinfo import ZoneInfo
-        tz_mx = ZoneInfo("America/Mexico_City")
-        fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
-        pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Registros evaluados: {len(df_rep_filtrado)}", ln=True, align='C')
-        pdf.ln(6)
-        
-        total_acumulado = 0
-        fondo_cebra = False
+    # Creamos un contenedor limpio exclusivo para el botón abajo
+    contenedor_boton = st.container()
 
-        if solo_resumen and criterio_resumen:
-            # Agrupación segura convirtiendo costos a valores numéricos válidos
-            df_rep_filtrado['Costo'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
-            df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
-            
-            if criterio_resumen in ['Lote', 'Manzana']:
-                df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
-                df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
-
-            w_r_criterio, w_r_costo = 145, 50
-            
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(30, 58, 138)
-            pdf.set_text_color(255, 255, 255)
-            pdf.cell(w_r_criterio, 8, txt=f"Criterio de Agrupación: {criterio_ui}", border=1, align='L', fill=True)
-            pdf.cell(w_r_costo, 8, txt="Total Acumulado", border=1, align='R', fill=True)
-            pdf.ln(8)
-            
-            pdf.set_font("Arial", '', 9)
-            pdf.set_text_color(0, 0, 0)
-            
-            for _, row in df_pdf_res.iterrows():
-                pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
-                
-                if criterio_resumen == "Lote" and txt_criterio.isdigit():
-                    txt_criterio = f"Lote {txt_criterio}"
-                
-                pdf.cell(w_r_criterio, 7, txt=txt_criterio[:90], border=1, align='L', fill=True)
-                pdf.cell(w_r_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
-                pdf.ln(7)
-                
-                total_acumulado += float(row['Costo'])
-                fondo_cebra = not fondo_cebra
-                
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(230, 235, 245)
-            pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({str(criterio_ui).upper()})  ", border=1, align='R', fill=True)
-            pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
-
+    with contenedor_boton:
+        if df_rep_filtrado.empty:
+            st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada.")
         else:
-            w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
+            # Generación silenciosa del PDF en memoria
+            pdf = FPDF(orientation='P', unit='mm', format='Letter')
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 14)
+            pdf.set_text_color(30, 58, 138) 
+            titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_ui).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
+            pdf.cell(195, 8, txt=titulo_doc, ln=True, align='C')
             
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(30, 58, 138)
-            pdf.set_text_color(255, 255, 255)
-            pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
-            pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
-            pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
-            pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
-            pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-            pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
-            pdf.ln(8)
+            pdf.set_font("Arial", 'I', 9)
+            pdf.set_text_color(108, 117, 125)
+            from zoneinfo import ZoneInfo
+            tz_mx = ZoneInfo("America/Mexico_City")
+            fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
+            pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Registros: {len(df_rep_filtrado)}", ln=True, align='C')
+            pdf.ln(6)
             
-            pdf.set_font("Arial", '', 9)
-            pdf.set_text_color(0, 0, 0)
-            
-            for _, row in df_rep_filtrado.iterrows():
-                pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
-                proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
-                costo_val = pd.to_numeric(row['Costo'], errors='coerce') if row['Costo'] != '' else 0
+            total_acumulado = 0
+            fondo_cebra = False
+
+            if solo_resumen and criterio_resumen:
+                df_rep_filtrado['Costo'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
+                df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
+                if criterio_resumen in ['Lote', 'Manzana']:
+                    df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
+                    df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
+
+                w_r_criterio, w_r_costo = 145, 50
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                pdf.cell(w_r_criterio, 8, txt=f"Criterio de Agrupación: {criterio_ui}", border=1, align='L', fill=True)
+                pdf.cell(w_r_costo, 8, txt="Total Acumulado", border=1, align='R', fill=True)
+                pdf.ln(8)
                 
-                pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
-                pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
-                pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
-                pdf.cell(w_costo, 7, txt=f"${float(costo_val):,.2f}", border=1, align='R', fill=True)
-                pdf.ln(7)
+                pdf.set_font("Arial", '', 9)
+                pdf.set_text_color(0, 0, 0)
+                for _, row in df_pdf_res.iterrows():
+                    pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                    txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
+                    if criterio_resumen == "Lote" and txt_criterio.isdigit():
+                        txt_criterio = f"Lote {txt_criterio}"
+                    pdf.cell(w_r_criterio, 7, txt=txt_criterio[:90], border=1, align='L', fill=True)
+                    pdf.cell(w_r_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                    pdf.ln(7)
+                    total_acumulado += float(row['Costo'])
+                    fondo_cebra = not fondo_cebra
+                    
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(230, 235, 245)
+                pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({str(criterio_ui).upper()})  ", border=1, align='R', fill=True)
+                pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
+
+            else:
+                w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
+                pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
+                pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
+                pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
+                pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+                pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
+                pdf.ln(8)
                 
-                total_acumulado += float(costo_val)
-                fondo_cebra = not fondo_cebra
+                pdf.set_font("Arial", '', 9)
+                pdf.set_text_color(0, 0, 0)
+                for _, row in df_rep_filtrado.iterrows():
+                    pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                    dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                    proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                    costo_val = pd.to_numeric(row['Costo'], errors='coerce') if row['Costo'] != '' else 0
+                    
+                    pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
+                    pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
+                    pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
+                    pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                    pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
+                    pdf.cell(w_costo, 7, txt=f"${float(costo_val):,.2f}", border=1, align='R', fill=True)
+                    pdf.ln(7)
+                    total_acumulado += float(costo_val)
+                    fondo_cebra = not fondo_cebra
+                
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(230, 235, 245)
+                pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
+                pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
             
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(230, 235, 245)
-            pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
-            pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
-        
-        # El botón rojo limpio que genera tu vista de impresión PDF
-        st.download_button(
-            label="🖨️ Generar Vista de Impresión PDF",
-            data=pdf.output(dest='S').encode('latin-1'),
-            file_name="Reporte_Destajos_Personalizado.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            type="primary"
-        )
+            # Botón único rojo funcional de tu imagen
+            st.download_button(
+                label="🖨️ Generar Vista de Impresión PDF",
+                data=pdf.output(dest='S').encode('latin-1'),
+                file_name="Reporte_Destajos_Personalizado.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
 
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
-
         
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
