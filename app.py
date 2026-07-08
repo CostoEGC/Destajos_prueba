@@ -389,18 +389,16 @@ def dialogo_reportes():
     # Calcular la columna de "Estado" por si el usuario decide agrupar por ella
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
-    # === NUEVA LIMPIEZA PROFUNDA PARA ELIMINAR "NONE" ===
-    # Convertimos los valores nulos o textos basura a cadenas vacías para que no deformen la tabla
+    # Limpiamos los datos nulos para que el PDF salga impecable
     df_rep_filtrado = df_rep_filtrado.fillna("")
     df_rep_filtrado = df_rep_filtrado.replace(["None", "none", "nan", "NaN", "<NA>", "null"], "")
 
-    st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
     st.markdown("<br>", unsafe_allow_html=True)
 
     if df_rep_filtrado.empty:
         st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
     else:
-
+        
         # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA (SIN BOTÓN PREVIO) ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
@@ -790,10 +788,10 @@ if menu == "Registro de Destajos":
         costo_seleccionado = df_pagar_actual['Costo'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#2D2D45; color:blue; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#2D2D45; color:blue; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
 
 
 # =========================================================================
