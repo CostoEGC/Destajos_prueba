@@ -314,7 +314,6 @@ def dialogo_reportes():
             conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
     list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # Replicando exactamente el diseño de tu imagen
     col1, col2 = st.columns(2)
     with col1:
         sel_proto = st.selectbox("Prototipo:", list_prototipos, key="rep_sel_proto")
@@ -326,8 +325,26 @@ def dialogo_reportes():
         sel_dest = st.selectbox("Destajista:", list_destajistas_filtro, key="rep_sel_dest")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    st.markdown("##### 📅 Filtrar por Rango de Fechas de Pago (Opcional)")
-    rango = st.date_input("Rango de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
+    
+    # Controles del tipo de resumen y fechas
+    c_col1, c_col2, c_col3 = st.columns([4, 4, 4])
+    with c_col1:
+        st.markdown("<br>", unsafe_allow_html=True)
+        solo_resumen = st.checkbox("📊 Imprimir sólo resumen", key="rep_solo_resumen")
+    with c_col2:
+        if solo_resumen:
+            opciones_agrupacion = ["Concepto", "Destajista", "Estado de Pago", "Lote", "Manzana", "Prototipo"]
+            criterio_ui = st.selectbox("Agrupar totales por:", options=opciones_agrupacion, key="rep_criterio_agrupacion")
+            mapa_columnas = {
+                "Concepto": "Partida", "Destajista": "Destajista", "Estado de Pago": "Estado",
+                "Lote": "Lote", "Manzana": "Manzana", "Prototipo": "Prototipo"
+            }
+            criterio_resumen = mapa_columnas[criterio_ui]
+        else:
+            criterio_resumen = None
+            criterio_ui = None
+    with c_col3:
+        rango = st.date_input("Rango de fechas de pago (Opcional):", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
 
     # Aplicación de filtros
     df_rep_filtrado = df_base_rep.copy()
@@ -349,18 +366,22 @@ def dialogo_reportes():
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
+    df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
+
+    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     st.markdown(f"**Partidas que se incluirán en el documento:** `{len(df_rep_filtrado)}` partidas.")
     st.markdown("<br>", unsafe_allow_html=True)
 
     if df_rep_filtrado.empty:
         st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada.")
     else:
-        # Generación del PDF en memoria
+        # Generación del PDF en memoria (Motor interno reactivado)
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(30, 58, 138) 
-        pdf.cell(195, 8, txt="REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
+        titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_ui).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
+        pdf.cell(195, 8, txt=titulo_doc, ln=True, align='C')
         
         pdf.set_font("Arial", 'I', 9)
         pdf.set_text_color(108, 117, 125)
@@ -373,44 +394,83 @@ def dialogo_reportes():
         total_acumulado = 0
         fondo_cebra = False
 
-        w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.set_fill_color(30, 58, 138)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
-        pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
-        pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
-        pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
-        pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-        pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
-        pdf.ln(8)
-        
-        pdf.set_font("Arial", '', 9)
-        pdf.set_text_color(0, 0, 0)
-        
-        for _, row in df_rep_filtrado.iterrows():
-            pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-            dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
-            proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+        if solo_resumen and criterio_resumen:
+            df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
             
-            pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
-            pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
-            pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
-            pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
-            pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
-            pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
-            pdf.ln(7)
+            if criterio_resumen in ['Lote', 'Manzana']:
+                df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
+                df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
+
+            w_r_criterio, w_r_costo = 145, 50
             
-            total_acumulado += float(row['Costo'])
-            fondo_cebra = not fondo_cebra
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(30, 58, 138)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(w_r_criterio, 8, txt=f"Criterio de Agrupación: {criterio_ui}", border=1, align='L', fill=True)
+            pdf.cell(w_r_costo, 8, txt="Total Acumulado", border=1, align='R', fill=True)
+            pdf.ln(8)
+            
+            pdf.set_font("Arial", '', 9)
+            pdf.set_text_color(0, 0, 0)
+            
+            for _, row in df_pdf_res.iterrows():
+                pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
+                
+                if criterio_resumen == "Lote" and txt_criterio.isdigit():
+                    txt_criterio = f"Lote {txt_criterio}"
+                
+                pdf.cell(w_r_criterio, 7, txt=txt_criterio[:90], border=1, align='L', fill=True)
+                pdf.cell(w_r_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                pdf.ln(7)
+                
+                total_acumulado += float(row['Costo'])
+                fondo_cebra = not fondo_cebra
+                
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({str(criterio_ui).upper()})  ", border=1, align='R', fill=True)
+            pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
+
+        else:
+            w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
+            
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(30, 58, 138)
+            pdf.set_text_color(255, 255, 255)
+            pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
+            pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
+            pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
+            pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
+            pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+            pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
+            pdf.ln(8)
+            
+            pdf.set_font("Arial", '', 9)
+            pdf.set_text_color(0, 0, 0)
+            
+            for _, row in df_rep_filtrado.iterrows():
+                pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                
+                pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
+                pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
+                pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
+                pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
+                pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                pdf.ln(7)
+                
+                total_acumulado += float(row['Costo'])
+                fondo_cebra = not fondo_cebra
+            
+            pdf.set_font("Arial", 'B', 10)
+            pdf.set_fill_color(230, 235, 245)
+            pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
+            pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
         
-        pdf.set_font("Arial", 'B', 10)
-        pdf.set_fill_color(230, 235, 245)
-        pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
-        pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
-        
-        # EL BOTÓN ROJO QUE FUNCIONA DIRECTO
+        # EL BOTÓN ROJO QUE FUNCIONA DIRECTO CON EL RESUMEN ACTIVO
         st.download_button(
             label="🖨️ Generar Vista de Impresión PDF",
             data=pdf.output(dest='S').encode('latin-1'),
