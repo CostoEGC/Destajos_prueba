@@ -297,6 +297,12 @@ def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
     st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
     
+    # Inicializar el estado del reporte para que no desaparezca el botón de descarga
+    if 'pdf_procesado' not in st.session_state:
+        st.session_state.pdf_procesado = False
+    if 'pdf_bytes' not in st.session_state:
+        st.session_state.pdf_bytes = None
+
     df_base_rep = st.session_state.df.copy()
     
     # Extraer catálogos dinámicos idénticos a la pestaña de registros
@@ -361,18 +367,19 @@ def dialogo_reportes():
 
     st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
 
+    # Si cambian los filtros, reiniciamos el estado del PDF para obligar a recalcular
     if st.button("🖨️ Generar Vista de Impresión PDF", type="primary", use_container_width=True):
         if df_rep_filtrado.empty:
             st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
+            st.session_state.pdf_procesado = False
         else:
-            # Inicialización del documento en formato Carta (Letter: 215.9mm x 279.4mm)
-            # Margen de 10mm por lado deja un espacio de impresión exacto de 195.9mm
+            # Inicialización del documento en formato Carta
             pdf = FPDF(orientation='P', unit='mm', format='Letter')
             pdf.add_page()
             
             # Encabezado principal del Reporte
             pdf.set_font("Arial", 'B', 14)
-            pdf.set_text_color(30, 58, 138) # Tono azul corporativo (#1E3A8A)
+            pdf.set_text_color(30, 58, 138) 
             pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
             
             # Pie de cabecera con marcas de tiempo en zona horaria local
@@ -395,7 +402,7 @@ def dialogo_reportes():
             pdf.cell(195, 5, txt=criterios[:115], ln=True)
             pdf.ln(4)
             
-            # Definición milimétrica de columnas (Suma exacta = 15 + 15 + 25 + 60 + 50 + 30 = 195mm)
+            # Definición milimétrica de columnas (Suma exacta = 195mm)
             w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
             
             # Estilizado de los encabezados de la tabla
@@ -420,14 +427,13 @@ def dialogo_reportes():
             
             for _, row in df_rep_filtrado.iterrows():
                 if fondo_cebra:
-                    pdf.set_fill_color(245, 247, 250) # Gris muy tenue para guiar la vista
+                    pdf.set_fill_color(245, 247, 250) 
                 else:
                     pdf.set_fill_color(255, 255, 255)
                     
                 dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
                 proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
                 
-                # Slices estructurados para truncar textos largos y evitar encimado de líneas
                 pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
                 pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
                 pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
@@ -439,19 +445,27 @@ def dialogo_reportes():
                 total_acumulado += float(row['Costo'])
                 fondo_cebra = not fondo_cebra
             
-            # Fila de Cierre con los Totales Financieros Generales
+            # Fila de Cierre con los Totales
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(230, 235, 245)
-            # Combinación espacial de columnas de texto (15+15+25+60+50 = 165mm)
             pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
             pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
             
-            # Procesamiento en búfer para descarga transparente
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                pdf.output(tmp_file.name)
-                with open(tmp_file.name, "rb") as f:
-                    st.download_button("📥 Descargar Reporte PDF Personalizado", data=f, file_name=f"Reporte_Destajos_Personalizado.pdf", mime="application/pdf", use_container_width=True)
+            # Guardamos el archivo en memoria usando el estado de la sesión
+            st.session_state.pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            st.session_state.pdf_procesado = True
 
+    # Si el PDF ya fue procesado con éxito, el botón de descarga se dibuja y permanece visible
+    if st.session_state.pdf_procesado and st.session_state.pdf_bytes is not None:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="📥 Descargar Reporte PDF Personalizado",
+            data=st.session_state.pdf_bytes,
+            file_name="Reporte_Destajos_Personalizado.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key="btn_descarga_real"
+        )
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
