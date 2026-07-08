@@ -389,6 +389,11 @@ def dialogo_reportes():
     # Calcular la columna de "Estado" por si el usuario decide agrupar por ella
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
+    # === NUEVA LIMPIEZA PROFUNDA PARA ELIMINAR "NONE" ===
+    # Convertimos los valores nulos o textos basura a cadenas vacías para que no deformen la tabla
+    df_rep_filtrado = df_rep_filtrado.fillna("")
+    df_rep_filtrado = df_rep_filtrado.replace(["None", "none", "nan", "NaN", "<NA>", "null"], "")
+
     st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
 
     # --- 👀 SECCIÓN DE VISTA PRELIMINAR INTERACTIVA DINÁMICA ---
@@ -399,6 +404,9 @@ def dialogo_reportes():
         if solo_resumen and criterio_resumen:
             # Agrupación reactiva en pantalla basada en el criterio seleccionado
             df_preview_resumen = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
+            
+            # Al agrupar, si había celdas vacías (ej. sin destajista), les ponemos "Sin Asignar" para que se vea profesional
+            df_preview_resumen[criterio_resumen] = df_preview_resumen[criterio_resumen].replace("", "Sin Asignar")
             df_preview_resumen.columns = [criterio_ui, 'Monto Acumulado Total']
             
             # Ordenamiento natural para la vista preliminar si aplica a números
