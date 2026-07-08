@@ -297,32 +297,40 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
 
-    # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
+# --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
     df_side = st.session_state.df.copy()
     df_side['Costo'] = pd.to_numeric(df_side['Costo'], errors='coerce').fillna(0)
     
-    # Agrupar por prototipo y sumar montos
-    df_resumen_proto = df_side.groupby('Prototipo')['Costo'].sum().reset_index()
+    # Agrupar por prototipo: Contar casas (Lotes únicos) y sumar Costo
+    df_resumen_proto = df_side.groupby('Prototipo').agg(
+        Cantidad=('Lote', 'nunique'),
+        Costo=('Costo', 'sum')
+    ).reset_index()
     
-    # Aplicar ordenamiento natural nativo (1, 1+, 2, 2+, 2A, 2A+...)
+    # Aplicar ordenamiento natural nativo (1, 1+, 2, 2+, 2A...)
     df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(natural_sort_key)
     df_resumen_proto = df_resumen_proto.sort_values(by='sort_key').drop(columns=['sort_key'])
     
+    total_cantidad_protos = df_resumen_proto['Cantidad'].sum()
     total_general_protos = df_resumen_proto['Costo'].sum()
     
-    # Dar formato estético de moneda
+    # Dar formato estético
     df_mostrar_sidebar = df_resumen_proto.copy()
     df_mostrar_sidebar['Total'] = df_mostrar_sidebar['Costo'].apply(lambda x: f"${x:,.2f}")
-    df_mostrar_sidebar = df_mostrar_sidebar[['Prototipo', 'Total']]
+    df_mostrar_sidebar = df_mostrar_sidebar[['Prototipo', 'Cantidad', 'Total']]
     
-    # Añadir renglón final con la sumatoria completa de los prototipos
-    fila_total = pd.DataFrame([{'Prototipo': 'TOTAL', 'Total': f"${total_general_protos:,.2f}"}])
+    # Añadir renglón final con sumatorias totales
+    fila_total = pd.DataFrame([{
+        'Prototipo': 'TOTAL', 
+        'Cantidad': total_cantidad_protos, 
+        'Total': f"${total_general_protos:,.2f}"
+    }])
     df_mostrar_sidebar = pd.concat([df_mostrar_sidebar, fila_total], ignore_index=True)
     
     # Dibujar la tabla limpia en el panel de la izquierda
     st.sidebar.markdown("<br><hr>", unsafe_allow_html=True)
-    st.sidebar.markdown("##### 📊 Costo por Prototipo")
+    st.sidebar.markdown("##### 📊 Resumen por Prototipo")
     st.sidebar.dataframe(df_mostrar_sidebar, hide_index=True, use_container_width=True)
 
 # =========================================================================
@@ -332,32 +340,6 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     df_actual = st.session_state.df
-    
-    costo_total_global = df_actual['Costo'].sum()
-    pagado_global = df_actual.loc[df_actual['Fecha pago'] != '', 'Costo'].sum()
-    pendiente_global = costo_total_global - pagado_global
-    
-    st.markdown(f"""
-    <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
-            <div style="font-size:24px; font-weight:bold;">🏠 Resumen Global del Proyecto</div>
-        </div>
-        <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
-            <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Costo Total Prototipos</div>
-                <div style="font-size:24px; font-weight:bold;">${costo_total_global:,.2f}</div>
-            </div>
-            <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Total Pagado Real</div>
-                <div style="font-size:24px; font-weight:bold;">${pagado_global:,.2f}</div>
-            </div>
-            <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
-                <div style="font-size:14px; opacity: 0.9;">Total por Pagar</div>
-                <div style="font-size:24px; font-weight:bold;">${pendiente_global:,.2f}</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
     
     st.markdown("##### ⏳ Filtros de Tabla")
     
@@ -369,7 +351,7 @@ if menu == "Registro de Destajos":
         st.session_state.sel_dest = "Todos"
         st.session_state.sel_estado = "Todos"
         st.session_state.sel_fecha = ()
-        st.session_state.grid_key += 1 # Recargar grid tras limpiar
+        st.session_state.grid_key += 1 
         
     st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
@@ -378,7 +360,6 @@ if menu == "Registro de Destajos":
     list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
     
-    # GENERACIÓN COPIA AISLADA (Para evitar la columna extra en Google Sheets)
     df_temporal_filtros = df_actual.copy()
     df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     
@@ -402,7 +383,7 @@ if menu == "Registro de Destajos":
         st.selectbox("Destajista:", list_destajistas_filtro, key="sel_dest")
         st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
-    # Aplicamos la búsqueda usando la columna limpia sobre la marcha
+    # --- APLICAR FILTROS ---
     df_filtrado = df_actual.copy()
     df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
@@ -420,11 +401,33 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[(df_filtrado['Fecha_Obj_Temp'] >= st.session_state.sel_fecha[0]) & (df_filtrado['Fecha_Obj_Temp'] <= st.session_state.sel_fecha[1])]
         df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp'])
 
-    sum_precio = df_filtrado['Costo'].sum()
-    sum_pagos = df_filtrado.loc[df_filtrado['Fecha pago'] != '', 'Costo'].sum()
-    sum_pendiente = sum_precio - sum_pagos
+    # --- CÁLCULO DE KPI REACTIVOS (Usando la tabla ya filtrada) ---
+    costo_total_filtrado = df_filtrado['Costo'].sum()
+    pagado_filtrado = df_filtrado.loc[df_filtrado['Fecha pago'] != '', 'Costo'].sum()
+    pendiente_filtrado = costo_total_filtrado - pagado_filtrado
     
-    st.markdown(f"<div style='text-align: right; font-size: 13px; font-weight: bold; color: #3B82F6;'>🔹➔ Costo: ${sum_precio:,.2f} | Pagos: ${sum_pagos:,.2f} | Por pagar: ${sum_pendiente:,.2f}</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
+            <div style="font-size:24px; font-weight:bold;">🏠 Resumen de la Selección</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; text-align: center; background-color:rgba(255,255,255,0.1); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Costo Total Filtrado</div>
+                <div style="font-size:24px; font-weight:bold;">${costo_total_filtrado:,.2f}</div>
+            </div>
+            <div style="flex: 1; text-align: center; background-color:rgba(16, 185, 129, 0.4); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Total Pagado Real</div>
+                <div style="font-size:24px; font-weight:bold;">${pagado_filtrado:,.2f}</div>
+            </div>
+            <div style="flex: 1; text-align: center; background-color:rgba(239, 68, 68, 0.5); padding: 15px; border-radius:8px;">
+                <div style="font-size:14px; opacity: 0.9;">Total por Pagar</div>
+                <div style="font-size:24px; font-weight:bold;">${pendiente_filtrado:,.2f}</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("<br>", unsafe_allow_html=True)
 
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
@@ -728,7 +731,8 @@ elif menu == "Mapa Interactivo":
         "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
         "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
         "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
-        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798}, "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
+        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798},
+         "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
         "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
         "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
         "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
@@ -1007,72 +1011,36 @@ elif menu == "Mapa Interactivo":
                     defs = soup.find('defs') or soup.new_tag('defs')
                     if not soup.find('defs'): svg_tag.insert(0, defs)
 
+                # --- INYECCIÓN DE COLORES AL MAPA (SIN ESFERAS) ---
                 for item in lotes_datos_mapa:
                     try:
-                        id_lote = str(item["Lote_Id"]); hex_color = item["Hex"]
+                        id_lote = str(item["Lote_Id"])
+                        hex_color = item["Hex"]
                         lote_path = soup.find(id=f"lote-{id_lote}") or soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
 
                         if lote_path:
+                            # 1. Agregar etiqueta que aparece al pasar el mouse
                             etiqueta_hover = lote_path.find('title') or soup.new_tag('title')
                             if not lote_path.find('title'): lote_path.append(etiqueta_hover)
-                            etiqueta_hover.string = f"Lote-{id_lote}"
-                            is_selected_lote = (not st.session_state.mostrar_todos_mapa) and (id_lote == str(st.session_state.lote_actual))
-                            df_lote_esferas = pd.DataFrame()
+                            etiqueta_hover.string = f"Lote {id_lote} | Avance: {item['Avance']} | {item['Estado']}"
                             
+                            is_selected_lote = (not st.session_state.mostrar_todos_mapa) and (id_lote == str(st.session_state.lote_actual))
+                            
+                            # 2. Lógica de coloreado puro (respetando los porcentajes de avance)
                             if filtros_activos:
                                 df_lote_match = df_filtered_mapa[df_filtered_mapa['Lote'].astype(str).str.strip() == id_lote]
                                 if not df_lote_match.empty and (st.session_state.mostrar_todos_mapa or is_selected_lote):
-                                    colores_opacidades, partidas_vistas = [], set()
-                                    for _, row_match in df_lote_match.iterrows():
-                                        if row_match['Partida'] not in partidas_vistas:
-                                            partidas_vistas.add(row_match['Partida'])
-                                            colores_opacidades.append((mapa_colores_partida.get(row_match['Partida'], '#3B82F6'), 1.0))
-                                    
-                                    colores_opacidades = colores_opacidades[:4]
-                                    if len(colores_opacidades) == 1:
-                                        c, op = colores_opacidades[0]
-                                        lote_path['style'] = f"fill:{c}; fill-opacity:{op}; stroke:#{'FFFF00' if is_selected_lote else '000000'}; stroke-width:{8 if is_selected_lote else 6}; opacity:1.0;"
-                                    elif len(colores_opacidades) > 1:
-                                        id_grad = f"grad_{id_lote}"
-                                        grad = soup.new_tag("linearGradient", id=id_grad, x1="0%", y1="0%", x2="100%", y2="0%")
-                                        for i, (c, op) in enumerate(colores_opacidades):
-                                            stop1 = soup.new_tag("stop", offset=f"{(i / len(colores_opacidades)) * 100}%")
-                                            stop1['stop-color'], stop1['stop-opacity'] = c, str(op)
-                                            stop2 = soup.new_tag("stop", offset=f"{((i + 1) / len(colores_opacidades)) * 100}%")
-                                            stop2['stop-color'], stop2['stop-opacity'] = c, str(op)
-                                            grad.append(stop1); grad.append(stop2)
-                                        if defs: defs.append(grad)
-                                        lote_path['style'] = f"fill:url(#{id_grad}); stroke:#{'FFFF00' if is_selected_lote else '000000'}; stroke-width:{8 if is_selected_lote else 6}; opacity:1.0;"
-                                    df_lote_esferas = df_lote_match
+                                    # Si coincide con el filtro, pintar con su color de avance (Obra negra, gris, etc.)
+                                    lote_path['style'] = f"fill:{hex_color}; stroke:#{'FFFF00' if is_selected_lote else '000000'}; stroke-width:{8 if is_selected_lote else 6}; opacity:1.0;"
                                 else:
+                                    # Si no coincide con el filtro, opacarlo para que resalten los demás
                                     lote_path['style'] = "fill:#e5e7eb; fill-opacity:0.3; stroke:#000000; stroke-width:2; opacity:0.3;"
                             else:
                                 if not st.session_state.mostrar_todos_mapa and not is_selected_lote:
-                                    lote_path['style'] = f"fill:{hex_color};stroke:#000000;stroke-width:2;opacity:0.2;"
+                                    lote_path['style'] = f"fill:{hex_color}; stroke:#000000; stroke-width:2; opacity:0.2;"
                                 else:
-                                    lote_path['style'] = f"fill:{hex_color};stroke:#{'FFFF00' if is_selected_lote else '000000'};stroke-width:{8 if is_selected_lote else 6};opacity:1.0;"
-                                    if is_selected_lote: df_lote_esferas = df_map_base[df_map_base['Lote'].astype(str).str.strip() == id_lote]
-
-                            if not df_lote_esferas.empty:
-                                cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
-                                base_x, base_y = (cx_auto, cy_auto) if cx_auto else (float(item["x"]), float(item["y"]))
-                                radio_disp = max(r_auto, 5) if cx_auto else 12 
-                                
-                                num_esferas = len(df_lote_esferas)
-                                for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                    angulo = (2 * math.pi * idx) / num_esferas if num_esferas > 1 else 0
-                                    cx = base_x + (radio_disp * math.cos(angulo) if num_esferas > 1 else 0)
-                                    cy = base_y + (radio_disp * math.sin(angulo) if num_esferas > 1 else 0)
-                                    
-                                    if row.Estado == "Pagado":
-                                        radio_esfera = 3 if num_esferas > 15 else 5
-                                        circle_tag = soup.new_tag("circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(radio_esfera), style=f"fill:{mapa_colores_partida.get(row.Partida, '#3B82F6')}; fill-opacity:1.0; stroke:#1f2937; stroke-width:1px;")
-                                        
-                                        parent = lote_path.parent
-                                        if parent:
-                                            parent.append(circle_tag)
-                                        else:
-                                            lote_path.insert_after(circle_tag)
+                                    # Mostrar color de avance vibrante por defecto
+                                    lote_path['style'] = f"fill:{hex_color}; stroke:#{'FFFF00' if is_selected_lote else '000000'}; stroke-width:{8 if is_selected_lote else 6}; opacity:1.0;"
                     except Exception:
                         pass
 
