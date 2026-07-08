@@ -292,12 +292,12 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.rerun()
 
 # (Corrección 4) Rango de fechas unificado para evitar cierre del modal y agregar filtros avanzados
+# (Corrección 4) Rango de fechas unificado y filtros masivos con vista preliminar
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
-    st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
-    st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
+    st.markdown("### 📊 Configurar Filtros Avanzados para el Reporte PDF")
+    st.write("Selecciona múltiples criterios para estructurar tu reporte. Puedes previsualizar los datos antes de imprimir.")
     
-    # Inicializar el estado del reporte para que no desaparezca el botón de descarga
     if 'pdf_procesado' not in st.session_state:
         st.session_state.pdf_procesado = False
     if 'pdf_bytes' not in st.session_state:
@@ -305,11 +305,11 @@ def dialogo_reportes():
 
     df_base_rep = st.session_state.df.copy()
     
-    # Extraer catálogos dinámicos idénticos a la pestaña de registros
+    # Catálogos dinámicos
     list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
     list_manzanas = sorted([x for x in df_base_rep['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_lotes = sorted([str(x) for x in df_base_rep['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
+    list_destajistas_filtro = sorted([d for d in LISTA_DESTAJISTAS if d.strip() != ""], key=natural_sort_key)
     
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     conceptos_unicos_tuplas = {}
@@ -319,34 +319,39 @@ def dialogo_reportes():
             conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
     list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # Distribución visual de los filtros en dos columnas dentro del modal
+    # Distribución visual con MULTISELECT en todos los filtros
     r_col1, r_col2 = st.columns(2)
     with r_col1:
-        st.selectbox("Prototipo:", ["Todos"] + list_prototipos, key="rep_sel_proto")
-        st.multiselect("Lote(s):", options=list_lotes, key="rep_sel_lotes")
-        st.multiselect("Concepto / Partida:", options=list_conceptos, key="rep_sel_concepto")
+        st.multiselect("Filtrar Prototipo(s):", options=list_prototipos, key="rep_sel_proto")
+        st.multiselect("Filtrar Lote(s):", options=list_lotes, key="rep_sel_lotes")
+        st.multiselect("Filtrar Concepto(s) / Partida(s):", options=list_conceptos, key="rep_sel_concepto")
     with r_col2:
-        st.selectbox("Manzana:", ["Todos"] + list_manzanas, key="rep_sel_manzana")
+        st.multiselect("Filtrar Manzana(s):", options=list_manzanas, key="rep_sel_manzana")
         st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="rep_sel_estado")
-        st.selectbox("Destajista:", list_destajistas_filtro, key="rep_sel_dest")
+        st.multiselect("Filtrar Destajista(s):", options=list_destajistas_filtro, key="rep_sel_dest")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    st.markdown("##### 📅 Filtrar por Rango de Fechas de Pago (Opcional)")
-    rango = st.date_input("Rango de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
+    
+    # Checkbox para activar modo resumen y fechas
+    c_col1, c_col2 = st.columns([6, 4])
+    with c_col1:
+        solo_resumen = st.checkbox("📊 Imprimir sólo resumen (Totales agrupados por Destajista y C.C)", key="rep_solo_resumen")
+    with c_col2:
+        rango = st.date_input("Rango opcional de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
 
-    # Ejecución de la lógica de filtrado sobre el clon de datos
+    # Aplicación de filtros dinámicos (Soporta listas de multiselect)
     df_rep_filtrado = df_base_rep.copy()
     
-    if st.session_state.rep_sel_proto != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'] == st.session_state.rep_sel_proto]
-    if st.session_state.rep_sel_manzana != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'] == st.session_state.rep_sel_manzana]
+    if st.session_state.rep_sel_proto: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'].isin(st.session_state.rep_sel_proto)]
+    if st.session_state.rep_sel_manzana: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'].isin(st.session_state.rep_sel_manzana)]
     if st.session_state.rep_sel_lotes: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Lote'].astype(str).isin(st.session_state.rep_sel_lotes)]
     if st.session_state.rep_sel_concepto: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Concepto_Limpio'].isin(st.session_state.rep_sel_concepto)]
-    if st.session_state.rep_sel_dest != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'] == st.session_state.rep_sel_dest]
+    if st.session_state.rep_sel_dest: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
     
     if st.session_state.rep_sel_estado != "Todos":
         if st.session_state.rep_sel_estado == "Pagado": 
@@ -365,97 +370,131 @@ def dialogo_reportes():
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
-    st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
+    # --- SECCIÓN DE VISTA PRELIMINAR INTERACTIVA ---
+    st.markdown("#### 👀 Vista Preliminar del Reporte")
+    if df_rep_filtrado.empty:
+        st.info("No hay registros que coincidan con la combinación de filtros seleccionada.")
+    else:
+        if solo_resumen:
+            # Agrupar datos para la previsualización del resumen
+            df_preview_resumen = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
+            df_preview_resumen.columns = ['Destajista', 'Centro de Costo (C.C)', 'Monto Acumulado']
+            st.dataframe(df_preview_resumen.style.format({'Monto Acumulado': '${:,.2f}'}), use_container_width=True, hide_index=True)
+        else:
+            # Mostrar tabla detallada normal
+            df_preview_detallado = df_rep_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo']].copy()
+            st.dataframe(df_preview_detallado.style.format({'Costo': '${:,.2f}'}), use_container_width=True, hide_index=True)
 
-    # Si cambian los filtros, reiniciamos el estado del PDF para obligar a recalcular
-    if st.button("🖨️ Generar Vista de Impresión PDF", type="primary", use_container_width=True):
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- BOTÓN PARA GENERAR EL ARCHIVO PDF ---
+    if st.button("🖨️ Confirmar y Generar PDF", type="primary", use_container_width=True):
         if df_rep_filtrado.empty:
-            st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
+            st.warning("No se puede estructurar un reporte vacío.")
             st.session_state.pdf_procesado = False
         else:
-            # Inicialización del documento en formato Carta
+            # Crear PDF en dimensión Carta
             pdf = FPDF(orientation='P', unit='mm', format='Letter')
             pdf.add_page()
             
-            # Encabezado principal del Reporte
+            # Cabecera Institucional
             pdf.set_font("Arial", 'B', 14)
             pdf.set_text_color(30, 58, 138) 
-            pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
+            titulo_doc = "RESUMEN EJECUTIVO DE ESTIMACIONES" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
+            pdf.cell(195, 8, txt=titulo_doc, ln=True, align='C')
             
-            # Pie de cabecera con marcas de tiempo en zona horaria local
             pdf.set_font("Arial", 'I', 9)
             pdf.set_text_color(108, 117, 125)
             from zoneinfo import ZoneInfo
             tz_mx = ZoneInfo("America/Mexico_City")
             fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
-            pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
-            pdf.ln(5)
-            
-            # Cuadro resumen de los criterios impresos
-            pdf.set_font("Arial", 'B', 9)
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
-            pdf.set_font("Arial", '', 9)
-            criterios = f"Prototipo: {st.session_state.rep_sel_proto} | Mz: {st.session_state.rep_sel_manzana} | Destajista: {st.session_state.rep_sel_dest} | Estado: {st.session_state.rep_sel_estado}"
-            if rango and len(rango) == 2:
-                criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
-            pdf.cell(195, 5, txt=criterios[:115], ln=True)
-            pdf.ln(4)
-            
-            # Definición milimétrica de columnas (Suma exacta = 195mm)
-            w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
-            
-            # Estilizado de los encabezados de la tabla
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(30, 58, 138) 
-            pdf.set_text_color(255, 255, 255) 
-            
-            pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
-            pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
-            pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
-            pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
-            pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-            pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
-            pdf.ln(8)
-            
-            # Estilizado y llenado del contenido de la tabla
-            pdf.set_font("Arial", '', 9)
-            pdf.set_text_color(0, 0, 0)
+            pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Registros evaluados: {len(df_rep_filtrado)}", ln=True, align='C')
+            pdf.ln(6)
             
             total_acumulado = 0
             fondo_cebra = False
-            
-            for _, row in df_rep_filtrado.iterrows():
-                if fondo_cebra:
-                    pdf.set_fill_color(245, 247, 250) 
-                else:
-                    pdf.set_fill_color(255, 255, 255)
+
+            # LÓGICA DE DIBUJO RUTA A: SÓLO RESUMEN AGRUPADO
+            if solo_resumen:
+                df_pdf_res = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
+                
+                # Columnas resumidas (85 + 60 + 50 = 195mm exactos)
+                w_r_dest, w_r_cc, w_r_costo = 85, 60, 50
+                
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                pdf.cell(w_r_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+                pdf.cell(w_r_cc, 8, txt="Centro de Costo (C.C)", border=1, align='C', fill=True)
+                pdf.cell(w_r_costo, 8, txt="Total Pagado / Pendiente", border=1, align='R', fill=True)
+                pdf.ln(8)
+                
+                pdf.set_font("Arial", '', 9)
+                pdf.set_text_color(0, 0, 0)
+                
+                for _, row in df_pdf_res.iterrows():
+                    pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                    dest_t = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                    cc_t = str(row['C.C']).strip() if str(row['C.C']).strip() else "N/A"
                     
-                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
-                proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                    pdf.cell(w_r_dest, 7, txt=dest_t[:48], border=1, align='L', fill=True)
+                    pdf.cell(w_r_cc, 7, txt=cc_t[:25], border=1, align='C', fill=True)
+                    pdf.cell(w_r_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                    pdf.ln(7)
+                    
+                    total_acumulado += float(row['Costo'])
+                    fondo_cebra = not fondo_cebra
+                    
+                # Cierre de Totales Resumen
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(230, 235, 245)
+                pdf.cell(w_r_dest + w_r_cc, 8, txt="SUMATORIA TOTAL RESUMIDA  ", border=1, align='R', fill=True)
+                pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
+
+            # LÓGICA DE DIBUJO RUTA B: DESGLOSE DETALLADO TRADICIONAL
+            else:
+                w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
                 
-                pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
-                pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
-                pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
-                pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
-                pdf.ln(7)
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
+                pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
+                pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
+                pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
+                pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+                pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
+                pdf.ln(8)
                 
-                total_acumulado += float(row['Costo'])
-                fondo_cebra = not fondo_cebra
+                pdf.set_font("Arial", '', 9)
+                pdf.set_text_color(0, 0, 0)
+                
+                for _, row in df_rep_filtrado.iterrows():
+                    pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
+                    dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                    proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                    
+                    pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
+                    pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
+                    pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
+                    pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                    pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
+                    pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                    pdf.ln(7)
+                    
+                    total_acumulado += float(row['Costo'])
+                    fondo_cebra = not fondo_cebra
+                
+                # Cierre de Totales Detallado
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(230, 235, 245)
+                pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
+                pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
             
-            # Fila de Cierre con los Totales
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(230, 235, 245)
-            pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
-            pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
-            
-            # Guardamos el archivo en memoria usando el estado de la sesión
             st.session_state.pdf_bytes = pdf.output(dest='S').encode('latin-1')
             st.session_state.pdf_procesado = True
 
-    # Si el PDF ya fue procesado con éxito, el botón de descarga se dibuja y permanece visible
+    # Renderizado persistente del gatillo de descarga
     if st.session_state.pdf_procesado and st.session_state.pdf_bytes is not None:
         st.markdown("<br>", unsafe_allow_html=True)
         st.download_button(
@@ -466,7 +505,7 @@ def dialogo_reportes():
             use_container_width=True,
             key="btn_descarga_real"
         )
-        
+
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
         
