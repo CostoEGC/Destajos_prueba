@@ -292,7 +292,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.rerun()
 
 # (Corrección 4) Rango de fechas unificado para evitar cierre del modal y agregar filtros avanzados
-# (Corrección 4) Rango de fechas unificado y filtros masivos con vista preliminar
+# (Corrección 4) Rango de fechas unificado, filtros masivos, resumen dinámico por criterio y vista preliminar
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros Avanzados para el Reporte PDF")
@@ -332,14 +332,23 @@ def dialogo_reportes():
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     
-    # Checkbox para activar modo resumen y fechas
-    c_col1, c_col2 = st.columns([6, 4])
+    # Controles del tipo de resumen y fechas
+    c_col1, c_col2, c_col3 = st.columns([4, 4, 4])
     with c_col1:
-        solo_resumen = st.checkbox("📊 Imprimir sólo resumen (Totales agrupados por Destajista y C.C)", key="rep_solo_resumen")
+        solo_resumen = st.checkbox("📊 Imprimir sólo resumen", key="rep_solo_resumen")
     with c_col2:
-        rango = st.date_input("Rango opcional de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
+        if solo_resumen:
+            criterio_resumen = st.selectbox(
+                "Agrupar totales por:",
+                options=["Prototipo", "Manzana", "Lote", "Destajista"],
+                key="rep_criterio_agrupacion"
+            )
+        else:
+            criterio_resumen = None
+    with c_col3:
+        rango = st.date_input("Rango opcional de fechas:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
 
-    # Aplicación de filtros dinámicos (Soporta listas de multiselect)
+    # Aplicación de filtros dinámicos
     df_rep_filtrado = df_base_rep.copy()
     
     if st.session_state.rep_sel_proto: 
@@ -370,37 +379,44 @@ def dialogo_reportes():
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
-    # --- SECCIÓN DE VISTA PRELIMINAR INTERACTIVA ---
+    st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
+
+    # --- 👀 SECCIÓN DE VISTA PRELIMINAR INTERACTIVA DINÁMICA ---
     st.markdown("#### 👀 Vista Preliminar del Reporte")
     if df_rep_filtrado.empty:
         st.info("No hay registros que coincidan con la combinación de filtros seleccionada.")
     else:
-        if solo_resumen:
-            # Agrupar datos para la previsualización del resumen
-            df_preview_resumen = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
-            df_preview_resumen.columns = ['Destajista', 'Centro de Costo (C.C)', 'Monto Acumulado']
-            st.dataframe(df_preview_resumen.style.format({'Monto Acumulado': '${:,.2f}'}), use_container_width=True, hide_index=True)
+        if solo_resumen and criterio_resumen:
+            # Agrupación reactiva en pantalla basada en el criterio seleccionado
+            df_preview_resumen = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
+            df_preview_resumen.columns = [criterio_resumen, 'Monto Acumulado Total']
+            
+            # Ordenamiento natural para la vista preliminar si aplica a números
+            if criterio_resumen in ['Lote', 'Manzana']:
+                df_preview_resumen['sort_key'] = df_preview_resumen[criterio_resumen].apply(natural_sort_key)
+                df_preview_resumen = df_preview_resumen.sort_values(by='sort_key').drop(columns=['sort_key'])
+                
+            st.dataframe(df_preview_resumen.style.format({'Monto Acumulado Total': '${:,.2f}'}), use_container_width=True, hide_index=True)
         else:
-            # Mostrar tabla detallada normal
+            # Vista detallada normal
             df_preview_detallado = df_rep_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo']].copy()
             st.dataframe(df_preview_detallado.style.format({'Costo': '${:,.2f}'}), use_container_width=True, hide_index=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- BOTÓN PARA GENERAR EL ARCHIVO PDF ---
+    # --- 🖨️ LÓGICA DE GENERACIÓN DEL PDF ---
     if st.button("🖨️ Confirmar y Generar PDF", type="primary", use_container_width=True):
         if df_rep_filtrado.empty:
             st.warning("No se puede estructurar un reporte vacío.")
             st.session_state.pdf_procesado = False
         else:
-            # Crear PDF en dimensión Carta
             pdf = FPDF(orientation='P', unit='mm', format='Letter')
             pdf.add_page()
             
-            # Cabecera Institucional
+            # Cabecera
             pdf.set_font("Arial", 'B', 14)
             pdf.set_text_color(30, 58, 138) 
-            titulo_doc = "RESUMEN EJECUTIVO DE ESTIMACIONES" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
+            titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_resumen).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
             pdf.cell(195, 8, txt=titulo_doc, ln=True, align='C')
             
             pdf.set_font("Arial", 'I', 9)
@@ -414,19 +430,22 @@ def dialogo_reportes():
             total_acumulado = 0
             fondo_cebra = False
 
-            # LÓGICA DE DIBUJO RUTA A: SÓLO RESUMEN AGRUPADO
-            if solo_resumen:
-                df_pdf_res = df_rep_filtrado.groupby(['Destajista', 'C.C'])['Costo'].sum().reset_index()
+            # MODO A: RESUMEN VARIABLE DINÁMICO
+            if solo_resumen and criterio_resumen:
+                df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
                 
-                # Columnas resumidas (85 + 60 + 50 = 195mm exactos)
-                w_r_dest, w_r_cc, w_r_costo = 85, 60, 50
+                if criterio_resumen in ['Lote', 'Manzana']:
+                    df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
+                    df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
+
+                # Distribución de columnas para resumen (145mm para concepto y 50mm para costo = 195mm Carta)
+                w_r_criterio, w_r_costo = 145, 50
                 
                 pdf.set_font("Arial", 'B', 10)
                 pdf.set_fill_color(30, 58, 138)
                 pdf.set_text_color(255, 255, 255)
-                pdf.cell(w_r_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-                pdf.cell(w_r_cc, 8, txt="Centro de Costo (C.C)", border=1, align='C', fill=True)
-                pdf.cell(w_r_costo, 8, txt="Total Pagado / Pendiente", border=1, align='R', fill=True)
+                pdf.cell(w_r_criterio, 8, txt=f"Concepto / {criterio_resumen}", border=1, align='L', fill=True)
+                pdf.cell(w_r_costo, 8, txt="Total Acumulado", border=1, align='R', fill=True)
                 pdf.ln(8)
                 
                 pdf.set_font("Arial", '', 9)
@@ -434,24 +453,26 @@ def dialogo_reportes():
                 
                 for _, row in df_pdf_res.iterrows():
                     pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                    dest_t = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
-                    cc_t = str(row['C.C']).strip() if str(row['C.C']).strip() else "N/A"
+                    txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
                     
-                    pdf.cell(w_r_dest, 7, txt=dest_t[:48], border=1, align='L', fill=True)
-                    pdf.cell(w_r_cc, 7, txt=cc_t[:25], border=1, align='C', fill=True)
+                    # Agregar prefijo estético si es lote puro para mayor claridad en la impresión
+                    if criterio_resumen == "Lote" and txt_criterio.isdigit():
+                        txt_criterio = f"Lote {txt_criterio}"
+                    
+                    pdf.cell(w_r_criterio, 7, txt=txt_criterio[:90], border=1, align='L', fill=True)
                     pdf.cell(w_r_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
                     pdf.ln(7)
                     
                     total_acumulado += float(row['Costo'])
                     fondo_cebra = not fondo_cebra
                     
-                # Cierre de Totales Resumen
+                # Fila de Cierre Resumen Dinámico
                 pdf.set_font("Arial", 'B', 10)
                 pdf.set_fill_color(230, 235, 245)
-                pdf.cell(w_r_dest + w_r_cc, 8, txt="SUMATORIA TOTAL RESUMIDA  ", border=1, align='R', fill=True)
+                pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({criterio_resumen}S)  ", border=1, align='R', fill=True)
                 pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
 
-            # LÓGICA DE DIBUJO RUTA B: DESGLOSE DETALLADO TRADICIONAL
+            # MODO B: DESGLOSE DETALLADO COMPLETO
             else:
                 w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
                 
@@ -485,7 +506,7 @@ def dialogo_reportes():
                     total_acumulado += float(row['Costo'])
                     fondo_cebra = not fondo_cebra
                 
-                # Cierre de Totales Detallado
+                # Fila de Cierre Detalle
                 pdf.set_font("Arial", 'B', 10)
                 pdf.set_fill_color(230, 235, 245)
                 pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
@@ -494,7 +515,7 @@ def dialogo_reportes():
             st.session_state.pdf_bytes = pdf.output(dest='S').encode('latin-1')
             st.session_state.pdf_procesado = True
 
-    # Renderizado persistente del gatillo de descarga
+    # Botón definitivo de descarga retenido en sesión
     if st.session_state.pdf_procesado and st.session_state.pdf_bytes is not None:
         st.markdown("<br>", unsafe_allow_html=True)
         st.download_button(
