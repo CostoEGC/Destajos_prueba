@@ -387,10 +387,9 @@ def dialogo_reportes():
     st.markdown("<br>", unsafe_allow_html=True)
 
     if df_rep_filtrado.empty:
-        st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
+        st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada.")
     else:
-
-        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA ---
+        # --- GENERACIÓN DEL PDF (Esto no se ve en pantalla, es el archivo que se va a descargar) ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
         
@@ -486,7 +485,7 @@ def dialogo_reportes():
             pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
             pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
         
-        # 🟢 EL BOTÓN DE DESCARGA DIRECTA FUNCIONAL
+        # --- ESTE ES EL BOTON ROJO QUE YA FUNCIONA Y DESCARGA EL ARCHIVO ---
         st.download_button(
             label="🖨️ Imprimir PDF",
             data=pdf.output(dest='S').encode('latin-1'),
