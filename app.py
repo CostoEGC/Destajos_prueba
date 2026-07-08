@@ -395,32 +395,11 @@ def dialogo_reportes():
     df_rep_filtrado = df_rep_filtrado.replace(["None", "none", "nan", "NaN", "<NA>", "null"], "")
 
     st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 👀 SECCIÓN DE VISTA PRELIMINAR INTERACTIVA DINÁMICA ---
-    st.markdown("#### 👀 Vista Preliminar del Reporte")
     if df_rep_filtrado.empty:
-        st.warning("No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
+        st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
     else:
-        if solo_resumen and criterio_resumen:
-            # Agrupación reactiva en pantalla basada en el criterio seleccionado
-            df_preview_resumen = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
-            
-            # Al agrupar, si había celdas vacías (ej. sin destajista), les ponemos "Sin Asignar" para que se vea profesional
-            df_preview_resumen[criterio_resumen] = df_preview_resumen[criterio_resumen].replace("", "Sin Asignar")
-            df_preview_resumen.columns = [criterio_ui, 'Monto Acumulado Total']
-            
-            # Ordenamiento natural para la vista preliminar si aplica a números
-            if criterio_resumen in ['Lote', 'Manzana']:
-                df_preview_resumen['sort_key'] = df_preview_resumen[criterio_ui].apply(natural_sort_key)
-                df_preview_resumen = df_preview_resumen.sort_values(by='sort_key').drop(columns=['sort_key'])
-                
-            st.dataframe(df_preview_resumen.style.format({'Monto Acumulado Total': '${:,.2f}'}), use_container_width=True, hide_index=True)
-        else:
-            # Vista detallada normal
-            df_preview_detallado = df_rep_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo']].copy()
-            st.dataframe(df_preview_detallado.style.format({'Costo': '${:,.2f}'}), use_container_width=True, hide_index=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
 
         # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA (SIN BOTÓN PREVIO) ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
