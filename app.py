@@ -463,9 +463,12 @@ if menu == "Registro de Destajos":
             st.success("C.C asignado masivamente.")
             st.rerun()
 
-    # --- INICIO NUEVO BOTÓN DE SELLADO ---
+    # --- BOTÓN SELLAR (INYECCIÓN INMEDIATA) ---
+    st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     col_sellar, col_espacio = st.columns([2, 8])
-    if col_sellar.button("✍️ Sellar Fecha y Usuario", use_container_width=True, type="primary"):
+    
+    # Se añade un 'key' único para garantizar que Streamlit jamás lo confunda
+    if col_sellar.button("✍️ Sellar Fecha y Usuario", use_container_width=True, type="primary", key="btn_sellar_unico"):
         df_pantalla = st.session_state.current_grid_state
         if not df_pantalla.empty:
             df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
@@ -473,11 +476,10 @@ if menu == "Registro de Destajos":
             filas_sellar = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha_Limpia'] == '')]
             
             if not filas_sellar.empty:
-                # --- LÓGICA DE HORA EXACTA Y FORMATO EN ESPAÑOL ---
                 dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
                 meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
                 ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
-                # --------------------------------------------------
+                
                 for _, row in filas_sellar.iterrows():
                     idx = int(row['_original_index'])
                     st.session_state.df.at[idx, 'Fecha pago'] = ahora
@@ -486,43 +488,12 @@ if menu == "Registro de Destajos":
                     st.session_state.df.at[idx, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
                     st.session_state.df.at[idx, 'Pagar'] = True
                 
-                st.session_state.grid_key += 1
                 st.session_state.reload_trigger = True
                 st.rerun()
             else:
-                st.warning("Selecciona primero la casilla 'Pagar' en las partidas que desees sellar.")
-    # --- FIN NUEVO BOTÓN DE SELLADO ---
+                st.warning("⚠️ Selecciona primero la casilla 'Pagar' en las partidas que desees sellar.")
 
     ph_label_azul = st.empty()
-    st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
-    
-    # --- BOTÓN SELLAR (INYECCIÓN INMEDIATA) ---
-    col_sellar, col_espacio = st.columns([2, 8])
-    if col_sellar.button("✍️ Sellar Fecha y Usuario", use_container_width=True, type="primary"):
-        df_pantalla = st.session_state.current_grid_state
-        if not df_pantalla.empty:
-            df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-            df_pantalla['Fecha_Limpia'] = df_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
-            filas_sellar = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha_Limpia'] == '')]
-            
-            if not filas_sellar.empty:
-                # Hora exacta de México y meses en español
-                dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
-                meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
-                ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
-                
-                for _, row in filas_sellar.iterrows():
-                    idx = int(row['_original_index'])
-                    st.session_state.df.at[idx, 'Fecha pago'] = ahora
-                    st.session_state.df.at[idx, 'Usuario'] = st.session_state.usuario
-                    st.session_state.df.at[idx, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
-                    st.session_state.df.at[idx, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
-                    st.session_state.df.at[idx, 'Pagar'] = True
-                
-                st.session_state.reload_trigger = True # Da la orden a la tabla de recargarse visualmente
-                st.rerun()
-            else:
-                st.warning("⚠️ Selecciona primero la casilla 'Pagar' en las partidas que desees sellar.")
     
     # --- PREPARACIÓN DE LA TABLA ---
     df_filtrado_grid = df_filtrado.copy()
@@ -613,7 +584,6 @@ if menu == "Registro de Destajos":
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
-
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
