@@ -575,49 +575,56 @@ if menu == "Registro de Destajos":
     
     df_actual = st.session_state.df
     
-    st.markdown("##### ⏳ Filtros de Tabla")
-    
-    def limpiar_cb():
-        st.session_state.sel_proto = "Todos"
-        st.session_state.sel_manzana = "Todos"
-        st.session_state.sel_lotes = []
-        st.session_state.sel_concepto = []
-        st.session_state.sel_dest = "Todos"
-        st.session_state.sel_estado = "Todos"
-        st.session_state.sel_fecha = ()
-        st.session_state.grid_key += 1 
+    # === INICIO DEL CAMBIO DE ORDEN VISUAL ===
+    # Reservamos los espacios físicos en el orden que deseas verlos
+    espacio_kpi = st.empty() 
+    espacio_filtros = st.container() 
+
+    # 1. Dibujamos los filtros dentro de su contenedor reservado
+    with espacio_filtros:
+        st.markdown("##### ⏳ Filtros de Tabla")
         
-    st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
+        def limpiar_cb():
+            st.session_state.sel_proto = "Todos"
+            st.session_state.sel_manzana = "Todos"
+            st.session_state.sel_lotes = []
+            st.session_state.sel_concepto = []
+            st.session_state.sel_dest = "Todos"
+            st.session_state.sel_estado = "Todos"
+            st.session_state.sel_fecha = ()
+            st.session_state.grid_key += 1 
+            
+        st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-    list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
-    list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
-    
-    df_temporal_filtros = df_actual.copy()
-    df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
-    
-    conceptos_unicos_tuplas = {}
-    for _, row in df_temporal_filtros.iterrows():
-        limpio = row['Concepto_Limpio']
-        if limpio not in conceptos_unicos_tuplas:
-            conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
-    list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
-
-    f_col1, f_col2 = st.columns(2)
-    
-    with f_col1:
-        st.selectbox("Prototipo:", ["Todos"] + list_prototipos, key="sel_proto")
-        st.multiselect("Lote(s):", options=list_lotes, key="sel_lotes")
-        st.multiselect("Concepto / Partida:", options=list_conceptos, key="sel_concepto")
+        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
+        list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+        list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+        list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
         
-    with f_col2:
-        st.selectbox("Manzana:", ["Todos"] + list_manzanas, key="sel_manzana")
-        st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="sel_estado")
-        st.selectbox("Destajista:", list_destajistas_filtro, key="sel_dest")
-        st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
+        df_temporal_filtros = df_actual.copy()
+        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+        
+        conceptos_unicos_tuplas = {}
+        for _, row in df_temporal_filtros.iterrows():
+            limpio = row['Concepto_Limpio']
+            if limpio not in conceptos_unicos_tuplas:
+                conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+        list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # --- APLICAR FILTROS ---
+        f_col1, f_col2 = st.columns(2)
+        
+        with f_col1:
+            st.selectbox("Prototipo:", ["Todos"] + list_prototipos, key="sel_proto")
+            st.multiselect("Lote(s):", options=list_lotes, key="sel_lotes")
+            st.multiselect("Concepto / Partida:", options=list_conceptos, key="sel_concepto")
+            
+        with f_col2:
+            st.selectbox("Manzana:", ["Todos"] + list_manzanas, key="sel_manzana")
+            st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="sel_estado")
+            st.selectbox("Destajista:", list_destajistas_filtro, key="sel_dest")
+            st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
+
+    # --- 2. APLICAR FILTROS LÓGICOS (Invisible para el usuario) ---
     df_filtrado = df_actual.copy()
     df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
@@ -631,7 +638,6 @@ if menu == "Registro de Destajos":
         else: df_filtrado = df_filtrado[df_filtrado['Fecha pago'] == '']
             
     if st.session_state.sel_fecha and len(st.session_state.sel_fecha) == 2:
-        # --- PARSER PARA EL FILTRO DE LA TABLA ---
         meses_regex = {
             r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
             r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
@@ -642,12 +648,13 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[(df_filtrado['Fecha_Obj_Temp'] >= st.session_state.sel_fecha[0]) & (df_filtrado['Fecha_Obj_Temp'] <= st.session_state.sel_fecha[1])]
         df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
-    # --- CÁLCULO DE KPI REACTIVOS (Usando la tabla ya filtrada) ---
+    # --- 3. CÁLCULO DE KPI REACTIVOS ---
     costo_total_filtrado = df_filtrado['Costo'].sum()
     pagado_filtrado = df_filtrado.loc[df_filtrado['Fecha pago'] != '', 'Costo'].sum()
     pendiente_filtrado = costo_total_filtrado - pagado_filtrado
     
-    st.markdown(f"""
+    # 4. Inyectamos la tabla de resumen en el espacio vacío que dejamos hasta arriba
+    espacio_kpi.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
             <div style="font-size:24px; font-weight:bold;">🏠 Resumen de la Selección</div>
@@ -668,6 +675,7 @@ if menu == "Registro de Destajos":
         </div>
     </div>
     """, unsafe_allow_html=True)
+    # === FIN DEL CAMBIO DE ORDEN VISUAL ===
     
     st.markdown("<br>", unsafe_allow_html=True)
 
