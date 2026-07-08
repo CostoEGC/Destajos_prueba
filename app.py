@@ -609,10 +609,15 @@ if menu == "Registro de Destajos":
         
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
-        df_pagar = df_grid[df_grid['Pagar_Bool'] == True]
-        total_checked = len(df_pagar)
         
-        costo_seleccionado = df_pagar[df_pagar['Fecha pago'] == '']['Costo'].sum()
+        # Limpieza segura de la columna de fecha para evaluar correctamente el estado
+        df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+        
+        # 📊 CONTEO EN TIEMPO REAL: Filtra solo las filas marcadas que NO tienen fecha de pago previa
+        df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')]
+        total_checked = len(df_pagar_actual)
+        
+        costo_seleccionado = df_pagar_actual['Costo'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox activados: {total_checked}</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
