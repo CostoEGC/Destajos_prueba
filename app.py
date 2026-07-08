@@ -46,8 +46,30 @@ def obtener_datos_gsheet():
             if col not in df.columns:
                 df[col] = ''
 
-        # (Corrección 1) Limpieza absoluta de la Fecha para evitar que se bloqueen celdas por falsos positivos ('nan')
-        df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '')
+        # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
+        df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
+        
+        # NORMALIZACIÓN INTERNA: Asegura que cualquier fecha vieja o del servidor se muestre con 3 letras de mes en la app web
+        meses_3_letras = {
+            1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+            7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+        }
+        def normalizar_fecha_interfaz(val):
+            if not val or val in ['nan', 'NaN', 'None', 'NaT', 'null', '<NA>', '']:
+                return ''
+            # Si ya fue procesada con el formato de texto correcto, mantenerla
+            if any(m in val for m in meses_3_letras.values()):
+                return val
+            # Intentar parsear formatos numéricos comunes devueltos por Google Sheets
+            for fmt in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%Y-%m-%d'):
+                try:
+                    dt = datetime.strptime(val, fmt)
+                    return f"{dt.strftime('%d')}/{meses_3_letras[dt.month]}/{dt.strftime('%Y')} {dt.strftime('%H:%M:%S')}"
+                except ValueError:
+                    continue
+            return val
+
+        df['Fecha pago'] = df['Fecha pago'].apply(normalizar_fecha_interfaz)
         
         df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
         df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
@@ -195,7 +217,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         # Forzar booleanos limpios por seguridad de evaluación
         df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
         
-        # CORRECCIÓN: Limpieza absoluta para detectar de forma segura las celdas vacías devueltas por AgGrid
+        # Limpieza absoluta para detectar de forma segura las celdas vacías devueltas por AgGrid
         df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
         filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
@@ -247,8 +269,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
 
                 actualizar_datos_gsheet(df_envio)
                 
-                # 4. SOLUCIÓN AL PARPADEO/FANTASMA: Forzamos descarga de datos frescos desde Sheets
-                st.session_state.df = obtener_datos_gsheet()
+                # 4. SOLUCIÓN AL FORMATO WEB: Usamos el estado local de memoria para renderizar al instante sin retrasos de red
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
                 st.session_state.grid_key += 1 
@@ -266,7 +287,16 @@ def dialogo_reportes():
         f_inicio, f_fin = rango[0], rango[1]
         if st.button("Imprimir PDF", type="primary"):
             df_rep = st.session_state.df[st.session_state.df['Fecha pago'] != ''].copy()
-            df_rep['Fecha_Obj'] = pd.to_datetime(df_rep['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            
+            # --- PARSER PARA LEER EL NUEVO FORMATO DD/MMM/AAAA ---
+            meses_regex = {
+                r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
+                r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
+                r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
+            }
+            df_rep['Fecha_Temp'] = df_rep['Fecha pago'].replace(meses_regex, regex=True)
+            df_rep['Fecha_Obj'] = pd.to_datetime(df_rep['Fecha_Temp'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            
             df_rep = df_rep[(df_rep['Fecha_Obj'] >= f_inicio) & (df_rep['Fecha_Obj'] <= f_fin)]
             
             if df_rep.empty:
@@ -411,9 +441,16 @@ if menu == "Registro de Destajos":
         else: df_filtrado = df_filtrado[df_filtrado['Fecha pago'] == '']
             
     if st.session_state.sel_fecha and len(st.session_state.sel_fecha) == 2:
-        df_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_filtrado['Fecha pago'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+        # --- PARSER PARA EL FILTRO DE LA TABLA ---
+        meses_regex = {
+            r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
+            r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
+            r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
+        }
+        df_filtrado['Fecha_Parse'] = df_filtrado['Fecha pago'].replace(meses_regex, regex=True)
+        df_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
         df_filtrado = df_filtrado[(df_filtrado['Fecha_Obj_Temp'] >= st.session_state.sel_fecha[0]) & (df_filtrado['Fecha_Obj_Temp'] <= st.session_state.sel_fecha[1])]
-        df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp'])
+        df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
     # --- CÁLCULO DE KPI REACTIVOS (Usando la tabla ya filtrada) ---
     costo_total_filtrado = df_filtrado['Costo'].sum()
