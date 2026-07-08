@@ -291,7 +291,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.success("¡Datos guardados!")
                 st.rerun()
 
-# (Corrección 5) Reporte a 1 clic, con agrupador alfabético expandido y generación al vuelo
+# (Corrección 6) Excluir "Sin Asignar" para limpiar sumatorias y Reporte a 1 clic
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros Avanzados para el Reporte PDF")
@@ -332,14 +332,12 @@ def dialogo_reportes():
         solo_resumen = st.checkbox("📊 Imprimir sólo resumen", key="rep_solo_resumen")
     with c_col2:
         if solo_resumen:
-            # Lista ordenada alfabéticamente
             opciones_agrupacion = ["Concepto", "Destajista", "Estado de Pago", "Lote", "Manzana", "Prototipo"]
             criterio_ui = st.selectbox(
                 "Agrupar totales por:",
                 options=opciones_agrupacion,
                 key="rep_criterio_agrupacion"
             )
-            # Diccionario para traducir la opción visual a la columna real del DataFrame
             mapa_columnas = {
                 "Concepto": "Partida",
                 "Destajista": "Destajista",
@@ -389,6 +387,14 @@ def dialogo_reportes():
     # Calcular la columna de "Estado" por si el usuario decide agrupar por ella
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
+    # --- 🚫 FILTRO DE LIMPIEZA ABSOLUTA PARA OCULTAR "SIN ASIGNAR" ---
+    if solo_resumen and criterio_resumen:
+        # Quitamos cualquier fila que tenga la columna de agrupación vacía o nula
+        df_rep_filtrado = df_rep_filtrado[~df_rep_filtrado[criterio_resumen].astype(str).str.strip().str.lower().isin(['', 'nan', 'none', '<na>'])]
+    else:
+        # En reporte detallado ocultamos las partidas que no tienen un Destajista asignado
+        df_rep_filtrado = df_rep_filtrado[~df_rep_filtrado['Destajista'].astype(str).str.strip().str.lower().isin(['', 'nan', 'none', '<na>'])]
+
     st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
 
     # --- 👀 SECCIÓN DE VISTA PRELIMINAR INTERACTIVA DINÁMICA ---
@@ -397,28 +403,24 @@ def dialogo_reportes():
         st.warning("No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
     else:
         if solo_resumen and criterio_resumen:
-            # Agrupación reactiva en pantalla basada en el criterio seleccionado
             df_preview_resumen = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
             df_preview_resumen.columns = [criterio_ui, 'Monto Acumulado Total']
             
-            # Ordenamiento natural para la vista preliminar si aplica a números
             if criterio_resumen in ['Lote', 'Manzana']:
                 df_preview_resumen['sort_key'] = df_preview_resumen[criterio_ui].apply(natural_sort_key)
                 df_preview_resumen = df_preview_resumen.sort_values(by='sort_key').drop(columns=['sort_key'])
                 
             st.dataframe(df_preview_resumen.style.format({'Monto Acumulado Total': '${:,.2f}'}), use_container_width=True, hide_index=True)
         else:
-            # Vista detallada normal
             df_preview_detallado = df_rep_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo']].copy()
             st.dataframe(df_preview_detallado.style.format({'Costo': '${:,.2f}'}), use_container_width=True, hide_index=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA (SIN BOTÓN PREVIO) ---
+        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
         
-        # Cabecera
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(30, 58, 138) 
         titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_ui).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
@@ -443,7 +445,6 @@ def dialogo_reportes():
                 df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
                 df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
 
-            # Distribución de columnas para resumen (145mm para concepto y 50mm para costo = 195mm Carta)
             w_r_criterio, w_r_costo = 145, 50
             
             pdf.set_font("Arial", 'B', 10)
@@ -458,7 +459,7 @@ def dialogo_reportes():
             
             for _, row in df_pdf_res.iterrows():
                 pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
+                txt_criterio = str(row[criterio_resumen]).strip()
                 
                 if criterio_resumen == "Lote" and txt_criterio.isdigit():
                     txt_criterio = f"Lote {txt_criterio}"
@@ -495,7 +496,7 @@ def dialogo_reportes():
             
             for _, row in df_rep_filtrado.iterrows():
                 pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                dest_txt = str(row['Destajista']).strip()
                 proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
                 
                 pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
@@ -523,7 +524,6 @@ def dialogo_reportes():
             use_container_width=True,
             type="primary"
         )
-
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
         
