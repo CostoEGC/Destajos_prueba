@@ -790,10 +790,10 @@ if menu == "Registro de Destajos":
         costo_seleccionado = df_pagar_actual['Costo'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+        b_col5.markdown(f"<div style='background-color:#2D2D45; color:blue; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+        b_col5.markdown(f"<div style='background-color:#2D2D45; color:blue; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
 
 
 # =========================================================================
