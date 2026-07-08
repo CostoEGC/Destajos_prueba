@@ -291,7 +291,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.success("¡Datos guardados!")
                 st.rerun()
 
-# (Corrección 9) Limpieza de etiquetas "None" en la web manteniendo la exclusión estricta en el PDF
+# (Corrección 5) Reporte a 1 clic, con agrupador alfabético expandido y generación al vuelo
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros Avanzados para el Reporte PDF")
@@ -332,12 +332,14 @@ def dialogo_reportes():
         solo_resumen = st.checkbox("📊 Imprimir sólo resumen", key="rep_solo_resumen")
     with c_col2:
         if solo_resumen:
+            # Lista ordenada alfabéticamente
             opciones_agrupacion = ["Concepto", "Destajista", "Estado de Pago", "Lote", "Manzana", "Prototipo"]
             criterio_ui = st.selectbox(
                 "Agrupar totales por:",
                 options=opciones_agrupacion,
                 key="rep_criterio_agrupacion"
             )
+            # Diccionario para traducir la opción visual a la columna real del DataFrame
             mapa_columnas = {
                 "Concepto": "Partida",
                 "Destajista": "Destajista",
@@ -389,41 +391,30 @@ def dialogo_reportes():
 
     st.markdown(f"Partidas afectadas por los filtros actuales: `{len(df_rep_filtrado)}` conceptos.")
 
-    # --- 👀 SECCIÓN DE VISTA PRELIMINAR COMPLETA (LIMPIA DE TEXTOS "NONE") ---
+    # --- 👀 SECCIÓN DE VISTA PRELIMINAR INTERACTIVA DINÁMICA ---
     st.markdown("#### 👀 Vista Preliminar del Reporte")
     if df_rep_filtrado.empty:
         st.warning("No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
     else:
         if solo_resumen and criterio_resumen:
-            # Reemplazar nulos reales por texto vacío antes de agrupar para que no se pierdan en pantalla ni digan "None"
-            df_rep_filtrado[criterio_resumen] = df_rep_filtrado[criterio_resumen].astype(str).str.strip().replace(
-                ['nan', 'NaN', 'None', 'none', '<NA>', 'null'], ''
-            )
-            
-            # Agrupación reactiva en pantalla (Muestra todo)
+            # Agrupación reactiva en pantalla basada en el criterio seleccionado
             df_preview_resumen = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
             df_preview_resumen.columns = [criterio_ui, 'Monto Acumulado Total']
             
+            # Ordenamiento natural para la vista preliminar si aplica a números
             if criterio_resumen in ['Lote', 'Manzana']:
                 df_preview_resumen['sort_key'] = df_preview_resumen[criterio_ui].apply(natural_sort_key)
                 df_preview_resumen = df_preview_resumen.sort_values(by='sort_key').drop(columns=['sort_key'])
                 
             st.dataframe(df_preview_resumen.style.format({'Monto Acumulado Total': '${:,.2f}'}), use_container_width=True, hide_index=True)
         else:
-            # Vista detallada tradicional (Muestra todo)
+            # Vista detallada normal
             df_preview_detallado = df_rep_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo']].copy()
-            
-            # Limpiar celdas para que cualquier texto "None" se convierta en una celda en blanco
-            for col in ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista']:
-                df_preview_detallado[col] = df_preview_detallado[col].astype(str).str.strip().replace(
-                    ['nan', 'NaN', 'None', 'none', '<NA>', 'null'], ''
-                )
-                
             st.dataframe(df_preview_detallado.style.format({'Costo': '${:,.2f}'}), use_container_width=True, hide_index=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- 🖨️ GENERACIÓN INTERNA DEL PDF (EXCLUYENDO VACÍOS ESTRICTAMENTE) ---
+        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA (SIN BOTÓN PREVIO) ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
         
@@ -438,24 +429,21 @@ def dialogo_reportes():
         from zoneinfo import ZoneInfo
         tz_mx = ZoneInfo("America/Mexico_City")
         fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
+        pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Registros evaluados: {len(df_rep_filtrado)}", ln=True, align='C')
+        pdf.ln(6)
         
-        # Clonamos los datos filtrados únicamente para depurar el PDF impreso sin alterar la pantalla web
-        df_pdf_limpio = df_rep_filtrado.copy()
-
         total_acumulado = 0
         fondo_cebra = False
 
-        # MODO A: IMPRESIÓN DE RESUMEN
+        # MODO A: RESUMEN VARIABLE DINÁMICO
         if solo_resumen and criterio_resumen:
-            # 🚫 FILTRO DE IMPRESIÓN: Quitamos los vacíos antes de agrupar y sumar
-            df_pdf_limpio = df_pdf_limpio[~df_pdf_limpio[criterio_resumen].astype(str).str.strip().str.lower().isin(['', 'nan', 'none', 'null', '<na>'])]
-            
-            df_pdf_res = df_pdf_limpio.groupby(criterio_resumen)['Costo'].sum().reset_index()
+            df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
             
             if criterio_resumen in ['Lote', 'Manzana']:
                 df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
                 df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
 
+            # Distribución de columnas para resumen (145mm para concepto y 50mm para costo = 195mm Carta)
             w_r_criterio, w_r_costo = 145, 50
             
             pdf.set_font("Arial", 'B', 10)
@@ -470,7 +458,7 @@ def dialogo_reportes():
             
             for _, row in df_pdf_res.iterrows():
                 pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                txt_criterio = str(row[criterio_resumen]).strip()
+                txt_criterio = str(row[criterio_resumen]).strip() if str(row[criterio_resumen]).strip() else "Sin Asignar"
                 
                 if criterio_resumen == "Lote" and txt_criterio.isdigit():
                     txt_criterio = f"Lote {txt_criterio}"
@@ -487,11 +475,8 @@ def dialogo_reportes():
             pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({str(criterio_ui).upper()})  ", border=1, align='R', fill=True)
             pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
 
-        # MODO B: IMPRESIÓN DETALLADA
+        # MODO B: DESGLOSE DETALLADO COMPLETO
         else:
-            # 🚫 FILTRO DE IMPRESIÓN: Ocultamos partidas sin un Destajista asignado
-            df_pdf_limpio = df_pdf_limpio[~df_pdf_limpio['Destajista'].astype(str).str.strip().str.lower().isin(['', 'nan', 'none', 'null', '<na>'])]
-            
             w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
             
             pdf.set_font("Arial", 'B', 10)
@@ -508,9 +493,9 @@ def dialogo_reportes():
             pdf.set_font("Arial", '', 9)
             pdf.set_text_color(0, 0, 0)
             
-            for _, row in df_pdf_limpio.iterrows():
+            for _, row in df_rep_filtrado.iterrows():
                 pdf.set_fill_color(245, 247, 250) if fondo_cebra else pdf.set_fill_color(255, 255, 255)
-                dest_txt = str(row['Destajista']).strip()
+                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
                 proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
                 
                 pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
@@ -529,11 +514,6 @@ def dialogo_reportes():
             pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
             pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
         
-        # Actualizamos la marca de registros reales impresos en el PDF
-        pdf.set_font("Arial", 'I', 9)
-        pdf.set_text_color(108, 117, 125)
-        pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Partidas impresas reales (excluyendo vacías): {len(df_pdf_limpio)}", ln=True, align='C')
-
         # 🟢 EL BOTÓN DE DESCARGA DIRECTA
         st.download_button(
             label="📥 Descargar Reporte PDF Personalizado",
