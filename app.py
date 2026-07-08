@@ -205,10 +205,12 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
         else:
             with st.spinner("Sincronizando con Google..."):
+                # --- HORA EXACTA DE MÉXICO Y FORMATO DD/MMM/AAAA ---
                 dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
                 meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
                 ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
                 usuario_actual = st.session_state.usuario
+                # ---------------------------------------------------
                 
                 # 1. Guardar partidas que se van a pagar
                 if not filas_a_pagar.empty:
@@ -237,7 +239,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 # 4. Sincronizar memoria y forzar refresco limpio de pantalla
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                st.session_state.grid_key += 1 
+                st.session_state.reload_trigger = True 
                 st.success("¡Datos guardados!")
                 st.rerun()
 
@@ -494,6 +496,35 @@ if menu == "Registro de Destajos":
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
+    # --- BOTÓN SELLAR (INYECCIÓN INMEDIATA) ---
+    col_sellar, col_espacio = st.columns([2, 8])
+    if col_sellar.button("✍️ Sellar Fecha y Usuario", use_container_width=True, type="primary"):
+        df_pantalla = st.session_state.current_grid_state
+        if not df_pantalla.empty:
+            df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
+            df_pantalla['Fecha_Limpia'] = df_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+            filas_sellar = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha_Limpia'] == '')]
+            
+            if not filas_sellar.empty:
+                # Hora exacta de México y meses en español
+                dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
+                meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
+                ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
+                
+                for _, row in filas_sellar.iterrows():
+                    idx = int(row['_original_index'])
+                    st.session_state.df.at[idx, 'Fecha pago'] = ahora
+                    st.session_state.df.at[idx, 'Usuario'] = st.session_state.usuario
+                    st.session_state.df.at[idx, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
+                    st.session_state.df.at[idx, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
+                    st.session_state.df.at[idx, 'Pagar'] = True
+                
+                st.session_state.reload_trigger = True # Da la orden a la tabla de recargarse visualmente
+                st.rerun()
+            else:
+                st.warning("⚠️ Selecciona primero la casilla 'Pagar' en las partidas que desees sellar.")
+    
+    # --- PREPARACIÓN DE LA TABLA ---
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
@@ -515,7 +546,6 @@ if menu == "Registro de Destajos":
     gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, width=160)
     gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, width=120)
 
-    # (Corrección 1) Comprobación segura en el front-end para saber si está pagado o no (sin evaluar basura de texto)
     rowStyle = JsCode("""
     function(params) {
         let fp = params.data['Fecha pago'];
@@ -551,21 +581,21 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
+    # --- TABLA ANTI-INTERMITENCIAS ---
     response = AgGrid(
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
-        key=f"grid_destajos_{st.session_state.grid_key}",
+        key="grid_destajos_fija", 
         reload_data=st.session_state.reload_trigger,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.MANUAL,
+        update_mode=GridUpdateMode.MODEL_CHANGED, 
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
         theme='balham',
         height=600
     )
-    st.session_state.reload_trigger = False
+    st.session_state.reload_trigger = False # Apagamos el trigger tras inyectar
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
