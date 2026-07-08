@@ -560,7 +560,7 @@ if menu == "Registro de Destajos":
         if (esta_pagado) {
             return {
                 'backgroundColor': '#e0e0e0',
-                'color': '#00FFFF',
+                'color': '#808080',
                 'pointerEvents': 'none',
                 'borderBottom': '1px solid #d3d3d3'
             };
@@ -568,7 +568,7 @@ if menu == "Registro de Destajos":
         
         let style = {
             'backgroundColor': '#000000',
-            'color': '#39FF14',
+            'color': '#00FFFF',
             'borderBottom': '1px solid #4a4a4a'
         };
         
