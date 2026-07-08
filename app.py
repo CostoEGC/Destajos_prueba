@@ -291,11 +291,28 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.success("¡Datos guardados!")
                 st.rerun()
 
+
 # (Corrección 5) Reporte a 1 clic, con agrupador alfabético expandido y generación al vuelo
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros Avanzados para el Reporte PDF")
     st.write("Selecciona múltiples criterios para estructurar tu reporte. El archivo de descarga se actualiza automáticamente al vuelo.")
+
+    # CSS inyectado para forzar que el botón de descarga sea de color ROJO
+    st.markdown("""
+    <style>
+    div.stDownloadButton > button {
+        background-color: #EF4444 !important;
+        color: white !important;
+        border-color: #EF4444 !important;
+    }
+    div.stDownloadButton > button:hover {
+        background-color: #DC2626 !important;
+        border-color: #DC2626 !important;
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     df_base_rep = st.session_state.df.copy()
     
@@ -332,21 +349,11 @@ def dialogo_reportes():
         solo_resumen = st.checkbox("📊 Imprimir sólo resumen", key="rep_solo_resumen")
     with c_col2:
         if solo_resumen:
-            # Lista ordenada alfabéticamente
             opciones_agrupacion = ["Concepto", "Destajista", "Estado de Pago", "Lote", "Manzana", "Prototipo"]
-            criterio_ui = st.selectbox(
-                "Agrupar totales por:",
-                options=opciones_agrupacion,
-                key="rep_criterio_agrupacion"
-            )
-            # Diccionario para traducir la opción visual a la columna real del DataFrame
+            criterio_ui = st.selectbox("Agrupar totales por:", options=opciones_agrupacion, key="rep_criterio_agrupacion")
             mapa_columnas = {
-                "Concepto": "Partida",
-                "Destajista": "Destajista",
-                "Estado de Pago": "Estado",
-                "Lote": "Lote",
-                "Manzana": "Manzana",
-                "Prototipo": "Prototipo"
+                "Concepto": "Partida", "Destajista": "Destajista", "Estado de Pago": "Estado",
+                "Lote": "Lote", "Manzana": "Manzana", "Prototipo": "Prototipo"
             }
             criterio_resumen = mapa_columnas[criterio_ui]
         else:
@@ -358,52 +365,35 @@ def dialogo_reportes():
     # Aplicación de filtros dinámicos
     df_rep_filtrado = df_base_rep.copy()
     
-    if st.session_state.rep_sel_proto: 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'].isin(st.session_state.rep_sel_proto)]
-    if st.session_state.rep_sel_manzana: 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'].isin(st.session_state.rep_sel_manzana)]
-    if st.session_state.rep_sel_lotes: 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Lote'].astype(str).isin(st.session_state.rep_sel_lotes)]
-    if st.session_state.rep_sel_concepto: 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Concepto_Limpio'].isin(st.session_state.rep_sel_concepto)]
-    if st.session_state.rep_sel_dest: 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
+    if st.session_state.rep_sel_proto: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'].isin(st.session_state.rep_sel_proto)]
+    if st.session_state.rep_sel_manzana: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'].isin(st.session_state.rep_sel_manzana)]
+    if st.session_state.rep_sel_lotes: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Lote'].astype(str).isin(st.session_state.rep_sel_lotes)]
+    if st.session_state.rep_sel_concepto: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Concepto_Limpio'].isin(st.session_state.rep_sel_concepto)]
+    if st.session_state.rep_sel_dest: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
     
     if st.session_state.rep_sel_estado != "Todos":
-        if st.session_state.rep_sel_estado == "Pagado": 
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
-        else: 
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
+        if st.session_state.rep_sel_estado == "Pagado": df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
+        else: df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
             
     if rango and len(rango) == 2:
-        meses_regex = {
-            r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
-            r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
-            r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
-        }
+        meses_regex = {r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'}
         df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado['Fecha pago'].replace(meses_regex, regex=True)
         df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
-    # Calcular la columna de "Estado" por si el usuario decide agrupar por ella
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
-
-    # Limpiamos los datos nulos para que el PDF salga impecable
-    df_rep_filtrado = df_rep_filtrado.fillna("")
-    df_rep_filtrado = df_rep_filtrado.replace(["None", "none", "nan", "NaN", "<NA>", "null"], "")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     if df_rep_filtrado.empty:
         st.warning("⚠️ No hay registros que coincidan con la combinación de filtros seleccionada. Ajusta los filtros para generar el reporte.")
     else:
-        
-        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA (SIN BOTÓN PREVIO) ---
+
+        # --- 🖨️ GENERACIÓN DEL PDF AL VUELO EN MEMORIA ---
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
         
-        # Cabecera
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(30, 58, 138) 
         titulo_doc = f"RESUMEN EJECUTIVO POR {str(criterio_ui).upper()}" if solo_resumen else "REPORTE DETALLADO DE ESTIMACIONES Y DESTAJOS"
@@ -411,7 +401,6 @@ def dialogo_reportes():
         
         pdf.set_font("Arial", 'I', 9)
         pdf.set_text_color(108, 117, 125)
-        from zoneinfo import ZoneInfo
         tz_mx = ZoneInfo("America/Mexico_City")
         fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
         pdf.cell(195, 5, txt=f"Emitido el: {fecha_impresion} | Registros evaluados: {len(df_rep_filtrado)}", ln=True, align='C')
@@ -420,7 +409,6 @@ def dialogo_reportes():
         total_acumulado = 0
         fondo_cebra = False
 
-        # MODO A: RESUMEN VARIABLE DINÁMICO
         if solo_resumen and criterio_resumen:
             df_pdf_res = df_rep_filtrado.groupby(criterio_resumen)['Costo'].sum().reset_index()
             
@@ -428,7 +416,6 @@ def dialogo_reportes():
                 df_pdf_res['sort_key'] = df_pdf_res[criterio_resumen].apply(natural_sort_key)
                 df_pdf_res = df_pdf_res.sort_values(by='sort_key').drop(columns=['sort_key'])
 
-            # Distribución de columnas para resumen (145mm para concepto y 50mm para costo = 195mm Carta)
             w_r_criterio, w_r_costo = 145, 50
             
             pdf.set_font("Arial", 'B', 10)
@@ -460,7 +447,6 @@ def dialogo_reportes():
             pdf.cell(w_r_criterio, 8, txt=f"SUMATORIA TOTAL DE RESUMEN ({str(criterio_ui).upper()})  ", border=1, align='R', fill=True)
             pdf.cell(w_r_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
 
-        # MODO B: DESGLOSE DETALLADO COMPLETO
         else:
             w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
             
@@ -499,18 +485,18 @@ def dialogo_reportes():
             pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
             pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
         
-        # 🟢 EL BOTÓN DE DESCARGA DIRECTA
+        # 🟢 EL BOTÓN DE DESCARGA DIRECTA (Ahora en color rojo gracias al estilo)
         st.download_button(
             label="📥 Descargar Reporte PDF Personalizado",
             data=pdf.output(dest='S').encode('latin-1'),
             file_name="Reporte_Destajos_Personalizado.pdf",
             mime="application/pdf",
-            use_container_width=True,
-            type="primary"
+            use_container_width=True
         )
 
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
+
         
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
