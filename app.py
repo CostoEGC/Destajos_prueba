@@ -466,6 +466,10 @@ def dialogo_reportes():
             use_container_width=True,
             key="btn_descarga_real"
         )
+        
+if st.sidebar.button("📄 Reportes"):
+    dialogo_reportes()
+        
 if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
