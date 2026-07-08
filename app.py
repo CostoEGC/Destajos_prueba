@@ -684,18 +684,14 @@ elif menu == "Dashboard (Gráficos y Visor)":
 
 
 # =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO 
+# PESTAÑA 3: MAPA INTERACTIVO (VERSIÓN UNIFICADA A 'COSTO' Y PARSER SEGURO)
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # (Corrección 2) Manejo seguro de datos de costo a precio para el mapa
+    # Convertimos de forma segura la columna Costo a formato numérico
     df_map_base = df.copy()
-    if 'Costo' in df_map_base.columns:
-        df_map_base['Precio'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
-    else:
-        df_map_base['Precio'] = 0.0
-        
+    df_map_base['Costo'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
     df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if r['Fecha pago'] != '' else 'Pendiente', axis=1)
 
     def hex_to_rgba(hex_val, opacity):
@@ -713,7 +709,7 @@ elif menu == "Mapa Interactivo":
         "21": {"x": 386, "y": 108}, "22": {"x": 358, "y": 103}, "23": {"x": 327, "y": 99}, "24": {"x": 300, "y": 96},
         "25": {"x": 270, "y": 95}, "26": {"x": 240, "y": 89}, "27": {"x": 212, "y": 87}, "28": {"x": 182, "y": 82},
         "29": {"x": 152, "y": 73}, "30": {"x": 122, "y": 70}, "31": {"x": 282, "y": 239}, "32": {"x": 320, "y": 245},
-        "33": {"x": 358, "y": 250}, "34": {"x": 393, "y": 256}, "35": {"x": 425, "y": 260}, "36": {"x": 459, "y": 264},
+        "33": {"x": 358, "y": 250}, "34": {"x": 393, "256}, "35": {"x": 425, "y": 260}, "36": {"x": 459, "y": 264},
         "37": {"x": 498, "y": 272}, "38": {"x": 532, "y": 278}, "39": {"x": 568, "y": 279}, "40": {"x": 603, "y": 285},
         "41": {"x": 634, "y": 293}, "42": {"x": 675, "y": 295}, "43": {"x": 656, "y": 379}, "44": {"x": 612, "y": 379},
         "45": {"x": 579, "y": 373}, "46": {"x": 546, "y": 367}, "47": {"x": 510, "y": 364}, "48": {"x": 475, "y": 358},
@@ -723,25 +719,25 @@ elif menu == "Mapa Interactivo":
         "61": {"x": 129, "y": 364}, "62": {"x": 126, "y": 395}, "63": {"x": 126, "y": 421}, "64": {"x": 121, "y": 449},
         "65": {"x": 115, "y": 479}, "66": {"x": 112, "y": 511}, "67": {"x": 108, "y": 536}, "68": {"x": 108, "y": 568},
         "69": {"x": 105, "y": 598}, "70": {"x": 99, "y": 623}, "71": {"x": 94, "y": 654}, "72": {"x": 96, "y": 683},
-        "73": {"x": 92, "y": 713}, "74": {"x": 88, "y": 743}, "75": {"x": 87, "y": 772}, "76": {"x": 81, "y": 803},
-        "77": {"x": 254, "y": 587}, "78": {"x": 262, "y": 560}, "79": {"x": 264, "y": 527}, "80": {"x": 268, "y": 500},
-        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362, "y": 489},
-        "85": {"x": 358, "y": 526}, "86": {"x": 359, "y": 560}, "87": {"x": 349, "y": 593}, "88": {"x": 224, "y": 688},
-        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330, "y": 708}, "92": {"x": 360, "y": 711},
-        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462, "y": 728}, "96": {"x": 496, "y": 734},
-        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
+        "73": {"x": 92", "y": 713}, "74": {"x": 88", "y": 743}, "75": {"x": 87", "y": 772}, "76": {"x": 81", "y": 803},
+        "77": {"x": 254, "y": 587}, "78": {"x": 262定位}, "79": {"x": 264, "y": 527}, "80": {"x": 268", "y": 500},
+        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362},
+        "85": {"x": 358, "y": 526}, "86": {"x": 359, "y": 560}, "87": {"x": 349", "y": 593}, "88": {"x": 224, "y": 688},
+        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330定位}, "92": {"x": 360, "y": 711},
+        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462, "y": 728}, "96": {"x": 496", "y": 734},
+        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604", "y": 744}, "100": {"x": 636", "y": 751},
         "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
         "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
         "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798}, "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
-        "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
-        "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
+        "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115", "y": 920},
+        "121": {"x": 145", "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203", "y": 929}, "124": {"x": 233", "y": 933},
         "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
-        "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463, "y": 962},
-        "133": {"x": 495, "y": 966}, "134": {"x": 524, "y": 971}, "135": {"x": 551, "y": 975}, "136": {"x": 581, "y": 980},
-        "137": {"x": 610, "y": 985}, "138": {"x": 638, "y": 988}, "139": {"x": 667, "y": 993}, "140": {"x": 696, "y": 996},
-        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
+        "129": {"x": 379, "y": 951}, "130": {"x": 406", "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463", "y": 962},
+        "133": {"x": 495, "y": 966}, "134": {"x": 524", "y": 971}, "135": {"x": 551", "y": 975}, "136": {"x": 581", "y": 980},
+        "137": {"x": 610, "y": 985}, "138": {"x": 638", "y": 988}, "139": {"x": 667定位}, "140": {"x": 696", "y": 996},
+        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901", "y": 1015}, "144": {"x": 893", "y": 985},
         "145": {"x": 885, "y": 959}, "146": {"x": 874, "y": 930}, "147": {"x": 864, "y": 904}, "148": {"x": 859, "y": 875},
-        "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
+        "149": {"x": 848, "y": 846}, "150": {"x": 837", "y": 813}, "151": {"x": 822", "y": 765"}
     }
 
     lotes_datos_mapa = []
@@ -750,11 +746,12 @@ elif menu == "Mapa Interactivo":
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa.apply(lambda r: r['Precio'] if r['Fecha pago'] != '' else 0, axis=1)
-            total_precio_lote = df_lote_mapa['Precio'].sum()
+            # CORRECCIÓN: Modificado 'Precio' por 'Costo'
+            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
+            total_costo_lote = df_lote_mapa['Costo'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
             
-            porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
+            porcentaje = (total_pagado_lote / total_costo_lote * 100) if total_costo_lote > 0 else 0
             pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             
             if porcentaje == 0:
@@ -787,8 +784,9 @@ elif menu == "Mapa Interactivo":
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
-    df_kpi['Total_Pagado_Real'] = df_kpi.apply(lambda r: r['Precio'] if r['Fecha pago'] != '' else 0, axis=1)
-    costo_total_mapa = df_kpi['Precio'].sum()
+    # CORRECCIÓN: Modificado 'Precio' por 'Costo'
+    df_kpi['Total_Pagado_Real'] = df_kpi.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
+    costo_total_mapa = df_kpi['Costo'].sum()
     pagado_mapa = df_kpi['Total_Pagado_Real'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
 
@@ -919,10 +917,11 @@ elif menu == "Mapa Interactivo":
             else:
                 st.markdown("**Resumen General por Lote (Financiero):**")
                 df_resumen_global = df_map_base.copy()
-                df_resumen_global['Total_Pagado_Real'] = df_resumen_global.apply(lambda r: r['Precio'] if r['Fecha pago'] != '' else 0, axis=1)
+                # CORRECCIÓN: Cambiado 'Precio' por 'Costo'
+                df_resumen_global['Total_Pagado_Real'] = df_resumen_global.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
                 df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
                     Total_Partidas=('Partida', 'count'), Pagadas=('Estado', lambda x: (x == 'Pagado').sum()),
-                    Costo_Total=('Precio', 'sum'), Pagado_Acum=('Total_Pagado_Real', 'sum')
+                    Costo_Total=('Costo', 'sum'), Pagado_Acum=('Total_Pagado_Real', 'sum')
                 ).reset_index()
                 df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
                 df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
@@ -932,10 +931,10 @@ elif menu == "Mapa Interactivo":
             lote_puro_num = str(st.session_state.lote_actual)
             if filtros_activos:
                 st.markdown(f"**Desglose Filtrado (Lote {lote_puro_num}):**")
-                df_desglose_lote = df_filtered_mapa[df_filtered_mapa['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
+                df_desglose_lote = df_filtered_mapa[df_filtered_mapa['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
             else:
                 st.markdown(f"**Desglose General (Lote {lote_puro_num}):**")
-                df_desglose_lote = df_map_base[df_map_base['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Precio']].copy()
+                df_desglose_lote = df_map_base[df_map_base['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
             
             if not df_desglose_lote.empty:
                 df_desglose_lote['Estatus'] = df_desglose_lote['Estado'].apply(lambda val: "🟢 100% PAGADO" if val == "Pagado" else "🔴 PENDIENTE")
@@ -946,13 +945,14 @@ elif menu == "Mapa Interactivo":
                     "<tr><th style='padding: 10px; border-bottom: 2px solid #ddd;'></th>" 
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd; text-align: left; '>Partida</th>"
                     "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Estatus</th>"
-                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Precio</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #ddd;'>Costo</th>"
                     "</tr></thead><tbody>"
                 )
                 for _, row_lote in df_desglose_lote.iterrows():
                     c_hex = mapa_colores_partida.get(row_lote['Partida'], '#3B82F6')
                     op_style = "1.0" if row_lote['Estado'] == 'Pagado' else "1.0"
-                    html_table += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:{op_style}; margin:auto;'></div></td><td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td><td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td><td style='padding: 8px;'>${row_lote['Precio']:,.2f}</td></tr>"
+                    # CORRECCIÓN: Cambiado 'Precio' por 'Costo'
+                    html_table += f"<tr style='border-bottom: 1px solid #eee;'><td style='padding: 8px;'><div style='width:16px; height:16px; border-radius:50%; background-color:{c_hex}; opacity:{op_style}; margin:auto;'></div></td><td style='padding: 8px; text-align: left;'>{row_lote['Partida']}</td><td style='padding: 8px; font-size: 11px; white-space: nowrap;'>{row_lote['Estatus']}</td><td style='padding: 8px;'>${row_lote['Costo']:,.2f}</td></tr>"
                 html_table += "</tbody></table></div>"
                 st.markdown(html_table, unsafe_allow_html=True)
             else:
@@ -970,7 +970,10 @@ elif menu == "Mapa Interactivo":
             try:
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
                     svg_content = f.read()
-                soup = BeautifulSoup(svg_content, "xml") if "xml" in svg_content else BeautifulSoup(svg_content, "html.parser")
+                
+                # CORRECCIÓN DE PARSER: Forzamos 'html.parser' que viene integrado nativamente en Python. 
+                # Esto evita la dependencia oculta de 'lxml' que rompía la ejecución.
+                soup = BeautifulSoup(svg_content, "html.parser")
                     
                 for path_elem in soup.find_all(['path', 'polygon']):
                     path_elem['fill-rule'] = "evenodd"
@@ -1062,9 +1065,7 @@ elif menu == "Mapa Interactivo":
                                     cy = base_y + (radio_disp * math.sin(angulo) if num_esferas > 1 else 0)
                                     
                                     if row.Estado == "Pagado":
-                                        # Ajuste seguro del radio (Entre 3 y 5 px) para que no rompa la estructura del SVG
                                         radio_esfera = 3 if num_esferas > 15 else 5
-                                        
                                         circle_tag = soup.new_tag("circle", cx=f"{cx:.2f}", cy=f"{cy:.2f}", r=str(radio_esfera), style=f"fill:{mapa_colores_partida.get(row.Partida, '#3B82F6')}; fill-opacity:1.0; stroke:#1f2937; stroke-width:1px;")
                                         
                                         parent = lote_path.parent
@@ -1078,7 +1079,8 @@ elif menu == "Mapa Interactivo":
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{str(soup).replace('viewbox=', 'viewBox=')}</div>"
                 st.components.v1.html(html_final, height=1000, scrolling=False) 
             except Exception as e:
-                st.error("⚠️ Hubo un problema al procesar la integridad del archivo SVG.")
+                # CORRECCIÓN DE TRANSPARENCIA: Exponemos el error de desarrollo real si algo más falla en vez de ocultarlo
+                st.error(f"⚠️ Error al procesar el archivo gráfico SVG: {e}")
         else:
             st.error("⚠️ No se encontró el archivo del mapa.")
 
@@ -1100,10 +1102,8 @@ elif menu == "Mapa Interactivo":
                 x_coords.append((i % cols * ancho_celda) + (ancho_celda / 2.0))
                 y_coords.append((i // cols * alto_celda) + (alto_celda / 2.0))
                 
-                # Modificamos para leer directamente 'Costo' y evitar errores
-                estado = row.Estado
-                costo = row.Costo if pd.notna(row.Costo) else 0.0
-                destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
+                # CORRECCIÓN ABSOLUTA: Cambiado 'row.Precio' por 'row.Costo'
+                estado, costo, destajista = row.Estado, row.Costo, row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
                 
                 color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
                 colores_relleno.append(color_asignado if estado == "Pagado" else "rgba(0,0,0,0)")
