@@ -49,25 +49,36 @@ def obtener_datos_gsheet():
         # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
         df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
         
-        # NORMALIZACIÓN INTERNA: Asegura que cualquier fecha vieja o del servidor se muestre con 3 letras de mes en la app web
         meses_3_letras = {
             1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
             7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
         }
+        
         def normalizar_fecha_interfaz(val):
             if not val or val in ['nan', 'NaN', 'None', 'NaT', 'null', '<NA>', '']:
                 return ''
-            # Si ya fue procesada con el formato de texto correcto, mantenerla
+            
+            # Si ya contiene un mes en texto (ej. Ene, Jul), se mantiene intacto
             if any(m in val for m in meses_3_letras.values()):
                 return val
-            # Intentar parsear formatos numéricos comunes devueltos por Google Sheets
-            for fmt in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%Y-%m-%d %H:%M:%S', '%m/%d/%Y %H:%M:%S', '%Y-%m-%d'):
-                try:
-                    dt = datetime.strptime(val, fmt)
-                    return f"{dt.strftime('%d')}/{meses_3_letras[dt.month]}/{dt.strftime('%Y')} {dt.strftime('%H:%M:%S')}"
-                except ValueError:
-                    continue
-            return val
+                
+            try:
+                # Procesador ultra-flexible con pandas para capturar formatos ISO, fechas con T, Z, etc.
+                dt = pd.to_datetime(val, errors='coerce')
+                if pd.isna(dt):
+                    return val
+                
+                # Si el servidor de Google adjunta información de zona horaria, se convierte a México
+                if dt.tzinfo is not None:
+                    dt = dt.tz_convert('America/Mexico_City')
+                    
+                dia = dt.strftime("%d")
+                mes = meses_3_letras[dt.month]
+                anio = dt.strftime("%Y")
+                hora = dt.strftime("%H:%M:%S")
+                return f"{dia}/{mes}/{anio} {hora}"
+            except:
+                return val
 
         df['Fecha pago'] = df['Fecha pago'].apply(normalizar_fecha_interfaz)
         
@@ -79,7 +90,7 @@ def obtener_datos_gsheet():
     except Exception as e:
         st.error(f"Error al conectar con Google Sheets: {e}")
         return pd.DataFrame()
-
+    
 def actualizar_datos_gsheet(df):
     try:
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
@@ -262,14 +273,18 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
                     st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
 
-                # 3. Eliminar columnas temporales "fantasmas" antes de enviar a la API
+                # 3. Eliminar columnas temporales "fantasmas" y preparar el dataframe de envío
                 df_envio = st.session_state.df.copy()
                 if 'Concepto_Limpio' in df_envio.columns:
                     df_envio = df_envio.drop(columns=['Concepto_Limpio'])
 
+                # TRUCO DE INYECCIÓN: Forzamos la celda como Texto añadiendo un apóstrofe al inicio.
+                # Esto blinda el formato y la hora contra cualquier auto-conversión de Google Sheets.
+                df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
+
                 actualizar_datos_gsheet(df_envio)
                 
-                # 4. SOLUCIÓN AL FORMATO WEB: Usamos el estado local de memoria para renderizar al instante sin retrasos de red
+                # 4. Sincronizar memoria y refrescar la pantalla de manera limpia
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
                 st.session_state.grid_key += 1 
