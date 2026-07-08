@@ -1024,7 +1024,7 @@ elif menu == "Mapa Interactivo":
 
     with col_mapa:
         # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS Y RELLENOS (VERSIÓN ANTERIOR) ---
-        nombres_posibles = ["SVGsembrado.txt", "SVGsembrado_1_LOTE-Model.txt", "SVGsembrado.svg"]
+        nombres_posibles = ["SVGsembrado.txt"]
         archivo_encontrado = None
         
         for nombre in nombres_posibles:
@@ -1208,47 +1208,7 @@ elif menu == "Mapa Interactivo":
                                 if is_selected_lote:
                                     df_lote_esferas = df_map_base[df_map_base['Lote'].astype(str).str.strip() == id_lote]
 
-                        if not df_lote_esferas.empty:
-                            cx_auto, cy_auto, r_auto = calcular_centro_poligono(lote_path)
-                            
-                            if cx_auto is not None and cy_auto is not None:
-                                base_x, base_y = cx_auto, cy_auto
-                                radio_disp = max(r_auto, 5) 
-                            else:
-                                base_x = float(item["x"])
-                                base_y = float(item["y"])
-                                radio_disp = 12 
-                            
-                            num_esferas = len(df_lote_esferas)
-                            r_esfera = 50 if num_esferas < 10 else 5
-                            
-                            for idx, row in enumerate(df_lote_esferas.itertuples()):
-                                if num_esferas == 1:
-                                    cx, cy = base_x, base_y
-                                else:
-                                    angulo = (2 * math.pi * idx) / num_esferas
-                                    cx = base_x + radio_disp * math.cos(angulo)
-                                    cy = base_y + radio_disp * math.sin(angulo)
-                                
-                                color_burbuja = mapa_colores_partida.get(row.Partida, "#3B82F6")
-                                
-                                if row.Estado == "Pagado":
-                                    fill_style = color_burbuja
-                                    fill_opacity = "1.0"
-                                else:
-                                    fill_style = "none" 
-                                    fill_opacity = "0.0"
-                                    
-                                if fill_opacity != "0.0":
-                                    circle_tag = soup.new_tag(
-                                        "circle", 
-                                        cx=f"{cx:.2f}", 
-                                        cy=f"{cy:.2f}", 
-                                        r=str(r_esfera), 
-                                        style=f"fill:{fill_style}; fill-opacity:{fill_opacity}; stroke:#1f2937; stroke-width:1px;"
-                                    )
-                                    lote_path.insert_after(circle_tag)
-
+                        
                 html_final = str(soup).replace("viewbox=", "viewBox=")
                 html_final = f"<div style='width:100%; height:1000px; display:flex; justify-content:center; align-items: center;'>{html_final}</div>"
                 st.components.v1.html(html_final, height=1000, scrolling=False) 
