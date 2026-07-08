@@ -1105,11 +1105,18 @@ elif menu == "Mapa Interactivo":
                         lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
 
                     if lote_path:
+                        # --- MEJORA DE LEYENDA HOVER EN EL POLÍGONO ---
                         etiqueta_hover = lote_path.find('title')
                         if not etiqueta_hover:
                             etiqueta_hover = soup.new_tag('title')
                             lote_path.append(etiqueta_hover)
-                        etiqueta_hover.string = f"Lote-{id_lote}"
+                        
+                        # Extraemos el porcentaje y la fase (Estado) directamente de los datos del lote
+                        avance_lote = item["Avance"]
+                        fase_lote = item["Estado"]
+                        
+                        # Formateamos la leyenda limpia: Lote X | Avance: XX% | Fase
+                        etiqueta_hover.string = f"Lote {id_lote} | Avance: {avance_lote} | {fase_lote}"
 
                         df_lote_esferas = pd.DataFrame()
                         is_selected_lote = (not st.session_state.mostrar_todos_mapa) and (id_lote == str(st.session_state.lote_actual))
