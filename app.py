@@ -369,7 +369,6 @@ def dialogo_reportes():
     df_rep_filtrado['Estado'] = df_rep_filtrado.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    st.markdown(f"**Partidas que se incluirán en el documento:** `{len(df_rep_filtrado)}` partidas.")
     st.markdown("<br>", unsafe_allow_html=True)
 
     if df_rep_filtrado.empty:
