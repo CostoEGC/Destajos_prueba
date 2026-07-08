@@ -463,36 +463,7 @@ if menu == "Registro de Destajos":
             st.success("C.C asignado masivamente.")
             st.rerun()
 
-    # --- BOTÓN SELLAR (INYECCIÓN INMEDIATA) ---
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
-    col_sellar, col_espacio = st.columns([2, 8])
-    
-    # Se añade un 'key' único para garantizar que Streamlit jamás lo confunda
-    if col_sellar.button("✍️ Sellar Fecha y Usuario", use_container_width=True, type="primary", key="btn_sellar_unico"):
-        df_pantalla = st.session_state.current_grid_state
-        if not df_pantalla.empty:
-            df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-            df_pantalla['Fecha_Limpia'] = df_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
-            filas_sellar = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha_Limpia'] == '')]
-            
-            if not filas_sellar.empty:
-                dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
-                meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
-                ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
-                
-                for _, row in filas_sellar.iterrows():
-                    idx = int(row['_original_index'])
-                    st.session_state.df.at[idx, 'Fecha pago'] = ahora
-                    st.session_state.df.at[idx, 'Usuario'] = st.session_state.usuario
-                    st.session_state.df.at[idx, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
-                    st.session_state.df.at[idx, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
-                    st.session_state.df.at[idx, 'Pagar'] = True
-                
-                st.session_state.reload_trigger = True
-                st.rerun()
-            else:
-                st.warning("⚠️ Selecciona primero la casilla 'Pagar' en las partidas que desees sellar.")
-
     ph_label_azul = st.empty()
     
     # --- PREPARACIÓN DE LA TABLA ---
@@ -552,11 +523,11 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # --- TABLA ANTI-INTERMITENCIAS ---
+    # --- TABLA CON CONEXIÓN CONSOLIDADA AL GUARDAR ---
     response = AgGrid(
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
-        key="grid_destajos_fija", 
+        key="grid_destajos_consolidada", 
         reload_data=st.session_state.reload_trigger,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
@@ -566,7 +537,7 @@ if menu == "Registro de Destajos":
         theme='balham',
         height=600
     )
-    st.session_state.reload_trigger = False # Apagamos el trigger tras inyectar
+    st.session_state.reload_trigger = False
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
