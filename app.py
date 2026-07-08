@@ -186,62 +186,10 @@ if st.session_state.menu_actual != menu:
     st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
+if 'ejecutar_guardado' not in st.session_state: st.session_state.ejecutar_guardado = False
+
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
-    df_actual_pantalla = st.session_state.current_grid_state
-    
-    if df_actual_pantalla.empty:
-        st.sidebar.warning("No hay cambios en pantalla para guardar.")
-    else:
-        # Forzar booleanos limpios por seguridad de evaluación
-        df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-        
-        # CORRECCIÓN: Limpieza absoluta para detectar de forma segura las celdas vacías devueltas por AgGrid (evita fallos por None o NaN)
-        df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
-        
-        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
-        filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].astype(str).str.strip() == '') | (filas_a_pagar['C.C'].astype(str).str.strip() == '')]
-        
-        if not filas_invalidas.empty:
-            st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
-        else:
-            with st.spinner("Sincronizando con Google..."):
-                # --- HORA EXACTA DE MÉXICO Y FORMATO DD/MMM/AAAA ---
-                dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
-                meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
-                ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
-                usuario_actual = st.session_state.usuario
-                # ---------------------------------------------------
-                
-                # 1. Guardar partidas que se van a pagar
-                if not filas_a_pagar.empty:
-                    for _, row in filas_a_pagar.iterrows():
-                        idx_original = int(row['_original_index'])
-                        st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
-                        st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip()
-                        st.session_state.df.at[idx_original, 'Pagar'] = True
-                        st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
-                        st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
-                
-                # 2. Guardar partidas que solo se editaron (Destajista o CC) sin pagar aún
-                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
-                for _, row in filas_solo_edicion.iterrows():
-                    idx_original = int(row['_original_index'])
-                    st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
-                    st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
-
-                # 3. Eliminar columnas temporales "fantasmas" antes de enviar a la API
-                df_envio = st.session_state.df.copy()
-                if 'Concepto_Limpio' in df_envio.columns:
-                    df_envio = df_envio.drop(columns=['Concepto_Limpio'])
-
-                actualizar_datos_gsheet(df_envio)
-                
-                # 4. Sincronizar memoria y forzar refresco limpio de pantalla
-                st.session_state.df_original = st.session_state.df.copy()
-                st.session_state.current_grid_state = pd.DataFrame() 
-                st.session_state.reload_trigger = True 
-                st.success("¡Datos guardados!")
-                st.rerun()
+    st.session_state.ejecutar_guardado = True
 
 # (Corrección 4) Rango de fechas unificado para evitar cierre del modal
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
@@ -465,6 +413,7 @@ if menu == "Registro de Destajos":
 
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     ph_label_azul = st.empty()
+    st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
     # --- PREPARACIÓN DE LA TABLA ---
     df_filtrado_grid = df_filtrado.copy()
@@ -523,11 +472,11 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # --- TABLA CON CONEXIÓN CONSOLIDADA AL GUARDAR ---
+    # --- TABLA CERO INTERMITENCIAS ---
     response = AgGrid(
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
-        key="grid_destajos_consolidada", 
+        key="grid_destajos_fija", 
         reload_data=st.session_state.reload_trigger,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
@@ -537,8 +486,9 @@ if menu == "Registro de Destajos":
         theme='balham',
         height=600
     )
-    st.session_state.reload_trigger = False
+    st.session_state.reload_trigger = False 
 
+    # --- LECTURA VISUAL DE LA PANTALLA ---
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
@@ -556,6 +506,55 @@ if menu == "Registro de Destajos":
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
 
+    # --- EL "CEREBRO" DE GUARDADO (Ahora lee los datos correctos) ---
+    if st.session_state.ejecutar_guardado:
+        st.session_state.ejecutar_guardado = False # Apagamos el interruptor
+        df_actual_pantalla = st.session_state.current_grid_state
+        
+        if df_actual_pantalla.empty:
+            st.sidebar.warning("No hay cambios en pantalla para guardar.")
+        else:
+            df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
+            df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+            filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
+            filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].astype(str).str.strip() == '') | (filas_a_pagar['C.C'].astype(str).str.strip() == '')]
+            
+            if not filas_invalidas.empty:
+                st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
+            else:
+                with st.spinner("Sincronizando con Google..."):
+                    dt_actual = datetime.now(ZoneInfo("America/Mexico_City"))
+                    meses_esp = {1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'}
+                    ahora = f"{dt_actual.day:02d}/{meses_esp[dt_actual.month]}/{dt_actual.year} {dt_actual.strftime('%H:%M:%S')}"
+                    usuario_actual = st.session_state.usuario
+                    
+                    if not filas_a_pagar.empty:
+                        for _, row in filas_a_pagar.iterrows():
+                            idx_original = int(row['_original_index'])
+                            st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
+                            st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip()
+                            st.session_state.df.at[idx_original, 'Pagar'] = True
+                            st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
+                            st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
+                    
+                    filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
+                    for _, row in filas_solo_edicion.iterrows():
+                        idx_original = int(row['_original_index'])
+                        st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
+                        st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
+
+                    df_envio = st.session_state.df.copy()
+                    if 'Concepto_Limpio' in df_envio.columns:
+                        df_envio = df_envio.drop(columns=['Concepto_Limpio'])
+
+                    actualizar_datos_gsheet(df_envio)
+                    
+                    st.session_state.df_original = st.session_state.df.copy()
+                    st.session_state.current_grid_state = pd.DataFrame() 
+                    st.session_state.reload_trigger = True 
+                    st.sidebar.success("¡Datos guardados!")
+                    st.rerun()
+    
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
