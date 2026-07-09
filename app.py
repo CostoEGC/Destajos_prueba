@@ -577,6 +577,111 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
 
+# ====================================================
+# NUEVA FUNCIÓN: FORMULARIO PARA AÑADIR PARTIDAS
+# ====================================================
+@st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
+def dialogo_nueva_partida():
+    st.markdown("### 📝 Registrar nuevo concepto")
+    st.write("Agrega una partida especial a uno o varios lotes. Si seleccionas varios lotes, se creará un renglón independiente para cada uno.")
+    
+    # Extraemos catálogos directamente de la base de datos
+    list_lotes = sorted([str(x) for x in st.session_state.df['Lote'].unique() if str(x).strip()], key=natural_sort_key)
+    list_manzanas = sorted([str(x) for x in st.session_state.df['Manzana'].unique() if str(x).strip()], key=natural_sort_key)
+    list_prototipos = sorted([str(x) for x in st.session_state.df['Prototipo'].unique() if str(x).strip()], key=natural_sort_key)
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
+        manzanas_sel = st.multiselect("Manzana(s)", options=list_manzanas)
+        protos_sel = st.multiselect("Prototipo(s)", options=list_prototipos)
+        cc_sel = st.multiselect("C.C", options=[c for c in LISTA_CC if c.strip()])
+    with c2:
+        partida_txt = st.text_input("Concepto / Partida *", help="Obligatorio.")
+        # Truco para permitir formato de moneda con comas y símbolo de pesos libremente
+        costo_txt = st.text_input("Costo unitario ($) *", placeholder="Ej. 1,500.00", help="Obligatorio. Puedes usar comas.")
+        
+    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+    pagar_ahora = st.radio("💳 ¿Deseas marcar y pagar estas partidas en este momento?", 
+                           ["No, solo agregarlas a la tabla", "Sí, pagarlas ahora mismo"], horizontal=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_canc, col_asig = st.columns([1, 1])
+    
+    if col_canc.button("❌ Cancelar", use_container_width=True):
+        st.rerun()
+        
+    if col_asig.button("✅ Asignar y Guardar", type="primary", use_container_width=True):
+        if not lotes_sel or not partida_txt.strip() or not costo_txt.strip():
+            st.error("⚠️ Por favor, llena los campos obligatorios: Lote(s), Partida y Costo.")
+            return
+            
+        # Limpiamos la basura tipográfica para que la base de datos reciba un número puro
+        costo_limpio = costo_txt.replace("$", "").replace(",", "").replace(" ", "").strip()
+        try:
+            costo_float = float(costo_limpio)
+        except ValueError:
+            st.error("⚠️ El costo introducido no es un número válido. Verifica el formato.")
+            return
+            
+        nuevas_filas = []
+        partida_final = f"{partida_txt.strip()} (*)" # Le pegamos el asterisco para identificarla
+        
+        # Procesamiento de variables de pago
+        if pagar_ahora == "Sí, pagarlas ahora mismo":
+            pagar_bool = True
+            tz_mx = ZoneInfo("America/Mexico_City")
+            tiempo_actual = datetime.now(tz_mx)
+            meses_3_letras = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
+            ahora = f"{tiempo_actual.strftime('%d')}/{meses_3_letras[tiempo_actual.month]}/{tiempo_actual.strftime('%Y')} {tiempo_actual.strftime('%H:%M:%S')}"
+            usr = st.session_state.usuario
+        else:
+            pagar_bool = False
+            ahora = ""
+            usr = ""
+            
+        # Convertimos las selecciones múltiples a texto separado por comas
+        mz_str = ", ".join(manzanas_sel) if manzanas_sel else ""
+        pr_str = ", ".join(protos_sel) if protos_sel else ""
+        cc_str = ", ".join(cc_sel) if cc_sel else ""
+        
+        # Por cada Lote seleccionado, generamos una copia exacta de la partida
+        for lote in lotes_sel:
+            nueva_fila = {
+                'Lote': lote,
+                'Manzana': mz_str,
+                'Prototipo': pr_str,
+                'Partida': partida_final,
+                'Costo': costo_float,
+                'Destajista': "", # Vacío por defecto
+                'C.C': cc_str,
+                'Pagar': pagar_bool,
+                'Fecha pago': ahora,
+                'Usuario': usr
+            }
+            nuevas_filas.append(nueva_fila)
+            
+        # 1. Armamos el paquete y enviamos a Google Sheets primero
+        df_temporal = pd.concat([st.session_state.df, pd.DataFrame(nuevas_filas)], ignore_index=True)
+        
+        df_envio = df_temporal.copy()
+        if 'Concepto_Limpio' in df_envio.columns:
+            df_envio = df_envio.drop(columns=['Concepto_Limpio'])
+            
+        # Blindaje de la fecha para Sheets
+        df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
+        
+        with st.spinner("Guardando nueva partida en la nube..."):
+            actualizar_datos_gsheet(df_envio)
+            
+        # 2. Si Sheets no falló, actualizamos la memoria local y recargamos la app
+        st.session_state.df = df_temporal
+        st.session_state.df_original = st.session_state.df.copy()
+        st.session_state.grid_key += 1
+        st.success("¡Partida(s) agregada(s) exitosamente!")
+        st.rerun()
+# ====================================================    
+
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
     df_side = st.session_state.df.copy()
@@ -759,6 +864,16 @@ if menu == "Registro de Destajos":
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
+    # ====================================================
+    # BOTÓN PARA INVOCAR EL FORMULARIO DE NUEVA PARTIDA
+    # ====================================================
+    c_btn_add, c_btn_space = st.columns([2, 8])
+    with c_btn_add:
+        if st.button("➕ Añadir nueva partida", type="primary", use_container_width=True):
+            dialogo_nueva_partida()
+    st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
+    # ====================================================
+
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
