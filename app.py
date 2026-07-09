@@ -272,37 +272,43 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
-                # Guardar cambios generales de edición (Destajista, CC, % Adicional, % Retención) en la memoria global
-                # Guardar cambios generales y calcular retenciones en dinero real
+                
+                # === SOLUCIÓN AL TYPEERROR: Forzamos las columnas a numérico antes de guardar ===
+                for col_num in ['% Adicional', '% Retención', 'Monto Retenido', 'Costo']:
+                    if col_num in st.session_state.df.columns:
+                        st.session_state.df[col_num] = pd.to_numeric(st.session_state.df[col_num], errors='coerce').fillna(0).astype(float)
+                # ==============================================================================
+
+                # Guardar cambios generales y calcular retenciones en dinero real (Usamos .loc en vez de .at)
                 for _, row in df_actual_pantalla.iterrows():
                     idx_original = int(row['_original_index'])
-                    st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
-                    st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
+                    st.session_state.df.loc[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
+                    st.session_state.df.loc[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
                     
                     pct_ad = float(row['% Adicional']) if pd.notna(row['% Adicional']) else 0.0
                     pct_ret = float(row['% Retención']) if pd.notna(row['% Retención']) else 0.0
                     costo_orig = float(row['Costo']) if pd.notna(row['Costo']) else 0.0
                     
-                    st.session_state.df.at[idx_original, '% Adicional'] = pct_ad
-                    st.session_state.df.at[idx_original, '% Retención'] = pct_ret
+                    st.session_state.df.loc[idx_original, '% Adicional'] = pct_ad
+                    st.session_state.df.loc[idx_original, '% Retención'] = pct_ret
                     
                     # Si hay un porcentaje de retención asignado, calculamos su valor en dinero
                     if pct_ret > 0:
-                        st.session_state.df.at[idx_original, 'Monto Retenido'] = costo_orig * pct_ret
+                        st.session_state.df.loc[idx_original, 'Monto Retenido'] = costo_orig * pct_ret
                         # Solo asignamos "Retenido" si la columna estaba completamente vacía
-                        if str(st.session_state.df.at[idx_original, 'Estatus Retención']).strip() == "":
-                            st.session_state.df.at[idx_original, 'Estatus Retención'] = "Retenido"
+                        if str(st.session_state.df.loc[idx_original, 'Estatus Retención']).strip() == "":
+                            st.session_state.df.loc[idx_original, 'Estatus Retención'] = "Retenido"
                     else:
-                        st.session_state.df.at[idx_original, 'Monto Retenido'] = 0.0
-                        st.session_state.df.at[idx_original, 'Estatus Retención'] = ""
-                    
-                # 1. Guardar partidas que se van a pagar (añadiendo fecha y usuario)
+                        st.session_state.df.loc[idx_original, 'Monto Retenido'] = 0.0
+                        st.session_state.df.loc[idx_original, 'Estatus Retención'] = ""
+                        
+                # 1. Guardar partidas que se van a pagar
                 if not filas_a_pagar.empty:
                     for _, row in filas_a_pagar.iterrows():
                         idx_original = int(row['_original_index'])
-                        st.session_state.df.at[idx_original, 'Pagar'] = True
-                        st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
-                        st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
+                        st.session_state.df.loc[idx_original, 'Pagar'] = True
+                        st.session_state.df.loc[idx_original, 'Fecha pago'] = ahora
+                        st.session_state.df.loc[idx_original, 'Usuario'] = usuario_actual
 
                 # 3. Eliminar columnas temporales "fantasmas" y preparar el dataframe de envío
                 df_envio = st.session_state.df.copy()
@@ -1210,10 +1216,11 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         est_val = row_p['Estatus Retención']
                         
                         # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
-                        if (est_val == True or est_val == 'true' or est_val == 1) and st.session_state.df.at[idx_orig, 'Estatus Retención'] == "Retenido":
-                            st.session_state.df.at[idx_orig, 'Estatus Retención'] = "Liberado"
-                            st.session_state.df.at[idx_orig, 'Fecha Liberación'] = ahora_lib
-                            st.session_state.df.at[idx_orig, 'Usuario Liberó'] = usr_lib
+                        # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
+                        if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
+                            st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
+                            st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = ahora_lib
+                            st.session_state.df.loc[idx_orig, 'Usuario Liberó'] = usr_lib
                             cambios_detectados = True
                             
                     if cambios_detectados:
