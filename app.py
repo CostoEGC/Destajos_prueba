@@ -845,8 +845,13 @@ if menu == "Registro de Destajos":
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
     mis_estilos = {
-        ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "20px !important"} # cambio de tamaño de letra para la tabla de "Registro destajos"
+        # --- AQUÍ CONTROLAS LOS TÍTULOS (ENCABEZADOS) ---
+        ".ag-header-cell-text": {"font-size": "19px !important"}, 
+        ".ag-header-cell-label": {"justify-content": "center !important"}, # Esto asegura que sigan centrados
+        
+        # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
+        ".ag-cell": {"font-size": "19px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "19px !important"}
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
