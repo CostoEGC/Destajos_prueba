@@ -838,7 +838,7 @@ if menu == "Registro de Destajos":
         return style;
     }
     """)
-    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=40)
+    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
     
     grid_options = gb.build()
 
@@ -851,8 +851,8 @@ if menu == "Registro de Destajos":
         ".ag-header-cell-label": {"justify-content": "center !important"}, 
         
         # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
-        ".ag-cell": {"font-size": "25px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "25px !important"},
+        ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "20px !important"},
 
         
     }
