@@ -792,19 +792,19 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
-    # Configuración de columnas con encabezados perfectamente centrados
-    gb.configure_column("Lote", editable=False, filter=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=90)
-    gb.configure_column("Manzana", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=100)
-    gb.configure_column("Prototipo", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=110)
-    gb.configure_column("Partida", editable=False, width=300) # Esta se queda alineada a la izquierda para leer bien los conceptos
-    gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellStyle={'textAlign': 'right'}, headerClass='ag-center-header', width=120)
+    # Configuración de columnas con encabezados y VALORES perfectamente centrados
+    gb.configure_column("Lote", editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
+    gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+    gb.configure_column("Partida", editable=False, width=300) # Se queda a la izquierda
+    gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
     
-    gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200)
-    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=180)
+    gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200) # Se queda a la izquierda
+    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellClass='centrar-valor', headerClass='ag-center-header', width=180)
     
-    gb.configure_column("Pagar", editable=True, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=90)
-    gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=160)
-    gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=120)
+    gb.configure_column("Pagar", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    gb.configure_column("Fecha pago", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=160)
+    gb.configure_column("Usuario", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=120)
 
     # (Corrección 1) Comprobación segura en el front-end para saber si está pagado o no (sin evaluar basura de texto)
     rowStyle = JsCode("""
@@ -842,9 +842,8 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
-   # Definimos un diccionario con el tamaño forzado y colores personalizados
+   
     mis_estilos = {
         # --- AQUÍ CONTROLAS LOS TÍTULOS (ENCABEZADOS) ---
         ".ag-header-cell-text": {"font-size": "20px !important"}, 
@@ -853,6 +852,9 @@ if menu == "Registro de Destajos":
         # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
         ".ag-cell": {"font-size": "18px !important", "display": "flex", "align-items": "center"},
         ".ag-cell-value": {"font-size": "18px !important"},
+
+        # --- NUEVO: REGLA INFALIBLE PARA CENTRAR LOS VALORES HORIZONTALMENTE ---
+        ".centrar-valor": {"justify-content": "center !important"}
 
         
     }
