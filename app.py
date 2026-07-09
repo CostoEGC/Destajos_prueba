@@ -309,7 +309,8 @@ def dialogo_reportes():
     list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
     list_manzanas = sorted([x for x in df_base_rep['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_lotes = sorted([str(x) for x in df_base_rep['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
+    # Le quitamos el "Todos" a la lista porque el multiselect vacío ya significa "Todos"
+    list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
     
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     conceptos_unicos_tuplas = {}
@@ -319,16 +320,16 @@ def dialogo_reportes():
             conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
     list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # Distribución visual de los filtros en dos columnas dentro del modal
+    # Distribución visual con Multiselects
     r_col1, r_col2 = st.columns(2)
     with r_col1:
-        st.selectbox("Prototipo:", ["Todos"] + list_prototipos, key="rep_sel_proto")
-        st.multiselect("Lote(s):", options=list_lotes, key="rep_sel_lotes")
-        st.multiselect("Concepto / Partida:", options=list_conceptos, key="rep_sel_concepto")
+        st.multiselect("Prototipo(s):", options=list_prototipos, placeholder="Todos", key="rep_sel_proto")
+        st.multiselect("Lote(s):", options=list_lotes, placeholder="Todos", key="rep_sel_lotes")
+        st.multiselect("Concepto / Partida:", options=list_conceptos, placeholder="Todos", key="rep_sel_concepto")
     with r_col2:
-        st.selectbox("Manzana:", ["Todos"] + list_manzanas, key="rep_sel_manzana")
+        st.multiselect("Manzana(s):", options=list_manzanas, placeholder="Todas", key="rep_sel_manzana")
         st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="rep_sel_estado")
-        st.selectbox("Destajista:", list_destajistas_filtro, key="rep_sel_dest")
+        st.multiselect("Destajista(s):", options=list_destajistas_filtro, placeholder="Todos", key="rep_sel_dest")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     st.markdown("##### 📅 Filtrar por Rango de Fechas de Pago (Opcional)")
@@ -337,16 +338,16 @@ def dialogo_reportes():
     # Ejecución de la lógica de filtrado sobre el clon de datos
     df_rep_filtrado = df_base_rep.copy()
     
-    if st.session_state.rep_sel_proto != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'] == st.session_state.rep_sel_proto]
-    if st.session_state.rep_sel_manzana != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'] == st.session_state.rep_sel_manzana]
+    if st.session_state.rep_sel_proto: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Prototipo'].isin(st.session_state.rep_sel_proto)]
+    if st.session_state.rep_sel_manzana: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Manzana'].isin(st.session_state.rep_sel_manzana)]
     if st.session_state.rep_sel_lotes: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Lote'].astype(str).isin(st.session_state.rep_sel_lotes)]
     if st.session_state.rep_sel_concepto: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Concepto_Limpio'].isin(st.session_state.rep_sel_concepto)]
-    if st.session_state.rep_sel_dest != "Todos": 
-        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'] == st.session_state.rep_sel_dest]
+    if st.session_state.rep_sel_dest: 
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
     
     if st.session_state.rep_sel_estado != "Todos":
         if st.session_state.rep_sel_estado == "Pagado": 
@@ -419,10 +420,17 @@ def dialogo_reportes():
         pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
         pdf.set_font("Arial", '', 9)
         
-        tipo_reporte_txt = f" | MODO: RESUMEN POR {st.session_state.sel_agrupacion.upper()}" if chk_resumen else ""
-        criterios = f"Prototipo: {st.session_state.rep_sel_proto} | Mz: {st.session_state.rep_sel_manzana} | Destajista: {st.session_state.rep_sel_dest} | Estado: {st.session_state.rep_sel_estado}{tipo_reporte_txt}"
+        # Transformamos las listas a texto separado por comas para que se lea bien en el documento
+        txt_proto = ", ".join(st.session_state.rep_sel_proto) if st.session_state.rep_sel_proto else "Todos"
+        txt_mz = ", ".join(st.session_state.rep_sel_manzana) if st.session_state.rep_sel_manzana else "Todas"
+        txt_dest = ", ".join(st.session_state.rep_sel_dest) if st.session_state.rep_sel_dest else "Todos"
+
+        tipo_reporte_txt = f" | MODO: RESUMEN POR {str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}" if chk_resumen else ""
+        criterios = f"Proto: {txt_proto} | Mz: {txt_mz} | Dest: {txt_dest} | Est: {st.session_state.rep_sel_estado}{tipo_reporte_txt}"
+        
         if rango and len(rango) == 2:
             criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
+            
         pdf.cell(195, 5, txt=criterios[:115], ln=True)
         pdf.ln(4)
 
