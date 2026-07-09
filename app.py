@@ -41,14 +41,15 @@ def obtener_datos_gsheet():
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Pagar', 'Fecha pago', 'Usuario']
+        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
         for col in cols_requeridas:
             if col not in df.columns:
                 df[col] = ''
                 
-        # Aseguramos que si las columnas de porcentaje vienen vacías, tengan un 0 numérico por defecto
+        # Aseguramos formatos numéricos limpios
         df['% Adicional'] = pd.to_numeric(df['% Adicional'], errors='coerce').fillna(0)
         df['% Retención'] = pd.to_numeric(df['% Retención'], errors='coerce').fillna(0)
+        df['Monto Retenido'] = pd.to_numeric(df['Monto Retenido'], errors='coerce').fillna(0)
 
         # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
         df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
@@ -209,6 +210,7 @@ if st.session_state.usuario is None:
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
+    "Fondo de Garantía (Retenciones)", # <-- Nueva pestaña agregada
     "Dashboard (Gráficos y Visor)", 
     "Mapa Interactivo"
 ])
@@ -271,12 +273,28 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
                 # Guardar cambios generales de edición (Destajista, CC, % Adicional, % Retención) en la memoria global
+                # Guardar cambios generales y calcular retenciones en dinero real
                 for _, row in df_actual_pantalla.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
                     st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
-                    st.session_state.df.at[idx_original, '% Adicional'] = float(row['% Adicional']) if pd.notna(row['% Adicional']) else 0.0
-                    st.session_state.df.at[idx_original, '% Retención'] = float(row['% Retención']) if pd.notna(row['% Retención']) else 0.0
+                    
+                    pct_ad = float(row['% Adicional']) if pd.notna(row['% Adicional']) else 0.0
+                    pct_ret = float(row['% Retención']) if pd.notna(row['% Retención']) else 0.0
+                    costo_orig = float(row['Costo']) if pd.notna(row['Costo']) else 0.0
+                    
+                    st.session_state.df.at[idx_original, '% Adicional'] = pct_ad
+                    st.session_state.df.at[idx_original, '% Retención'] = pct_ret
+                    
+                    # Si hay un porcentaje de retención asignado, calculamos su valor en dinero
+                    if pct_ret > 0:
+                        st.session_state.df.at[idx_original, 'Monto Retenido'] = costo_orig * pct_ret
+                        # Solo asignamos "Retenido" si la columna estaba completamente vacía
+                        if str(st.session_state.df.at[idx_original, 'Estatus Retención']).strip() == "":
+                            st.session_state.df.at[idx_original, 'Estatus Retención'] = "Retenido"
+                    else:
+                        st.session_state.df.at[idx_original, 'Monto Retenido'] = 0.0
+                        st.session_state.df.at[idx_original, 'Estatus Retención'] = ""
                     
                 # 1. Guardar partidas que se van a pagar (añadiendo fecha y usuario)
                 if not filas_a_pagar.empty:
@@ -908,6 +926,19 @@ if menu == "Registro de Destajos":
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
+    # Inicialización segura en memoria
+    for c_ad in ['% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó']:
+        if c_ad not in df_filtrado_grid.columns:
+            df_filtrado_grid[c_ad] = 0.0 if 'Monto' in c_ad or '%' in c_ad else ""
+            
+    df_filtrado_grid['% Ad_Temp'] = pd.to_numeric(df_filtrado_grid['% Adicional'], errors='coerce').fillna(0)
+    df_filtrado_grid['% Ret_Temp'] = pd.to_numeric(df_filtrado_grid['% Retención'], errors='coerce').fillna(0)
+    df_filtrado_grid['Costo_Temp'] = pd.to_numeric(df_filtrado_grid['Costo'], errors='coerce').fillna(0)
+    
+    df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
+    
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
+    
     # --- SOLUCIÓN AL KEYERROR: Creamos las columnas en la memoria antes de mandarlas a la tabla ---
     if '% Adicional' not in df_filtrado_grid.columns: 
         df_filtrado_grid['% Adicional'] = 0.0
@@ -1066,7 +1097,141 @@ if menu == "Registro de Destajos":
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
 
+# =========================================================================
+# NUEVA PESTAÑA: FONDO DE GARANTÍA (RETENCIONES)
+# =========================================================================
+elif menu == "Fondo de Garantía (Retenciones)":
+    mostrar_cabecera_con_logo("🔒 Control de Fondos de Garantía y Retenciones", "Visualiza y libera los montos retenidos a los destajistas.")
+    
+    df_ret = st.session_state.df.copy()
+    df_ret['_original_index'] = df_ret.index
+    
+    # Nos quedamos únicamente con los renglones que tienen dinero retenido de origen
+    df_ret['Monto Retenido'] = pd.to_numeric(df_ret['Monto Retenido'], errors='coerce').fillna(0)
+    df_ret_filtrado = df_ret[df_ret['Monto Retenido'] > 0].copy()
+    
+    if df_ret_filtrado.empty:
+        st.info("🎉 ¡Excelente! No existen fondos de garantía ni retenciones acumuladas en el sistema actualmente.")
+    else:
+        # 1. TARJETAS RESUMEN DE RETENCIONES POR DESTAJISTA
+        df_res_dest = df_ret_filtrado.groupby(['Destajista', 'Estatus Retención'])['Monto Retenido'].sum().reset_index()
+        
+        st.markdown("##### 💰 Acumulado de Retenciones por Contratista")
+        kpi_cols = st.columns(3)
+        idx_c = 0
+        for dest_b in df_ret_filtrado['Destajista'].unique():
+            if str(dest_b).strip():
+                tot_ret = df_ret_filtrado[(df_ret_filtrado['Destajista'] == dest_b) & (df_ret_filtrado['Estatus Retención'] == "Retenido")]['Monto Retenido'].sum()
+                tot_lib = df_ret_filtrado[(df_ret_filtrado['Destajista'] == dest_b) & (df_ret_filtrado['Estatus Retención'] == "Liberado")]['Monto Retenido'].sum()
+                
+                with kpi_cols[idx_c % 3]:
+                    st.markdown(f"""
+                    <div style='background-color:#1E293B; padding:12px; border-radius:8px; border-left: 5px solid #F59E0B; margin-bottom:10px;'>
+                        <div style='font-size:14px; font-weight:bold; color:#F3F4F6;'>{dest_b}</div>
+                        <div style='display:flex; justify-content:space-between; margin-top:5px;'>
+                            <span style='font-size:12px; color:#FCA5A5;'>🔒 Retenido: ${tot_ret:,.2f}</span>
+                            <span style='font-size:12px; color:#6EE7B7;'>🔓 Liberado: ${tot_lib:,.2f}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                idx_c += 1
 
+        st.markdown("<br><hr>", unsafe_allow_html=True)
+        st.markdown("### 📋 Listado Detallado de Retenciones")
+        st.write("Para devolver un fondo de garantía, marca la casilla 'Liberar' de las partidas correspondientes y da clic en el botón guardar de abajo.")
+        
+        # 2. CONFIGURACIÓN VISUAL DE LA TABLA CON FONDO OSCURO (Tema Streamlit)
+        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
+        gb_ret.configure_default_column(sortable=False, filter=False, resizable=True)
+        gb_ret.configure_column("_original_index", hide=True)
+        
+        # Centramos y formateamos los campos
+        gb_ret.configure_column("Lote", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+        gb_ret.configure_column("Manzana", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+        gb_ret.configure_column("Costo", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+        gb_ret.configure_column("% Retención", valueFormatter="(x*100)+'%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+        gb_ret.configure_column("Monto Retenido", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
+        
+        # Convertimos la columna Estatus Retención en un Checkbox interactivo para liberar
+        gb_ret.configure_column("Estatus Retención", headerName="Liberar Fondo", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=120)
+        gb_ret.configure_column("Fecha Liberación", cellClass='centrar-valor', headerClass='ag-center-header', width=160)
+        gb_ret.configure_column("Usuario Liberó", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
+
+        # Regla de color: Si ya está liberado se pinta de verde tenue, si no, se queda normal oscuro
+        rowStyleRet = JsCode("""
+        function(params) {
+            let est = params.data['Estatus Retención'];
+            if (est === 'Liberado' || est === 'true' || est === true) {
+                return { 'backgroundColor': 'rgba(16, 185, 129, 0.2)', 'color': '#6EE7B7', 'pointerEvents': 'none' };
+            }
+            return { 'color': '#00FFFF', 'borderBottom': '1px solid #4a4a4a' };
+        }
+        """)
+        gb_ret.configure_grid_options(getRowStyle=rowStyleRet, rowHeight=35)
+        
+        # Inyectamos el mismo control de tamaño de letra y centrado que el principal
+        mis_estilos_ret = {
+            ".ag-header-cell-text": {"font-size": "18px !important"},
+            ".ag-header-cell-label": {"justify-content": "center !important"},
+            ".ag-cell": {"font-size": "16px !important", "display": "flex", "align-items": "center"},
+            ".ag-cell-value": {"font-size": "16px !important"},
+            ".centrar-valor": {"justify-content": "center !important"},
+            ".ag-checkbox-input-wrapper.ag-checked": {"background-color": "#10B981 !important", "border-color": "#10B981 !important"}
+        }
+        
+        response_ret = AgGrid(
+            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']],
+            gridOptions=gb_ret.build(),
+            key="grid_fondos_garantia",
+            reload_data=False,
+            enable_enterprise_modules=False,
+            allow_unsafe_jscode=True,
+            theme='streamlit',
+            height=400,
+            custom_css=mis_estilos_ret
+        )
+        
+        # 3. BOTÓN PARA GUARDAR LAS LIBERACIONES EN LA NUBE
+        st.markdown("<br>", unsafe_allow_html=True)
+        c_sav_r1, c_sav_r2 = st.columns([8, 2])
+        
+        with c_sav_r2:
+            if st.button("🔓 Guardar Liberaciones", type="primary", use_container_width=True):
+                if response_ret['data'] is not None:
+                    df_ret_pantalla = pd.DataFrame(response_ret['data'])
+                    
+                    tz_mx = ZoneInfo("America/Mexico_City")
+                    ahora_lib = datetime.now(tz_mx).strftime("%d/%b/%Y %H:%M:%S")
+                    usr_lib = st.session_state.usuario
+                    
+                    cambios_detectados = False
+                    for _, row_p in df_ret_pantalla.iterrows():
+                        idx_orig = int(row_p['_original_index'])
+                        est_val = row_p['Estatus Retención']
+                        
+                        # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
+                        if (est_val == True or est_val == 'true' or est_val == 1) and st.session_state.df.at[idx_orig, 'Estatus Retención'] == "Retenido":
+                            st.session_state.df.at[idx_orig, 'Estatus Retención'] = "Liberado"
+                            st.session_state.df.at[idx_orig, 'Fecha Liberación'] = ahora_lib
+                            st.session_state.df.at[idx_orig, 'Usuario Liberó'] = usr_lib
+                            cambios_detectados = True
+                            
+                    if cambios_detectados:
+                        df_envio_ret = st.session_state.df.copy()
+                        if 'Concepto_Limpio' in df_envio_ret.columns:
+                            df_envio_ret = df_envio_ret.drop(columns=['Concepto_Limpio'])
+                        
+                        df_envio_ret['Fecha pago'] = df_envio_ret['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
+                        df_envio_ret['Fecha Liberación'] = df_envio_ret['Fecha Liberación'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
+                        
+                        with st.spinner("Registrando liberaciones en Google Sheets..."):
+                            actualizar_datos_gsheet(df_envio_ret)
+                            
+                        st.session_state.df_original = st.session_state.df.copy()
+                        st.success("¡Fondos de garantía liberados y pagados con éxito!")
+                        st.rerun()
+                    else:
+                        st.warning("No hay nuevas liberaciones marcadas para guardar.")
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
