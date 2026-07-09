@@ -270,12 +270,21 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
-                # 2. Guardar partidas que solo se editaron (Destajista o CC) sin pagar aún
-                filas_solo_edicion = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == False) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
-                for _, row in filas_solo_edicion.iterrows():
+                # Guardar cambios generales de edición (Destajista, CC, % Adicional, % Retención) en la memoria global
+                for _, row in df_actual_pantalla.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
                     st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
+                    st.session_state.df.at[idx_original, '% Adicional'] = float(row['% Adicional']) if pd.notna(row['% Adicional']) else 0.0
+                    st.session_state.df.at[idx_original, '% Retención'] = float(row['% Retención']) if pd.notna(row['% Retención']) else 0.0
+                    
+                # 1. Guardar partidas que se van a pagar (añadiendo fecha y usuario)
+                if not filas_a_pagar.empty:
+                    for _, row in filas_a_pagar.iterrows():
+                        idx_original = int(row['_original_index'])
+                        st.session_state.df.at[idx_original, 'Pagar'] = True
+                        st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
+                        st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
 
                 # 3. Eliminar columnas temporales "fantasmas" y preparar el dataframe de envío
                 df_envio = st.session_state.df.copy()
@@ -451,8 +460,15 @@ def dialogo_reportes():
             if col_agrupar == "Estado_Pago_Temp":
                 df_rep_filtrado["Estado_Pago_Temp"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
 
-            df_rep_filtrado['Costo'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
-            df_resumen = df_rep_filtrado.groupby(col_agrupar)['Costo'].sum().reset_index()
+            # Calculamos el Monto Neto Real en el reporte antes de agrupar
+            df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
+            df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
+            df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
+            
+            df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
+            
+            df_resumen = df_rep_filtrado.groupby(col_agrupar)['Monto_Neto_Reporte'].sum().reset_index()
+            df_resumen.columns = [col_agrupar, 'Costo'] # Renombramos para que el resto del bucle siga funcionando intacto
 
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(30, 58, 138) 
@@ -528,8 +544,9 @@ def dialogo_reportes():
                 pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
                 pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
                 pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
                 pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
-                pdf.cell(w_costo, 7, txt=f"${float(row['Costo']):,.2f}", border=1, align='R', fill=True)
+                pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
                 pdf.ln(7)
                 
                 total_acumulado += float(row['Costo'])
@@ -668,6 +685,8 @@ def dialogo_nueva_partida():
                 'Costo': costo_float,
                 'Destajista': dest_sel,
                 'C.C': cc_str,
+                '% Adicional': 0.0,  # Nace en 0%
+                '% Retención': 0.0,  # Nace en 0%
                 'Pagar': pagar_bool,
                 'Fecha pago': ahora,
                 'Usuario': usr
