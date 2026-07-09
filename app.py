@@ -1176,10 +1176,14 @@ elif menu == "Fondo de Garantía (Retenciones)":
         st.markdown("### 📋 Listado Detallado de Retenciones")
         st.write("Para devolver un fondo de garantía, marca la casilla 'Liberar' de las partidas correspondientes y da clic en el botón guardar de abajo.")
         
+        # --- SOLUCIÓN CHECKBOX: Creamos una columna matemática de "Verdadero/Falso" para que funcione el clic ---
+        df_ret_filtrado['Liberar_Check'] = df_ret_filtrado['Estatus Retención'].apply(lambda x: True if str(x).strip() == 'Liberado' else False)
+
         # 2. CONFIGURACIÓN VISUAL DE LA TABLA CON FONDO OSCURO (Tema Streamlit)
-        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
+        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
         gb_ret.configure_default_column(sortable=False, filter=False, resizable=True)
         gb_ret.configure_column("_original_index", hide=True)
+        gb_ret.configure_column("Estatus Retención", hide=True) # Ocultamos el texto original para no confundir al sistema
         
         # Centramos y formateamos los campos
         gb_ret.configure_column("Lote", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
@@ -1188,16 +1192,16 @@ elif menu == "Fondo de Garantía (Retenciones)":
         gb_ret.configure_column("% Retención", valueFormatter="(x*100)+'%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
         gb_ret.configure_column("Monto Retenido", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
         
-        # Convertimos la columna Estatus Retención en un Checkbox interactivo para liberar
-        gb_ret.configure_column("Estatus Retención", headerName="Liberar Fondo", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=120)
+        # Enlazamos la columna matemática al Checkbox
+        gb_ret.configure_column("Liberar_Check", headerName="Liberar Fondo", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=120)
         gb_ret.configure_column("Fecha Liberación", cellClass='centrar-valor', headerClass='ag-center-header', width=160)
         gb_ret.configure_column("Usuario Liberó", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
 
-        # Regla de color: Si ya está liberado se pinta de verde tenue, si no, se queda normal oscuro
+        # Regla de color: Ahora evalúa de manera infalible el estatus "Liberado" y bloquea la fila
         rowStyleRet = JsCode("""
         function(params) {
             let est = params.data['Estatus Retención'];
-            if (est === 'Liberado' || est === 'true' || est === true) {
+            if (est === 'Liberado') {
                 return { 'backgroundColor': 'rgba(16, 185, 129, 0.2)', 'color': '#6EE7B7', 'pointerEvents': 'none' };
             }
             return { 'color': '#00FFFF', 'borderBottom': '1px solid #4a4a4a' };
@@ -1216,26 +1220,122 @@ elif menu == "Fondo de Garantía (Retenciones)":
         }
         
         response_ret = AgGrid(
-            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']],
+            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']],
             gridOptions=gb_ret.build(),
             key="grid_fondos_garantia",
             reload_data=False,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
+            update_mode=GridUpdateMode.VALUE_CHANGED, # <-- CLAVE: Reacciona inmediatamente al clic
+            data_return_mode=DataReturnMode.AS_INPUT,
             theme='streamlit',
             height=400,
             custom_css=mis_estilos_ret
         )
         
-        # 3. BOTÓN PARA GUARDAR LAS LIBERACIONES EN LA NUBE
+       # 3. LÓGICA DE PDF Y BOTONES (IMPRIMIR Y GUARDAR)
         st.markdown("<br>", unsafe_allow_html=True)
-        c_sav_r1, c_sav_r2 = st.columns([8, 2])
         
-        with c_sav_r2:
-            if st.button("🔓 Guardar Liberaciones", type="primary", use_container_width=True):
-                if response_ret['data'] is not None:
-                    df_ret_pantalla = pd.DataFrame(response_ret['data'])
+        df_ret_pantalla = pd.DataFrame(response_ret['data']) if response_ret['data'] is not None else pd.DataFrame()
+        pdf_bytes = None
+        
+        if not df_ret_pantalla.empty:
+            # Filtramos mágicamente SOLO los que el usuario tiene marcados con palomita en este momento
+            df_a_imprimir = df_ret_pantalla[df_ret_pantalla['Liberar_Check'].isin([True, 'true', 1, '1'])]
+            
+            if not df_a_imprimir.empty:
+                df_a_imprimir['Monto_Num'] = pd.to_numeric(df_a_imprimir['Monto Retenido'], errors='coerce').fillna(0)
+                # Agrupamos por contratista y sumamos
+                df_res_imp = df_a_imprimir.groupby('Destajista')['Monto_Num'].sum().reset_index()
+                
+                # --- DIBUJAMOS EL REPORTE PDF ---
+                pdf = FPDF(orientation='P', unit='mm', format='Letter')
+                pdf.add_page()
+                
+                pdf.set_font("Arial", 'B', 14)
+                pdf.set_text_color(30, 58, 138)
+                pdf.cell(195, 8, txt="REPORTE DE LIBERACIÓN DE FONDOS DE GARANTÍA", ln=True, align='C')
+                
+                pdf.set_font("Arial", 'I', 9)
+                pdf.set_text_color(108, 117, 125)
+                tz_mx = ZoneInfo("America/Mexico_City")
+                fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
+                pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
+                pdf.ln(8)
+                
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(30, 58, 138)
+                pdf.set_text_color(255, 255, 255)
+                w_col1, w_col2 = 145, 50
+                pdf.cell(w_col1, 8, txt="Destajista", border=1, align='C', fill=True)
+                pdf.cell(w_col2, 8, txt="Monto a Liberar", border=1, align='C', fill=True)
+                pdf.ln(8)
+                
+                pdf.set_font("Arial", '', 9)
+                pdf.set_text_color(0, 0, 0)
+                total_general = 0
+                fondo_cebra = False
+                
+                for _, row_imp in df_res_imp.iterrows():
+                    if fondo_cebra:
+                        pdf.set_fill_color(245, 247, 250)
+                    else:
+                        pdf.set_fill_color(255, 255, 255)
+                        
+                    costo_fila = float(row_imp['Monto_Num'])
+                    dest_txt = str(row_imp['Destajista']).strip()
+                    if not dest_txt: dest_txt = "Sin Asignar"
                     
+                    pdf.cell(w_col1, 7, txt=dest_txt[:80], border=1, align='L', fill=True)
+                    pdf.cell(w_col2, 7, txt=f"${costo_fila:,.2f}", border=1, align='R', fill=True)
+                    pdf.ln(7)
+                    
+                    total_general += costo_fila
+                    fondo_cebra = not fondo_cebra
+                    
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_fill_color(230, 235, 245)
+                pdf.cell(w_col1, 8, txt="GRAN TOTAL A LIBERAR ", border=1, align='R', fill=True)
+                pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
+                
+                pdf_bytes = pdf.output(dest='S').encode('latin-1')
+
+        # Estilo CSS para que el botón "Imprimir" sea Azul tipo descarga
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stColumn"]:nth-of-type(2) button {
+                background-color: #0D6EFD !important;
+                color: white !important;
+                border-radius: 5px;
+                border: none;
+            }
+            div[data-testid="stColumn"]:nth-of-type(2) button:hover {
+                background-color: #0b5ed7 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+        c_vacia, c_btn_imp, c_btn_sav = st.columns([5, 2.5, 2.5])
+        
+        with c_btn_imp:
+            # Si el usuario ya marcó partidas, encendemos el botón y le pegamos el PDF
+            if pdf_bytes:
+                st.download_button(
+                    label="🖨️ Imprimir Recibo",
+                    data=pdf_bytes,
+                    file_name=f"Liberacion_Fondos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            else:
+                st.button("🖨️ Imprimir Recibo", disabled=True, use_container_width=True, help="Selecciona al menos una partida para imprimir")
+                
+        with c_btn_sav:
+            if st.button("🔓 Guardar Liberaciones", type="primary", use_container_width=True):
+                if not df_ret_pantalla.empty:
                     tz_mx = ZoneInfo("America/Mexico_City")
                     ahora_lib = datetime.now(tz_mx).strftime("%d/%b/%Y %H:%M:%S")
                     usr_lib = st.session_state.usuario
@@ -1243,9 +1343,9 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     cambios_detectados = False
                     for _, row_p in df_ret_pantalla.iterrows():
                         idx_orig = int(row_p['_original_index'])
-                        est_val = row_p['Estatus Retención']
+                        est_val = row_p['Liberar_Check']
                         
-                        # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
+                        # Si marcaron la casilla y el estatus original era "Retenido", lo guardamos como Liberado
                         if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
                             st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
                             st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = ahora_lib
@@ -1264,7 +1364,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                             actualizar_datos_gsheet(df_envio_ret)
                             
                         st.session_state.df_original = st.session_state.df.copy()
-                        st.success("¡Fondos de garantía liberados y pagados con éxito!")
+                        st.success("¡Fondos de garantía liberados y guardados con éxito!")
                         st.rerun()
                     else:
                         st.warning("No hay nuevas liberaciones marcadas para guardar.")
