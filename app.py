@@ -925,6 +925,15 @@ if menu == "Registro de Destajos":
     gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200) # Se queda a la izquierda
     gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellClass='centrar-valor', headerClass='ag-center-header', width=180)
     
+    # --- NUEVAS COLUMNAS DE CONTROL FINANCIERO ---
+    gb.configure_column("% Adicional", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.10]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+    gb.configure_column("% Retención", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.05]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+    
+    # Esta columna calcula en vivo: Costo + (Costo * % Adicional) - (Costo * % Retención)
+    formula_neto = "Number(data.Costo) + (Number(data.Costo) * (Number(data['% Adicional']) || 0)) - (Number(data.Costo) * (Number(data['% Retención']) || 0))"
+    gb.configure_column("Monto Neto", editable=False, valueGetter=formula_neto, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
+    # ----------------------------------------------
+    
     gb.configure_column("Pagar", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Fecha pago", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=160)
     gb.configure_column("Usuario", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=120)
@@ -984,7 +993,7 @@ if menu == "Registro de Destajos":
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     response = AgGrid(
-        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
+        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
         key=f"grid_destajos_{st.session_state.grid_key}",
         reload_data=st.session_state.reload_trigger,
@@ -1013,7 +1022,8 @@ if menu == "Registro de Destajos":
         df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')]
         total_checked = len(df_pagar_actual)
         
-        costo_seleccionado = df_pagar_actual['Costo'].sum()
+        # Ahora sumamos el Monto Neto modificado con bonos y retenciones
+        costo_seleccionado = df_pagar_actual['Monto Neto'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
