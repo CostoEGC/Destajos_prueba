@@ -1247,16 +1247,20 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         idx_orig = int(row_p['_original_index'])
                         est_val = row_p['Liberar_Check']
                         
+                        # 🔍 COMPROBACIÓN EXHAUSTIVA: Validamos contra el dataframe global directamente usando loc
                         if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
                             
+                            # Inyección garantizada de datos en la memoria global
                             st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
                             st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = ahora_lib
                             st.session_state.df.loc[idx_orig, 'Usuario Liberó'] = usr_lib
                             
+                            # Guardamos los datos para construir el PDF
                             df_recibo_nuevo.append(row_p)
                             cambios_detectados = True
                             
                     if cambios_detectados:
+                        # --- FABRICAMOS EL PDF CON LOS DATOS RECIÉN ASIGNADOS ---
                         df_a_imprimir = pd.DataFrame(df_recibo_nuevo)
                         df_a_imprimir['Monto_Num'] = pd.to_numeric(df_a_imprimir['Monto Retenido'], errors='coerce').fillna(0)
                         df_res_imp = df_a_imprimir.groupby('Destajista')['Monto_Num'].sum().reset_index()
@@ -1310,10 +1314,12 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         
                         st.session_state.ultimo_recibo_pdf = pdf.output(dest='S').encode('latin-1')
 
+                        # --- ENVÍO COMPLETO Y TOTAL DE LA BASE DE DATOS A GOOGLE SHEETS ---
                         df_envio_ret = st.session_state.df.copy()
                         if 'Concepto_Limpio' in df_envio_ret.columns:
                             df_envio_ret = df_envio_ret.drop(columns=['Concepto_Limpio'])
                         
+                        # Formateamos las columnas para que Google las acepte como texto limpio
                         df_envio_ret['Fecha pago'] = df_envio_ret['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         df_envio_ret['Fecha Liberación'] = df_envio_ret['Fecha Liberación'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         
@@ -1325,7 +1331,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
 
-            # --- LA DESCARGA APARECE EXACTAMENTE AQUÍ ABAJO DESPUÉS DE PROCESAR ---
+            # Muestra el botón de descarga inmediatamente abajo tras el guardado exitoso
             if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
                 st.success("✅ ¡Guardado en base de datos con éxito!")
                 st.download_button(
@@ -1339,7 +1345,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                 if st.button("❌ Ocultar este recibo", use_container_width=True):
                     st.session_state.ultimo_recibo_pdf = None
                     st.rerun()
-                    
+
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
