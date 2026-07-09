@@ -770,9 +770,22 @@ if menu == "Registro de Destajos":
     st.markdown(
         """
         <style>
+        /* 1. Centrar los encabezados */
         .ag-header-cell-label {
             justify-content: center !important;
             text-align: center !important;
+        }
+        
+        /* 2. Tamaño de letra para los TÍTULOS de las columnas */
+        .ag-header-cell-text {
+            font-size: 16px !important; 
+        }
+        
+        /* 3. Tamaño de letra para el texto normal de las FILAS */
+        .ag-cell {
+            font-size: 15px !important; 
+            display: flex !important;
+            align-items: center !important; /* Mantiene el texto centrado verticalmente aunque sea grande */
         }
         </style>
         """,
