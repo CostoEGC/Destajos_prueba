@@ -846,7 +846,7 @@ if menu == "Registro de Destajos":
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
     mis_estilos = {
         ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "25px !important"}
+        ".ag-cell-value": {"font-size": "20px !important"}
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
