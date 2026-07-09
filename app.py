@@ -809,7 +809,6 @@ if menu == "Registro de Destajos":
         }
         
         let style = {
-            'backgroundColor': '#000000',
             'color': '#00FFFF',
             'borderBottom': '1px solid #4a4a4a'
         };
