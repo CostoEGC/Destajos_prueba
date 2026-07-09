@@ -840,7 +840,7 @@ if menu == "Registro de Destajos":
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
-        theme='balham',
+        theme='streamlit',#'balham',
         height=600
     )
     st.session_state.reload_trigger = False
