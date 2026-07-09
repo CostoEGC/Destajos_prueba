@@ -581,24 +581,25 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
 # NUEVA FUNCIÓN: FORMULARIO PARA AÑADIR PARTIDAS
 # ====================================================
 @st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
+# ====================================================
+# FUNCIÓN CORREGIDA: FORMULARIO AUTOMÁTICO DE NUEVA PARTIDA
+# ====================================================
+@st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
 def dialogo_nueva_partida():
     st.markdown("### 📝 Registrar nuevo concepto")
-    st.write("Agrega una partida especial a uno o varios lotes. Si seleccionas varios lotes, se creará un renglón independiente para cada uno.")
+    st.write("Agrega una partida especial a uno o varios lotes. El sistema buscará de forma automática la Manzana y el Prototipo correspondientes.")
     
-    # Extraemos catálogos directamente de la base de datos
+    # Extraemos el catálogo de lotes disponibles
     list_lotes = sorted([str(x) for x in st.session_state.df['Lote'].unique() if str(x).strip()], key=natural_sort_key)
-    list_manzanas = sorted([str(x) for x in st.session_state.df['Manzana'].unique() if str(x).strip()], key=natural_sort_key)
-    list_prototipos = sorted([str(x) for x in st.session_state.df['Prototipo'].unique() if str(x).strip()], key=natural_sort_key)
     
     c1, c2 = st.columns(2)
     with c1:
+        # El usuario solo tiene que seleccionar el Lote o Lotes
         lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
-        manzanas_sel = st.multiselect("Manzana(s)", options=list_manzanas)
-        protos_sel = st.multiselect("Prototipo(s)", options=list_prototipos)
         cc_sel = st.multiselect("C.C", options=[c for c in LISTA_CC if c.strip()])
     with c2:
         partida_txt = st.text_input("Concepto / Partida *", help="Obligatorio.")
-        # Truco para permitir formato de moneda con comas y símbolo de pesos libremente
+        # Mantenemos el campo de texto libre para el formato de moneda cómodo
         costo_txt = st.text_input("Costo unitario ($) *", placeholder="Ej. 1,500.00", help="Obligatorio. Puedes usar comas.")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
@@ -616,7 +617,6 @@ def dialogo_nueva_partida():
             st.error("⚠️ Por favor, llena los campos obligatorios: Lote(s), Partida y Costo.")
             return
             
-        # Limpiamos la basura tipográfica para que la base de datos reciba un número puro
         costo_limpio = costo_txt.replace("$", "").replace(",", "").replace(" ", "").strip()
         try:
             costo_float = float(costo_limpio)
@@ -625,9 +625,9 @@ def dialogo_nueva_partida():
             return
             
         nuevas_filas = []
-        partida_final = f"{partida_txt.strip()} (*)" # Le pegamos el asterisco para identificarla
+        partida_final = f"{partida_txt.strip()} (*)" # Marca para identificar el renglón adicional
         
-        # Procesamiento de variables de pago
+        # Procesamiento de variables de pago inmediato
         if pagar_ahora == "Sí, pagarlas ahora mismo":
             pagar_bool = True
             tz_mx = ZoneInfo("America/Mexico_City")
@@ -640,20 +640,31 @@ def dialogo_nueva_partida():
             ahora = ""
             usr = ""
             
-        # Convertimos las selecciones múltiples a texto separado por comas
-        mz_str = ", ".join(manzanas_sel) if manzanas_sel else ""
-        pr_str = ", ".join(protos_sel) if protos_sel else ""
         cc_str = ", ".join(cc_sel) if cc_sel else ""
         
-        # Por cada Lote seleccionado, generamos una copia exacta de la partida
+        # Guardamos una referencia de la base de datos original para buscar las relaciones
+        df_referencia = st.session_state.df
+        
+        # Recorremos cada lote seleccionado para buscar AUTOMÁTICAMENTE su Manzana y Prototipo
         for lote in lotes_sel:
+            # Buscamos en los datos existentes la manzana y el prototipo que le corresponden a este lote
+            datos_lote_existente = df_referencia[df_referencia['Lote'].astype(str).str.strip() == str(lote).strip()]
+            
+            if not datos_lote_existente.empty:
+                mz_automatica = str(datos_lote_existente['Manzana'].iloc[0]).strip()
+                pr_automatico = str(datos_lote_existente['Prototipo'].iloc[0]).strip()
+            else:
+                # Si por alguna razón es un lote totalmente nuevo que no existía antes
+                mz_automatica = ""
+                pr_automatico = ""
+
             nueva_fila = {
                 'Lote': lote,
-                'Manzana': mz_str,
-                'Prototipo': pr_str,
+                'Manzana': mz_automatica, # <- Inyectado automático
+                'Prototipo': pr_automatico, # <- Inyectado automático
                 'Partida': partida_final,
                 'Costo': costo_float,
-                'Destajista': "", # Vacío por defecto
+                'Destajista': "",
                 'C.C': cc_str,
                 'Pagar': pagar_bool,
                 'Fecha pago': ahora,
@@ -661,26 +672,24 @@ def dialogo_nueva_partida():
             }
             nuevas_filas.append(nueva_fila)
             
-        # 1. Armamos el paquete y enviamos a Google Sheets primero
+        # Generamos el dataframe combinado para enviarlo completo a Google Sheets
         df_temporal = pd.concat([st.session_state.df, pd.DataFrame(nuevas_filas)], ignore_index=True)
         
         df_envio = df_temporal.copy()
         if 'Concepto_Limpio' in df_envio.columns:
             df_envio = df_envio.drop(columns=['Concepto_Limpio'])
             
-        # Blindaje de la fecha para Sheets
         df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
         
-        with st.spinner("Guardando nueva partida en la nube..."):
+        with st.spinner("Sincronizando información con Google Sheets..."):
             actualizar_datos_gsheet(df_envio)
             
-        # 2. Si Sheets no falló, actualizamos la memoria local y recargamos la app
+        # Actualizamos la memoria del sistema web
         st.session_state.df = df_temporal
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
-        st.success("¡Partida(s) agregada(s) exitosamente!")
-        st.rerun()
-# ====================================================    
+        st.success("¡Partida(s) agregada(s) con Manzana y Prototipo automatizados!")
+        st.rerun()  
 
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
