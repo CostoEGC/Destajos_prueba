@@ -908,8 +908,20 @@ if menu == "Registro de Destajos":
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
+    # --- SOLUCIÓN AL KEYERROR: Creamos las columnas en la memoria antes de mandarlas a la tabla ---
+    if '% Adicional' not in df_filtrado_grid.columns: 
+        df_filtrado_grid['% Adicional'] = 0.0
+    if '% Retención' not in df_filtrado_grid.columns: 
+        df_filtrado_grid['% Retención'] = 0.0
+        
+    df_filtrado_grid['% Ad_Temp'] = pd.to_numeric(df_filtrado_grid['% Adicional'], errors='coerce').fillna(0)
+    df_filtrado_grid['% Ret_Temp'] = pd.to_numeric(df_filtrado_grid['% Retención'], errors='coerce').fillna(0)
+    df_filtrado_grid['Costo_Temp'] = pd.to_numeric(df_filtrado_grid['Costo'], errors='coerce').fillna(0)
     
+    df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
+    # ----------------------------------------------------------------------------------------------
+    
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
     # Inyectamos estilos CSS para centrar el texto de los encabezados de AgGrid
