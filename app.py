@@ -778,12 +778,12 @@ if menu == "Registro de Destajos":
         
         /* 2. Tamaño de letra para los TÍTULOS de las columnas */
         .ag-header-cell-text {
-            font-size: 20px !important; 
+            font-size: 18px !important; 
         }
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
         .ag-cell, .ag-cell-value {
-            font-size: 20px !important; 
+            font-size: 18px !important; 
             display: flex !important;
             align-items: center !important; 
         }
