@@ -994,12 +994,42 @@ if menu == "Registro de Destajos":
     gb.configure_column("Partida", editable=False, width=300) # Se queda a la izquierda
     gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
     
-    gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200) # Se queda a la izquierda
-    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellClass='centrar-valor', headerClass='ag-center-header', width=180)
+    # Configuración avanzada con apertura de listas desplegables a UN SOLO CLIC (singleClickEdit)
+    gb.configure_column("Destajista", 
+                        editable=True, 
+                        cellEditor='agSelectCellEditor', 
+                        cellEditorParams={'values': LISTA_DESTAJISTAS}, 
+                        singleClickEdit=True, # <- Abre con 1 solo clic
+                        width=200)
+                        
+    gb.configure_column("C.C", 
+                        editable=True, 
+                        cellEditor='agSelectCellEditor', 
+                        cellEditorParams={'values': LISTA_CC}, 
+                        cellClass='centrar-valor', 
+                        headerClass='ag-center-header', 
+                        singleClickEdit=True, # <- Abre con 1 solo clic
+                        width=180)
     
-    # --- NUEVAS COLUMNAS DE CONTROL FINANCIERO ---
-    gb.configure_column("% Adicional", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.10]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
-    gb.configure_column("% Retención", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.05]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
+    gb.configure_column("% Adicional", 
+                        editable=True, 
+                        cellEditor='agSelectCellEditor', 
+                        cellEditorParams={'values': [0, 0.10]}, 
+                        valueFormatter="x ? (x*100)+'%' : '0%'", 
+                        cellClass='centrar-valor', 
+                        headerClass='ag-center-header', 
+                        singleClickEdit=True, # <- Abre con 1 solo clic
+                        width=110)
+                        
+    gb.configure_column("% Retención", 
+                        editable=True, 
+                        cellEditor='agSelectCellEditor', 
+                        cellEditorParams={'values': [0, 0.05]}, 
+                        valueFormatter="x ? (x*100)+'%' : '0%'", 
+                        cellClass='centrar-valor', 
+                        headerClass='ag-center-header', 
+                        singleClickEdit=True, # <- Abre con 1 solo clic
+                        width=110)
     
     # Esta columna calcula en vivo: Costo + (Costo * % Adicional) - (Costo * % Retención)
     formula_neto = "Number(data.Costo) + (Number(data.Costo) * (Number(data['% Adicional']) || 0)) - (Number(data.Costo) * (Number(data['% Retención']) || 0))"
@@ -1215,7 +1245,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         idx_orig = int(row_p['_original_index'])
                         est_val = row_p['Estatus Retención']
                         
-                        # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
                         # Si el usuario marcó la casilla de la fila que estaba marcada como 'Retenido'
                         if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
                             st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
