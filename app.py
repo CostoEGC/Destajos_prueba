@@ -778,7 +778,7 @@ if menu == "Registro de Destajos":
         
         /* 2. Tamaño de letra para los TÍTULOS de las columnas */
         .ag-header-cell-text {
-            font-size: 18px !important; 
+            font-size: 20px !important; 
         }
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
@@ -838,7 +838,7 @@ if menu == "Registro de Destajos":
         return style;
     }
     """)
-    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
+    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=40)
     
     grid_options = gb.build()
 
