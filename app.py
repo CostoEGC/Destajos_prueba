@@ -578,10 +578,6 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.rerun()
 
 # ====================================================
-# NUEVA FUNCIÓN: FORMULARIO PARA AÑADIR PARTIDAS
-# ====================================================
-@st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
-# ====================================================
 # FUNCIÓN CORREGIDA: FORMULARIO AUTOMÁTICO DE NUEVA PARTIDA
 # ====================================================
 @st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
@@ -689,7 +685,7 @@ def dialogo_nueva_partida():
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
         st.success("¡Partida(s) agregada(s) con Manzana y Prototipo automatizados!")
-        st.rerun()  
+        st.rerun()
 
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
