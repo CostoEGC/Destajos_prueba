@@ -843,6 +843,13 @@ if menu == "Registro de Destajos":
     grid_options = gb.build()
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
+    # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
+    mis_estilos = {
+        ".ag-cell": {"font-size": "25px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "25px !important"}
+    }
+
+    # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     response = AgGrid(
         df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
         gridOptions=grid_options,
@@ -853,8 +860,9 @@ if menu == "Registro de Destajos":
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
-        theme='balham',
-        height=600
+        theme='streamlit',
+        height=600,
+        custom_css=mis_estilos  # <--- INYECTAMOS EL CSS DIRECTO A LA TABLA AQUÍ
     )
     st.session_state.reload_trigger = False
 
