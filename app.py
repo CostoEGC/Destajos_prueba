@@ -297,12 +297,6 @@ def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
     st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
     
-    # Inicializar el estado del reporte para que no desaparezca el botón de descarga
-    if 'pdf_procesado' not in st.session_state:
-        st.session_state.pdf_procesado = False
-    if 'pdf_bytes' not in st.session_state:
-        st.session_state.pdf_bytes = None
-
     df_base_rep = st.session_state.df.copy()
     
     # Extraer catálogos dinámicos idénticos a la pestaña de registros
@@ -332,10 +326,25 @@ def dialogo_reportes():
         st.multiselect("Destajista(s):", options=list_destajistas_filtro, placeholder="Todos", key="rep_sel_dest")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    st.markdown("##### 📅 Filtrar por Rango de Fechas de Pago (Opcional)")
-    rango = st.date_input("Rango de fechas de pago:", value=[], format="DD/MM/YYYY", key="rep_sel_fecha")
 
-    # Ejecución de la lógica de filtrado sobre el clon de datos
+    col_izq_fechas, col_der_impresion = st.columns(2)
+    
+    with col_izq_fechas:
+        st.markdown("##### 📅 Filtrar por Rango de Fechas")
+        rango = st.date_input("Selecciona el período:", value=[], key="rep_rango_fechas", label_visibility="collapsed")
+        
+    with col_der_impresion:
+        st.markdown("##### 📑 Opciones de Impresión")
+        col_chk, col_sel = st.columns([1.1, 0.9])
+        
+        with col_chk:
+            chk_resumen = st.checkbox("Imprimir resumen (solo totales)", key="chk_resumen")
+            
+        with col_sel:
+            opciones_agrupacion = sorted(["Destajista", "Estado de Pago", "Lote", "Manzana", "Partida", "Prototipo"])
+            if chk_resumen:
+                st.selectbox("Agrupar totales por:", options=opciones_agrupacion, key="sel_agrupacion", label_visibility="collapsed")
+ 
     df_rep_filtrado = df_base_rep.copy()
     
     if st.session_state.rep_sel_proto: 
@@ -365,29 +374,17 @@ def dialogo_reportes():
         df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
+    st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
     # ====================================================
     # NUEVO CÓDIGO: CONTROLES EN UNA SOLA FILA
     # ====================================================
-    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    st.markdown("##### 📑 Opciones de Impresión")
-    
-    # Creamos dos columnas para ponerlos lado a lado
-    col_chk, col_sel = st.columns([1, 1])
-    
-    with col_chk:
-        # Checkbox para activar la versión resumida
-        chk_resumen = st.checkbox("Imprimir resumen (solo totales)", key="chk_resumen")
-    
-    with col_sel:
-        # Lista ordenada alfabéticamente
-        opciones_agrupacion = sorted(["Destajista", "Estado de Pago", "Lote", "Manzana", "Partida", "Prototipo"])
-        # Mostrar el selector a la derecha solo si el checkbox está activo
-        if chk_resumen:
-            st.selectbox("Agrupar totales por:", options=opciones_agrupacion, key="sel_agrupacion")
-    
+    #st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
+    #st.markdown("##### 📑 Opciones de Impresión")
+    
+    
     # ====================================================
 
     # ====================================================
