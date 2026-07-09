@@ -41,10 +41,14 @@ def obtener_datos_gsheet():
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', 'Pagar', 'Fecha pago', 'Usuario']
+        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Pagar', 'Fecha pago', 'Usuario']
         for col in cols_requeridas:
             if col not in df.columns:
                 df[col] = ''
+                
+        # Aseguramos que si las columnas de porcentaje vienen vacías, tengan un 0 numérico por defecto
+        df['% Adicional'] = pd.to_numeric(df['% Adicional'], errors='coerce').fillna(0)
+        df['% Retención'] = pd.to_numeric(df['% Retención'], errors='coerce').fillna(0)
 
         # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
         df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
