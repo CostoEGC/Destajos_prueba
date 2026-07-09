@@ -854,11 +854,7 @@ if menu == "Registro de Destajos":
         ".ag-cell": {"font-size": "25px !important", "display": "flex", "align-items": "center"},
         ".ag-cell-value": {"font-size": "25px !important"},
 
-        # --- AQUÍ DEVOLVEMOS EL CHECKBOX AL RELLENO AZUL ---
-        ".ag-checkbox-input-wrapper.ag-checked": {
-            "background-color": "#3B82F6 !important", 
-            "border-color": "#3B82F6 !important"
-        }
+        
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
@@ -872,7 +868,7 @@ if menu == "Registro de Destajos":
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
-        theme='streamlit',
+        theme='balham',
         height=600,
         custom_css=mis_estilos  # <--- INYECTAMOS EL CSS DIRECTO A LA TABLA AQUÍ
     )
