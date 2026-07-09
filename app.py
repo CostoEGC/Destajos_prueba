@@ -809,7 +809,7 @@ if menu == "Registro de Destajos":
         }
         
         let style = {
-            'backgroundColor': '#262626',
+            'backgroundColor': '#0D0D0D',
             'color': '#00FFFF',
             'borderBottom': '1px solid #4a4a4a'
         };
