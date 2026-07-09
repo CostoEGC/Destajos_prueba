@@ -577,7 +577,7 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
 
-## ====================================================
+# ====================================================
 # FUNCIÓN DEFINITIVA: FORMULARIO Y ORDENAMIENTO EXACTO
 # ====================================================
 @st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
@@ -585,12 +585,13 @@ def dialogo_nueva_partida():
     st.markdown("### 📝 Registrar nuevo concepto")
     st.write("El sistema inyectará la partida exactamente debajo de la última fila del lote correspondiente.")
     
-    list_lotes = sorted([str(x) for x in st.session_state.df['Lote'].unique() if str(x).strip()], key=natural_sort_key)
+    # 🛑 CORRECCIÓN: Filtramos duplicados desde la raíz por si Sheets tiene suciedad
+    lotes_unicos = list(set([str(x).strip() for x in st.session_state.df['Lote'].unique() if str(x).strip()]))
+    list_lotes = sorted(lotes_unicos, key=natural_sort_key)
     
     c1, c2 = st.columns(2)
     with c1:
         lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
-        # 1. Agregamos el destajista a las opciones
         dest_sel = st.selectbox("Destajista", options=[""] + [d for d in LISTA_DESTAJISTAS if d.strip()])
         cc_sel = st.multiselect("C.C", options=[c for c in LISTA_CC if c.strip()])
     with c2:
@@ -635,27 +636,30 @@ def dialogo_nueva_partida():
             
         cc_str = ", ".join(cc_sel) if cc_sel else ""
         
-        # 2. Tomamos una copia de la base de datos actual para manipularla
         df_temp = st.session_state.df.copy()
         
         for lote in lotes_sel:
             datos_lote_existente = df_temp[df_temp['Lote'].astype(str).str.strip() == str(lote).strip()]
             
             if not datos_lote_existente.empty:
-                mz_automatica = str(datos_lote_existente['Manzana'].iloc[0]).strip()
-                pr_automatico = str(datos_lote_existente['Prototipo'].iloc[0]).strip()
+                # 🛑 CORRECCIÓN: Extraemos el valor EXACTO (su formato natural de Sheets)
+                # Esto evita que se generen "clones" fantasma en los filtros
+                lote_original = datos_lote_existente['Lote'].iloc[0]
+                mz_original = datos_lote_existente['Manzana'].iloc[0]
+                pr_original = datos_lote_existente['Prototipo'].iloc[0]
                 
-                # 3. Encontramos la ÚLTIMA fila de este lote para saber dónde insertar
+                # Encontramos la ÚLTIMA fila de este lote
                 idx_insert = datos_lote_existente.index.max() + 1
             else:
-                mz_automatica = ""
-                pr_automatico = ""
+                lote_original = lote
+                mz_original = ""
+                pr_original = ""
                 idx_insert = len(df_temp)
 
             nueva_fila = {
-                'Lote': lote,
-                'Manzana': mz_automatica,
-                'Prototipo': pr_automatico,
+                'Lote': lote_original,
+                'Manzana': mz_original,
+                'Prototipo': pr_original,
                 'Partida': partida_final,
                 'Costo': costo_float,
                 'Destajista': dest_sel,
@@ -665,7 +669,7 @@ def dialogo_nueva_partida():
                 'Usuario': usr
             }
             
-            # 4. Partimos la tabla y metemos la fila en la posición exacta
+            # Partimos la tabla y metemos la fila en la posición exacta
             df_arriba = df_temp.iloc[:idx_insert]
             df_abajo = df_temp.iloc[idx_insert:]
             df_temp = pd.concat([df_arriba, pd.DataFrame([nueva_fila]), df_abajo]).reset_index(drop=True)
@@ -684,6 +688,7 @@ def dialogo_nueva_partida():
         st.session_state.grid_key += 1
         st.success("¡Partida(s) inyectada(s) exactamente en su grupo!")
         st.rerun()
+# ====================================================
 # ====================================================
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
