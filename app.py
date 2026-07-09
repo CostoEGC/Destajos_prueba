@@ -465,14 +465,17 @@ def dialogo_reportes():
             fondo_cebra = False
 
             for _, row in df_resumen.iterrows():
+                valor_txt = str(row[col_agrupar]).strip()
+                
+                # 🛑 NUEVA LÓGICA: Si la fila está vacía o sin asignar, la saltamos por completo
+                if valor_txt == "" or valor_txt.lower() in ['nan', 'none', '<na>']:
+                    continue
+                
+                # Si pasó el filtro, aplicamos el color y sumamos
                 if fondo_cebra:
                     pdf.set_fill_color(245, 247, 250) 
                 else:
                     pdf.set_fill_color(255, 255, 255)
-                    
-                valor_txt = str(row[col_agrupar]).strip()
-                if valor_txt == "":
-                    valor_txt = "Sin Asignar / Vacío"
                     
                 costo_fila = float(row['Costo'])
 
@@ -482,7 +485,7 @@ def dialogo_reportes():
                 
                 total_general += costo_fila
                 fondo_cebra = not fondo_cebra
-
+                
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(w_col1, 8, txt=f"GRAN TOTAL ({str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}) ", border=1, align='R', fill=True)
