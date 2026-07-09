@@ -783,7 +783,7 @@ if menu == "Registro de Destajos":
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
         .ag-cell {
-            font-size: 15px !important; 
+            font-size: 19px !important; 
             display: flex !important;
             align-items: center !important; /* Mantiene el texto centrado verticalmente aunque sea grande */
         }
