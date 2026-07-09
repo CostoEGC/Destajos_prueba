@@ -844,14 +844,21 @@ if menu == "Registro de Destajos":
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
+   # Definimos un diccionario con el tamaño forzado y colores personalizados
     mis_estilos = {
         # --- AQUÍ CONTROLAS LOS TÍTULOS (ENCABEZADOS) ---
-        ".ag-header-cell-text": {"font-size": "19px !important"}, 
-        ".ag-header-cell-label": {"justify-content": "center !important"}, # Esto asegura que sigan centrados
+        ".ag-header-cell-text": {"font-size": "20px !important"}, 
+        ".ag-header-cell-label": {"justify-content": "center !important"}, 
         
         # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
-        ".ag-cell": {"font-size": "19px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "19px !important"}
+        ".ag-cell": {"font-size": "25px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "25px !important"},
+
+        # --- AQUÍ DEVOLVEMOS EL CHECKBOX AL RELLENO AZUL ---
+        ".ag-checkbox-input-wrapper.ag-checked": {
+            "background-color": "#3B82F6 !important", 
+            "border-color": "#3B82F6 !important"
+        }
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
