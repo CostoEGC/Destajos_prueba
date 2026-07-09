@@ -809,6 +809,7 @@ if menu == "Registro de Destajos":
         }
         
         let style = {
+            'backgroundColor': '#262626',
             'color': '#00FFFF',
             'borderBottom': '1px solid #4a4a4a'
         };
@@ -839,7 +840,7 @@ if menu == "Registro de Destajos":
         update_mode=GridUpdateMode.VALUE_CHANGED,
         data_return_mode=DataReturnMode.AS_INPUT,
         fit_columns_on_grid_load=False,
-        theme='streamlit',#'balham',
+        theme='balham',
         height=600
     )
     st.session_state.reload_trigger = False
