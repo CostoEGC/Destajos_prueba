@@ -778,7 +778,7 @@ if menu == "Registro de Destajos":
         
         /* 2. Tamaño de letra para los TÍTULOS de las columnas */
         .ag-header-cell-text {
-            font-size: 18px !important; 
+            font-size: 20px !important; 
         }
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
@@ -845,8 +845,8 @@ if menu == "Registro de Destajos":
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
     mis_estilos = {
-        ".ag-cell": {"font-size": "18px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "18px !important"}
+        ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "20px !important"} # cambio de tamaño de letra para la tabla de "Registro destajos"
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
