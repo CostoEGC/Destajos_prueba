@@ -485,7 +485,7 @@ def dialogo_reportes():
                 
                 total_general += costo_fila
                 fondo_cebra = not fondo_cebra
-                
+
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(230, 235, 245)
             pdf.cell(w_col1, 8, txt=f"GRAN TOTAL ({str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}) ", border=1, align='R', fill=True)
@@ -766,19 +766,32 @@ if menu == "Registro de Destajos":
     
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
+    # Inyectamos estilos CSS para centrar el texto de los encabezados de AgGrid
+    st.markdown(
+        """
+        <style>
+        .ag-header-cell-label {
+            justify-content: center !important;
+            text-align: center !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
-    gb.configure_column("Lote", editable=False, filter=False, cellStyle={'textAlign': 'center'}, width=90)
-    gb.configure_column("Manzana", editable=False, cellStyle={'textAlign': 'center'}, width=100)
-    gb.configure_column("Prototipo", editable=False, cellStyle={'textAlign': 'center'}, width=110)
-    gb.configure_column("Partida", editable=False, width=300) 
-    gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellStyle={'textAlign': 'right'}, width=120)
+    # Configuración de columnas con encabezados perfectamente centrados
+    gb.configure_column("Lote", editable=False, filter=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=90)
+    gb.configure_column("Manzana", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=100)
+    gb.configure_column("Prototipo", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=110)
+    gb.configure_column("Partida", editable=False, width=300) # Esta se queda alineada a la izquierda para leer bien los conceptos
+    gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellStyle={'textAlign': 'right'}, headerClass='ag-center-header', width=120)
     
     gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, width=200)
-    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellStyle={'textAlign': 'center'}, width=180)
+    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=180)
     
-    gb.configure_column("Pagar", editable=True, cellStyle={'textAlign': 'center'}, width=90)
-    gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, width=160)
-    gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, width=120)
+    gb.configure_column("Pagar", editable=True, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=90)
+    gb.configure_column("Fecha pago", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=160)
+    gb.configure_column("Usuario", editable=False, cellStyle={'textAlign': 'center'}, headerClass='ag-center-header', width=120)
 
     # (Corrección 1) Comprobación segura en el front-end para saber si está pagado o no (sin evaluar basura de texto)
     rowStyle = JsCode("""
