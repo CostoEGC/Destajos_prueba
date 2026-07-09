@@ -577,25 +577,24 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
 
-# ====================================================
-# FUNCIÓN CORREGIDA: FORMULARIO AUTOMÁTICO DE NUEVA PARTIDA
+## ====================================================
+# FUNCIÓN DEFINITIVA: FORMULARIO Y ORDENAMIENTO EXACTO
 # ====================================================
 @st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
 def dialogo_nueva_partida():
     st.markdown("### 📝 Registrar nuevo concepto")
-    st.write("Agrega una partida especial a uno o varios lotes. El sistema buscará de forma automática la Manzana y el Prototipo correspondientes.")
+    st.write("El sistema inyectará la partida exactamente debajo de la última fila del lote correspondiente.")
     
-    # Extraemos el catálogo de lotes disponibles
     list_lotes = sorted([str(x) for x in st.session_state.df['Lote'].unique() if str(x).strip()], key=natural_sort_key)
     
     c1, c2 = st.columns(2)
     with c1:
-        # El usuario solo tiene que seleccionar el Lote o Lotes
         lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
+        # 1. Agregamos el destajista a las opciones
+        dest_sel = st.selectbox("Destajista", options=[""] + [d for d in LISTA_DESTAJISTAS if d.strip()])
         cc_sel = st.multiselect("C.C", options=[c for c in LISTA_CC if c.strip()])
     with c2:
         partida_txt = st.text_input("Concepto / Partida *", help="Obligatorio.")
-        # Mantenemos el campo de texto libre para el formato de moneda cómodo
         costo_txt = st.text_input("Costo unitario ($) *", placeholder="Ej. 1,500.00", help="Obligatorio. Puedes usar comas.")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
@@ -620,10 +619,8 @@ def dialogo_nueva_partida():
             st.error("⚠️ El costo introducido no es un número válido. Verifica el formato.")
             return
             
-        nuevas_filas = []
-        partida_final = f"{partida_txt.strip()} (*)" # Marca para identificar el renglón adicional
+        partida_final = f"{partida_txt.strip()} (*)"
         
-        # Procesamiento de variables de pago inmediato
         if pagar_ahora == "Sí, pagarlas ahora mismo":
             pagar_bool = True
             tz_mx = ZoneInfo("America/Mexico_City")
@@ -638,55 +635,56 @@ def dialogo_nueva_partida():
             
         cc_str = ", ".join(cc_sel) if cc_sel else ""
         
-        # Guardamos una referencia de la base de datos original para buscar las relaciones
-        df_referencia = st.session_state.df
+        # 2. Tomamos una copia de la base de datos actual para manipularla
+        df_temp = st.session_state.df.copy()
         
-        # Recorremos cada lote seleccionado para buscar AUTOMÁTICAMENTE su Manzana y Prototipo
         for lote in lotes_sel:
-            # Buscamos en los datos existentes la manzana y el prototipo que le corresponden a este lote
-            datos_lote_existente = df_referencia[df_referencia['Lote'].astype(str).str.strip() == str(lote).strip()]
+            datos_lote_existente = df_temp[df_temp['Lote'].astype(str).str.strip() == str(lote).strip()]
             
             if not datos_lote_existente.empty:
                 mz_automatica = str(datos_lote_existente['Manzana'].iloc[0]).strip()
                 pr_automatico = str(datos_lote_existente['Prototipo'].iloc[0]).strip()
+                
+                # 3. Encontramos la ÚLTIMA fila de este lote para saber dónde insertar
+                idx_insert = datos_lote_existente.index.max() + 1
             else:
-                # Si por alguna razón es un lote totalmente nuevo que no existía antes
                 mz_automatica = ""
                 pr_automatico = ""
+                idx_insert = len(df_temp)
 
             nueva_fila = {
                 'Lote': lote,
-                'Manzana': mz_automatica, # <- Inyectado automático
-                'Prototipo': pr_automatico, # <- Inyectado automático
+                'Manzana': mz_automatica,
+                'Prototipo': pr_automatico,
                 'Partida': partida_final,
                 'Costo': costo_float,
-                'Destajista': "",
+                'Destajista': dest_sel,
                 'C.C': cc_str,
                 'Pagar': pagar_bool,
                 'Fecha pago': ahora,
                 'Usuario': usr
             }
-            nuevas_filas.append(nueva_fila)
             
-        # Generamos el dataframe combinado para enviarlo completo a Google Sheets
-        df_temporal = pd.concat([st.session_state.df, pd.DataFrame(nuevas_filas)], ignore_index=True)
-        
-        df_envio = df_temporal.copy()
+            # 4. Partimos la tabla y metemos la fila en la posición exacta
+            df_arriba = df_temp.iloc[:idx_insert]
+            df_abajo = df_temp.iloc[idx_insert:]
+            df_temp = pd.concat([df_arriba, pd.DataFrame([nueva_fila]), df_abajo]).reset_index(drop=True)
+            
+        df_envio = df_temp.copy()
         if 'Concepto_Limpio' in df_envio.columns:
             df_envio = df_envio.drop(columns=['Concepto_Limpio'])
             
         df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
         
-        with st.spinner("Sincronizando información con Google Sheets..."):
+        with st.spinner("Inyectando partida en el lote correspondiente y sincronizando con Google..."):
             actualizar_datos_gsheet(df_envio)
             
-        # Actualizamos la memoria del sistema web
-        st.session_state.df = df_temporal
+        st.session_state.df = df_temp
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
-        st.success("¡Partida(s) agregada(s) con Manzana y Prototipo automatizados!")
+        st.success("¡Partida(s) inyectada(s) exactamente en su grupo!")
         st.rerun()
-
+# ====================================================
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
     df_side = st.session_state.df.copy()
