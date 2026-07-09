@@ -851,8 +851,8 @@ if menu == "Registro de Destajos":
         ".ag-header-cell-label": {"justify-content": "center !important"}, 
         
         # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
-        ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
-        ".ag-cell-value": {"font-size": "20px !important"},
+        ".ag-cell": {"font-size": "18px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell-value": {"font-size": "18px !important"},
 
         
     }
