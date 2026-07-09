@@ -783,7 +783,7 @@ if menu == "Registro de Destajos":
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
         .ag-cell, .ag-cell-value {
-            font-size: 16px !important; 
+            font-size: 20px !important; 
             display: flex !important;
             align-items: center !important; 
         }
@@ -838,14 +838,14 @@ if menu == "Registro de Destajos":
         return style;
     }
     """)
-    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=50)
+    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
     
     grid_options = gb.build()
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
     mis_estilos = {
-        ".ag-cell": {"font-size": "25px !important", "display": "flex", "align-items": "center"},
+        ".ag-cell": {"font-size": "20px !important", "display": "flex", "align-items": "center"},
         ".ag-cell-value": {"font-size": "25px !important"}
     }
 
