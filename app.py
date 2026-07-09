@@ -1139,26 +1139,6 @@ if menu == "Registro de Destajos":
 elif menu == "Fondo de Garantía (Retenciones)":
     mostrar_cabecera_con_logo("🔒 Control de Fondos de Garantía y Retenciones", "Visualiza y libera los montos retenidos a los destajistas.")
     
-    # --- LÓGICA DEL RECIBO RECIÉN GENERADO ---
-    # Si el sistema acaba de generar un PDF, lo muestra aquí arriba para descargarlo
-    if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
-        st.success("✅ ¡Liberación guardada en Google Sheets! Las partidas han sido bloqueadas exitosamente.")
-        c_desc1, c_desc2, c_desc3 = st.columns([2, 6, 2])
-        with c_desc2:
-            st.download_button(
-                label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
-                data=st.session_state.ultimo_recibo_pdf,
-                file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="primary"
-            )
-            if st.button("❌ Ocultar este recibo", use_container_width=True):
-                st.session_state.ultimo_recibo_pdf = None
-                st.rerun()
-        st.markdown("<hr>", unsafe_allow_html=True)
-    # -----------------------------------------
-    
     df_ret = st.session_state.df.copy()
     df_ret['_original_index'] = df_ret.index
     
@@ -1194,7 +1174,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
         st.markdown("### 📋 Listado Detallado de Retenciones")
         st.write("Para devolver un fondo de garantía, marca la casilla 'Liberar Fondo' y da clic en el botón guardar al final de la página.")
         
-        # 🛑 CORRECCIÓN 1: Creamos una columna matemática que lee el estatus para que el Checkbox visual funcione impecable
         df_ret_filtrado['Liberar_Check'] = df_ret_filtrado['Estatus Retención'].apply(lambda x: True if str(x).strip() == 'Liberado' else False)
 
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
@@ -1208,12 +1187,10 @@ elif menu == "Fondo de Garantía (Retenciones)":
         gb_ret.configure_column("% Retención", valueFormatter="(x*100)+'%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
         gb_ret.configure_column("Monto Retenido", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
         
-        # Enlazamos la columna matemática al Checkbox
         gb_ret.configure_column("Liberar_Check", headerName="Liberar Fondo", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=120)
         gb_ret.configure_column("Fecha Liberación", cellClass='centrar-valor', headerClass='ag-center-header', width=160)
         gb_ret.configure_column("Usuario Liberó", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
 
-        # 🛑 CORRECCIÓN 2: El candado de JavaScript ahora lee directamente la casilla Checkbox, evitando el fallo de bloqueo
         rowStyleRet = JsCode("""
         function(params) {
             let chk = params.data['Liberar_Check'];
@@ -1257,7 +1234,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
-                    # 🛑 CORRECCIÓN 3: Replicamos el bloque de formato exacto de la fecha (Diccionario de Meses)
                     tz_mx = ZoneInfo("America/Mexico_City")
                     tiempo_actual = datetime.now(tz_mx)
                     meses_3_letras = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
@@ -1271,19 +1247,16 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         idx_orig = int(row_p['_original_index'])
                         est_val = row_p['Liberar_Check']
                         
-                        # Validar que se marcó en este instante y que originalmente estaba en "Retenido"
                         if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
                             
                             st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
                             st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = ahora_lib
                             st.session_state.df.loc[idx_orig, 'Usuario Liberó'] = usr_lib
                             
-                            # Copiamos la fila para enviarla a la fábrica del PDF
                             df_recibo_nuevo.append(row_p)
                             cambios_detectados = True
                             
                     if cambios_detectados:
-                        # --- FABRICAMOS EL PDF SOLAMENTE CON LO RECIÉN LIBERADO ---
                         df_a_imprimir = pd.DataFrame(df_recibo_nuevo)
                         df_a_imprimir['Monto_Num'] = pd.to_numeric(df_a_imprimir['Monto Retenido'], errors='coerce').fillna(0)
                         df_res_imp = df_a_imprimir.groupby('Destajista')['Monto_Num'].sum().reset_index()
@@ -1335,10 +1308,8 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         pdf.cell(w_col1, 8, txt="GRAN TOTAL LIBERADO HOY ", border=1, align='R', fill=True)
                         pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
                         
-                        # Almacenamos el PDF en la memoria para que el botón de descarga superior lo lea
                         st.session_state.ultimo_recibo_pdf = pdf.output(dest='S').encode('latin-1')
 
-                        # --- GUARDAMOS DEFINITIVO EN GOOGLE SHEETS ---
                         df_envio_ret = st.session_state.df.copy()
                         if 'Concepto_Limpio' in df_envio_ret.columns:
                             df_envio_ret = df_envio_ret.drop(columns=['Concepto_Limpio'])
@@ -1350,9 +1321,25 @@ elif menu == "Fondo de Garantía (Retenciones)":
                             actualizar_datos_gsheet(df_envio_ret)
                             
                         st.session_state.df_original = st.session_state.df.copy()
-                        st.rerun() # <- Esto recarga la página mostrando las filas bloqueadas y el botón azul gigante
+                        st.rerun() 
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
+
+            # --- LA DESCARGA APARECE EXACTAMENTE AQUÍ ABAJO DESPUÉS DE PROCESAR ---
+            if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
+                st.success("✅ ¡Guardado en base de datos con éxito!")
+                st.download_button(
+                    label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
+                    data=st.session_state.ultimo_recibo_pdf,
+                    file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+                if st.button("❌ Ocultar este recibo", use_container_width=True):
+                    st.session_state.ultimo_recibo_pdf = None
+                    st.rerun()
+                    
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
