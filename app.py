@@ -940,13 +940,18 @@ if menu == "Registro de Destajos":
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
-   # ====================================================
-    # BOTÓN PARA AÑADIR NUEVA PARTIDA (FUERA DEL FORMULARIO)
     # ====================================================
-    c_btn_add, c_btn_space = st.columns([2, 8])
+    # BOTONES DE ACCIÓN SUPERIOR (Añadir y Actualizar)
+    # ====================================================
+    c_btn_add, c_btn_space, c_btn_update = st.columns([2, 5.5, 2.5])
     with c_btn_add:
         if st.button("➕ Añadir nueva partida", type="primary", use_container_width=True):
             dialogo_nueva_partida()
+            
+    with c_btn_update:
+        # Botón nativo y seguro que activará la lectura de la tabla silenciada
+        st.button("🔄 Actualizar Totales", type="primary", use_container_width=True)
+        
     st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
 
     # --- PREPARACIÓN SEGURA DE DATOS PARA LA TABLA ---
@@ -973,11 +978,11 @@ if menu == "Registro de Destajos":
         .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
         .ag-header-cell-text { font-size: 20px !important; }
         .ag-cell, .ag-cell-value { font-size: 18px !important; display: flex !important; align-items: center !important; }
+        .centrar-valor { justify-content: center !important; }
         </style>
         """, unsafe_allow_html=True
     )
     
-    # CONFIGURACIÓN ORIGINAL DE COLUMNAS (Intacta)
     gb.configure_column("Lote", editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
@@ -1021,53 +1026,27 @@ if menu == "Registro de Destajos":
     }
 
     # ====================================================
-    # FORMULARIO BLINDADO: CERO PARPADEOS Y CERO CRASHES
+    # TABLA BLINDADA: CERO PARPADEOS SIN FORMULARIOS
     # ====================================================
-    with st.form(key=f"form_grid_{st.session_state.grid_key}"):
-        
-        # Botón flotante superior derecho
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stForm"] { border: none !important; padding: 0 !important; }
-            div[data-testid="stForm"] button {
-                position: absolute !important;
-                top: -65px !important; 
-                right: 0px !important; 
-                width: 220px !important;
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                height: 42px !important;
-                font-weight: bold !important;
-                z-index: 9999 !important;
-            }
-            div[data-testid="stForm"] button:hover { background-color: #2563EB !important; }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        st.form_submit_button("🔄 Actualizar Totales")
+    df_seguro = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
+    
+    # MAGIA 1: Reset Index evita colapsos de memoria en la nube
+    df_seguro.reset_index(drop=True, inplace=True)
 
-        # MAGIA 1: Reset Index evita el Segmentation Fault de PyArrow
-        df_seguro = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
-        df_seguro.reset_index(drop=True, inplace=True)
-
-        # MAGIA 2: Tabla purgada de comandos obsoletos (sin reload_data, ni update_mode)
-        response = AgGrid(
-            df_seguro,
-            gridOptions=grid_options,
-            enable_enterprise_modules=False,
-            allow_unsafe_jscode=True,
-            theme='balham',
-            height=800,
-            custom_css=mis_estilos
-        )
+    # MAGIA 2: 'update_on=[]' silencia la tabla nativamente
+    response = AgGrid(
+        df_seguro,
+        gridOptions=grid_options,
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        update_on=[],  # <--- EL SILENCIADOR DEFINITIVO (Adiós intermitencia)
+        theme='balham',
+        height=800,
+        custom_css=mis_estilos
+    )
 
     # ====================================================
-    # LÓGICA DE ACTUALIZACIÓN Y SUMATORIA MATEMÁTICA REAL
+    # LÓGICA DE ACTUALIZACIÓN Y SUMATORIA MATEMÁTICA
     # ====================================================
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
@@ -1080,7 +1059,6 @@ if menu == "Registro de Destajos":
         df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')].copy()
         total_checked = len(df_pagar_actual)
         
-        # Matemáticas estrictas en Python (Para ignorar fallos de texto en la cuadrícula)
         df_pagar_actual['C_Temp'] = pd.to_numeric(df_pagar_actual['Costo'], errors='coerce').fillna(0)
         df_pagar_actual['Ad_Temp'] = pd.to_numeric(df_pagar_actual['% Adicional'], errors='coerce').fillna(0)
         df_pagar_actual['Ret_Temp'] = pd.to_numeric(df_pagar_actual['% Retención'], errors='coerce').fillna(0)
@@ -1216,15 +1194,20 @@ elif menu == "Fondo de Garantía (Retenciones)":
             ".ag-checkbox-input-wrapper.ag-checked": {"background-color": "#10B981 !important", "border-color": "#10B981 !important"}
         }
         
+        # --- TABLA BLINDADA PARA FONDOS DE GARANTÍA ---
+        df_seguro_ret = df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy()
+        
+        # MAGIA 1: Blindaje contra colapso de servidor
+        df_seguro_ret.reset_index(drop=True, inplace=True)
+
+        # MAGIA 2: Purga de comandos obsoletos
         response_ret = AgGrid(
-            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy(),
+            df_seguro_ret,
             gridOptions=gb_ret.build(),
             key=f"grid_fondos_garantia_{st.session_state.grid_key}",
-            reload_data=False,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            data_return_mode=DataReturnMode.AS_INPUT,
+            update_on=['cellValueChanged'], # <--- Activa la suma viva sin colapsar la memoria
             theme='streamlit',
             height=400,
             custom_css=mis_estilos_ret
