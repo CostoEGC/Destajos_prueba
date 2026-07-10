@@ -31,11 +31,6 @@ st.markdown(
 # -----------------------------------
 
 # =========================================================================
-# CONFIGURACIÓN INICIAL DE LA PÁGINA
-# =========================================================================
-st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
-
-# =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
 # =========================================================================
 st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
@@ -47,73 +42,107 @@ supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
     try:
-        response = requests.get(URL_API_SHEET)
-        data = response.json()
-        df = pd.DataFrame(data[1:], columns=data[0])
-
-        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
-        for col in cols_requeridas:
-            if col not in df.columns:
-                df[col] = ''
-                
-        # Aseguramos formatos numéricos limpios
-        df['% Adicional'] = pd.to_numeric(df['% Adicional'], errors='coerce').fillna(0)
-        df['% Retención'] = pd.to_numeric(df['% Retención'], errors='coerce').fillna(0)
-        df['Monto Retenido'] = pd.to_numeric(df['Monto Retenido'], errors='coerce').fillna(0)
-
-        # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
-        df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
+        # Pedimos los datos a Supabase en microsegundos
+        response = supabase.table('destajos').select('*').execute()
+        datos = response.data
         
-        meses_3_letras = {
-            1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
-            7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+        # 1. Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
+        mapeo_columnas = {
+            'id': 'ID_DB', # Clave invisible para poder actualizar filas precisas
+            'lote': 'Lote',
+            'manzana': 'Manzana',
+            'prototipo': 'Prototipo',
+            'partida': 'Partida',
+            'costo': 'Costo',
+            'destajista': 'Destajista',
+            'cc': 'C.C',
+            'pct_adicional': '% Adicional',
+            'pct_retencion': '% Retención',
+            'monto_retenido': 'Monto Retenido',
+            'estatus_retencion': 'Estatus Retención',
+            'fecha_liberacion': 'Fecha Liberación',
+            'usuario_libero': 'Usuario Liberó',
+            'pagar': 'Pagar',
+            'fecha_pago': 'Fecha pago',
+            'usuario': 'Usuario'
         }
         
-        def normalizar_fecha_interfaz(val):
-            if not val or val in ['nan', 'NaN', 'None', 'NaT', 'null', '<NA>', '']:
-                return ''
+        if not datos:
+            return pd.DataFrame(columns=list(mapeo_columnas.values()))
             
-            # Si ya contiene un mes en texto (ej. Ene, Jul), se mantiene intacto
-            if any(m in val for m in meses_3_letras.values()):
-                return val
-                
-            try:
-                # Procesador ultra-flexible con pandas para capturar formatos ISO, fechas con T, Z, etc.
-                dt = pd.to_datetime(val, errors='coerce')
-                if pd.isna(dt):
-                    return val
-                
-                # Si el servidor de Google adjunta información de zona horaria, se convierte a México
-                if dt.tzinfo is not None:
-                    dt = dt.tz_convert('America/Mexico_City')
-                    
-                dia = dt.strftime("%d")
-                mes = meses_3_letras[dt.month]
-                anio = dt.strftime("%Y")
-                hora = dt.strftime("%H:%M:%S")
-                return f"{dia}/{mes}/{anio} {hora}"
-            except:
-                return val
-
-        df['Fecha pago'] = df['Fecha pago'].apply(normalizar_fecha_interfaz)
+        df = pd.DataFrame(datos)
+        df = df.rename(columns=mapeo_columnas)
         
-        df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
-        df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
+        # 2. Formatos numéricos limpios
+        for col in ['% Adicional', '% Retención', 'Monto Retenido', 'Costo']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+        # 3. Limpieza de fechas y booleanos
+        df['Fecha pago'] = df['Fecha pago'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
+        df['Fecha Liberación'] = df['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
+        df['Pagar'] = df['Pagar'].fillna(False).astype(bool)
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
-
-        return df[cols_requeridas] 
+        
+        return df
     except Exception as e:
-        st.error(f"Error al conectar con Google Sheets: {e}")
+        st.error(f"Error al conectar con la base de datos: {e}")
         return pd.DataFrame()
-    
-def actualizar_datos_gsheet(df):
+
+def actualizar_datos_gsheet(df_envio):
     try:
-        datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
-        response = requests.post(URL_API_SHEET, json=datos_a_enviar)
-        if response.status_code != 200:
-            st.error("⚠️ Hubo un problema al guardar en la nube.")
+        # 1. Mapeo Inverso: Traducimos de la aplicación de vuelta a la BD
+        mapeo_inverso = {
+            'ID_DB': 'id',
+            'Lote': 'lote',
+            'Manzana': 'manzana',
+            'Prototipo': 'prototipo',
+            'Partida': 'partida',
+            'Costo': 'costo',
+            'Destajista': 'destajista',
+            'C.C': 'cc',
+            '% Adicional': 'pct_adicional',
+            '% Retención': 'pct_retencion',
+            'Monto Retenido': 'monto_retenido',
+            'Estatus Retención': 'estatus_retencion',
+            'Fecha Liberación': 'fecha_liberacion',
+            'Usuario Liberó': 'usuario_libero',
+            'Pagar': 'pagar',
+            'Fecha pago': 'fecha_pago',
+            'Usuario': 'usuario'
+        }
+        
+        df_db = df_envio.copy()
+        
+        # Nos quedamos solo con las columnas que existen en la BD
+        cols_validas = [c for c in df_db.columns if c in mapeo_inverso.keys()]
+        df_db = df_db[cols_validas]
+        
+        df_db = df_db.rename(columns=mapeo_inverso)
+        
+        # 2. Limpieza estricta: quitamos el truco del apóstrofe que usábamos para Google Sheets ('20/Ene/...)
+        df_db['fecha_pago'] = df_db['fecha_pago'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
+        df_db['fecha_liberacion'] = df_db['fecha_liberacion'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
+        
+        # Convertimos NaN a None (Nulo) para que la base de datos no choque
+        df_db = df_db.replace({float('nan'): None})
+        
+        # 3. Separar partidas nuevas (de tu formulario) de las que ya existen (pagos)
+        if 'id' in df_db.columns:
+            # Las nuevas partidas no tienen ID aún, la BD se los asignará
+            nuevas = df_db[df_db['id'].isna()].drop(columns=['id']).to_dict(orient='records')
+            # Partidas existentes que solo estamos actualizando
+            existentes = df_db[df_db['id'].notna()].to_dict(orient='records')
+            
+            if nuevas:
+                supabase.table('destajos').insert(nuevas).execute()
+            if existentes:
+                supabase.table('destajos').upsert(existentes).execute()
+        else:
+            registros = df_db.to_dict(orient='records')
+            supabase.table('destajos').insert(registros).execute()
+            
     except Exception as e:
-        st.error(f"Error al enviar datos a Google Sheets: {e}")
+        st.error(f"Error al enviar datos a la base de datos: {e}")
 
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
