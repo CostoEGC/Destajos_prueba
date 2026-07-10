@@ -1303,15 +1303,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
             ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>$0.00</span></div>", unsafe_allow_html=True)
         # --------------------------------------------
 
-        # --- ACUMULADO EN VIVO DE CHECKBOXES ACTIVADOS ---
-        if response_ret['data'] is not None and not pd.DataFrame(response_ret['data']).empty:
-            df_ret_pantalla_vivo = pd.DataFrame(response_ret['data'])
-            df_ret_pantalla_vivo['Check_Bool'] = df_ret_pantalla_vivo['Liberar_Check'].astype(str).str.lower().isin(['true', '1'])
-            
-            suma_activados = df_ret_pantalla_vivo[df_ret_pantalla_vivo['Check_Bool'] == True]['Monto Retenido'].sum()
-
-            st.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; font-weight:bold; font-size:22px; margin-top:15px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);'>💰 Suma acumulada de fondos a liberar:<br>${suma_activados:,.2f}</div>", unsafe_allow_html=True)
-        
+                
         # 3. LÓGICA DE BOTÓN MAESTRO: GUARDAR Y PREPARAR RECIBO
         st.markdown("<br>", unsafe_allow_html=True)
         c_sav_r1, c_sav_r2, c_sav_r3 = st.columns([3, 4, 3])
