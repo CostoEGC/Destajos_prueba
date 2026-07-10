@@ -94,8 +94,9 @@ def obtener_datos_gsheet():
         return df[cols_requeridas] 
     except Exception as e:
         st.error(f"Error al conectar con Google Sheets: {e}")
-        return pd.DataFrame()
-    
+        # BLINDAJE: Devolvemos una estructura vacía pero con los nombres de columna correctos para que la app no colapse.
+        cols_req = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
+        return pd.DataFrame(columns=cols_req)
 def actualizar_datos_gsheet(df):
     try:
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
