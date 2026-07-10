@@ -1055,7 +1055,7 @@ if menu == "Registro de Destajos":
             div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
                 top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
-                right: 20px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
+                right: -20px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
                 z-index: 9999 !important;
             }
             /* Le da el diseño azul y el tamaño correcto */
