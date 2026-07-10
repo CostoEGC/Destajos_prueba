@@ -1116,36 +1116,41 @@ if menu == "Registro de Destajos":
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     
-    # --- INICIO DEL CAMINO 1: TABLA SILENCIADA (TIPO EXCEL) ---
+    # --- INICIO DEL CAMINO 1: TABLA SILENCIADA ---
     with st.form(key=f"form_grid_destajos_{st.session_state.grid_key}"):
         
-        # Acomodamos el botón azul a la derecha, de tamaño compacto
-        col_espacio, col_boton = st.columns([8.5, 1.5])
-        with col_boton:
-            st.markdown(
-                """
-                <style>
-                /* Estilo para forzar el botón cuadrado, chico y azul */
-                div[data-testid="stForm"] button {
-                    background-color: #3B82F6 !important;
-                    color: white !important;
-                    border-radius: 8px !important;
-                    border: none !important;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                    height: 45px !important;
-                    font-weight: bold !important;
-                }
-                div[data-testid="stForm"] button:hover {
-                    background-color: #2563EB !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-            # El botón de actualización
-            st.form_submit_button("🔄 Actualizar Totales", use_container_width=True)
+        # MAGIA VISUAL: Usamos CSS para "arrancar" el botón del formulario y flotarlo hacia arriba y a la derecha
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stForm"] {
+                border: none !important;
+                padding: 0 !important;
+            }
+            div[data-testid="stForm"] button {
+                position: absolute !important;
+                top: -70px !important; /* <--- Esto lo sube exactamente a la altura del botón Añadir */
+                right: 0px !important; /* <--- Lo ancla a la derecha */
+                width: 220px !important;
+                background-color: #3B82F6 !important;
+                color: white !important;
+                border-radius: 8px !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                height: 42px !important;
+                font-weight: bold !important;
+                z-index: 9999 !important;
+            }
+            div[data-testid="stForm"] button:hover {
+                background-color: #2563EB !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        st.form_submit_button("🔄 Actualizar Totales")
 
-        # La tabla ahora vive DENTRO de la cápsula del formulario
+        # Como el botón flota, la tabla comienza inmediatamente arriba sin dejar espacios vacíos
         response = AgGrid(
             df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
             gridOptions=grid_options,
@@ -1157,7 +1162,7 @@ if menu == "Registro de Destajos":
             data_return_mode=DataReturnMode.AS_INPUT,
             fit_columns_on_grid_load=False,
             theme='balham',
-            height=800,
+            height=600,
             custom_css=mis_estilos
         )
     st.session_state.reload_trigger = False
@@ -1174,11 +1179,20 @@ if menu == "Registro de Destajos":
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
         # 📊 CONTEO EN TIEMPO REAL: Filtra solo las filas marcadas que NO tienen fecha de pago previa
-        df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')]
+        df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')].copy()
         total_checked = len(df_pagar_actual)
-        
-        # Ahora sumamos el Monto Neto modificado con bonos y retenciones
-        costo_seleccionado = df_pagar_actual['Monto Neto'].sum()
+            
+        # --- CORRECCIÓN MATEMÁTICA: Recalculamos el Monto Neto Real en Python ---
+        # AgGrid devuelve fórmulas como texto o nulos a veces, así que aseguramos la matemática
+        df_pagar_actual['C_Temp'] = pd.to_numeric(df_pagar_actual['Costo'], errors='coerce').fillna(0)
+        df_pagar_actual['Ad_Temp'] = pd.to_numeric(df_pagar_actual['% Adicional'], errors='coerce').fillna(0)
+        df_pagar_actual['Ret_Temp'] = pd.to_numeric(df_pagar_actual['% Retención'], errors='coerce').fillna(0)
+            
+        # Fórmula exacta: Costo + (Costo * % Adicional) - (Costo * % Retención)
+        df_pagar_actual['Monto_Neto_Real'] = df_pagar_actual['C_Temp'] + (df_pagar_actual['C_Temp'] * df_pagar_actual['Ad_Temp']) - (df_pagar_actual['C_Temp'] * df_pagar_actual['Ret_Temp'])
+            
+        costo_seleccionado = df_pagar_actual['Monto_Neto_Real'].sum()
+        # -------------------------------------------------------------------------
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
