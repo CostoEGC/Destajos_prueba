@@ -1197,13 +1197,20 @@ elif menu == "Fondo de Garantía (Retenciones)":
         
         df_ret_filtrado['Liberar_Check'] = df_ret_filtrado['Estatus Retención'].apply(lambda x: True if str(x).strip() == 'Liberado' else False)
 
-        # 🛑 BLINDAJE DE INTERFAZ WEB: Forzamos a que las fechas y usuarios sean tratados estrictamente como texto en la tabla
+        # 🛑 BLINDAJE DE INTERFAZ WEB: Forzamos a que las fechas y usuarios sean tratados estrictamente como texto
         df_ret_filtrado['Fecha Liberación'] = df_ret_filtrado['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
         df_ret_filtrado['Usuario Liberó'] = df_ret_filtrado['Usuario Liberó'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
 
-        # --- NUEVO FILTRO DE FECHAS Y LABEL AZUL ---
-        st.markdown("##### 📅 Filtrar por Rango de Fechas (Liberación)")
-        filtro_fecha_ret = st.date_input("Selecciona el período:", value=[], key="fecha_filtro_ret")
+        # --- DISTRIBUCIÓN: FILTRO FECHA (IZQ) Y SUMA (DER) ---
+        col_fecha, col_espacio, col_suma = st.columns([1.5, 0.5, 2])
+        
+        with col_fecha:
+            st.markdown("##### 📅 Filtrar por Rango de Fechas")
+            filtro_fecha_ret = st.date_input("Selecciona el período:", value=[], key="fecha_filtro_ret")
+            ph_label_azul = st.empty() # Espacio reservado para el label azul
+
+        # Espacio reservado para inyectar la caja naranja DESPUÉS de que la tabla calcule
+        ph_suma_naranja = col_suma.empty()
 
         if filtro_fecha_ret and len(filtro_fecha_ret) == 2:
             meses_regex = {
@@ -1218,14 +1225,16 @@ elif menu == "Fondo de Garantía (Retenciones)":
             df_ret_filtrado = df_ret_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
             total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
-            st.markdown(f"<div style='background-color:#3B82F6; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px;'>Total Monto Retenido en estas fechas: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
-        # -------------------------------------------
+            ph_label_azul.markdown(f"<div style='background-color:#3B82F6; color:white; padding:8px; border-radius:5px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px;'>Total Monto Retenido: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
+        # ----------------------------------------------------
 
-        # ESTA ES LA LÍNEA QUE SE HABÍA BORRADO POR ACCIDENTE:
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
+        gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
+
+        
         
              
-        gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
+        #gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
         gb_ret.configure_column("_original_index", hide=True)
         gb_ret.configure_column("Estatus Retención", hide=True) 
         
@@ -1241,10 +1250,18 @@ elif menu == "Fondo de Garantía (Retenciones)":
 
         rowStyleRet = JsCode("""
         function(params) {
+            let estatus = params.data['Estatus Retención'];
+            // 1. Si YA ESTÁ guardado como Liberado en la base de datos, lo bloqueamos (congelado)
+            if (estatus === 'Liberado') {
+                return { 'backgroundColor': 'rgba(16, 185, 129, 0.1)', 'color': '#6EE7B7', 'pointerEvents': 'none', 'borderBottom': '1px solid #10B981' };
+            }
+            
+            // 2. Si apenas lo están palomeando, lo iluminamos naranja/amarillo pero NO lo bloqueamos
             let chk = params.data['Liberar_Check'];
             if (chk === true || chk === 'true' || chk === 1) {
-                return { 'backgroundColor': 'rgba(16, 185, 129, 0.2)', 'color': '#6EE7B7', 'pointerEvents': 'none' };
+                return { 'backgroundColor': 'rgba(245, 158, 11, 0.2)', 'color': '#FCD34D', 'borderBottom': '1px solid #F59E0B' };
             }
+            
             return { 'color': '#00FFFF', 'borderBottom': '1px solid #4a4a4a' };
         }
         """)
@@ -1272,6 +1289,19 @@ elif menu == "Fondo de Garantía (Retenciones)":
             height=400,
             custom_css=mis_estilos_ret
         )
+
+        # --- ACUMULADO EN VIVO (SE MANDA AL ESPACIO DE ARRIBA) ---
+        if response_ret['data'] is not None and not pd.DataFrame(response_ret['data']).empty:
+            df_ret_pantalla = pd.DataFrame(response_ret['data'])
+            df_ret_pantalla['Check_Bool'] = df_ret_pantalla['Liberar_Check'].astype(str).str.lower().isin(['true', '1'])
+            
+            # MAGIA: Sumamos SOLO los checkeados en este momento y que NO estaban liberados desde antes
+            suma_activados = df_ret_pantalla[(df_ret_pantalla['Check_Bool'] == True) & (df_ret_pantalla['Estatus Retención'] != 'Liberado')]['Monto Retenido'].sum()
+
+            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>${suma_activados:,.2f}</span></div>", unsafe_allow_html=True)
+        else:
+            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>$0.00</span></div>", unsafe_allow_html=True)
+        # --------------------------------------------
 
         # --- ACUMULADO EN VIVO DE CHECKBOXES ACTIVADOS ---
         if response_ret['data'] is not None and not pd.DataFrame(response_ret['data']).empty:
