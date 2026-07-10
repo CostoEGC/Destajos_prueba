@@ -3,7 +3,8 @@ pandas==2.2.2
 numpy<2.0.0
 plotly==5.24.1
 streamlit-aggrid
-fpdf
+fpdf2
 beautifulsoup4
 pillow
 requests
+tzdata

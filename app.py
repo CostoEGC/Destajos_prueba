@@ -37,7 +37,7 @@ URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets els
 
 def obtener_datos_gsheet():
     try:
-        response = requests.get(URL_API_SHEET)
+        response = requests.get(URL_API_SHEET, timeout=10)
         data = response.json()
         df = pd.DataFrame(data[1:], columns=data[0])
 
@@ -99,7 +99,7 @@ def obtener_datos_gsheet():
 def actualizar_datos_gsheet(df):
     try:
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
-        response = requests.post(URL_API_SHEET, json=datos_a_enviar)
+        response = requests.post(URL_API_SHEET, json=datos_a_enviar, timeout=15)
         if response.status_code != 200:
             st.error("⚠️ Hubo un problema al guardar en la nube.")
     except Exception as e:
