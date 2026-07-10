@@ -14,7 +14,8 @@ from bs4 import BeautifulSoup
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 from fpdf import FPDF
 import tempfile
-import time
+from supabase import create_client, Client
+
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
@@ -34,82 +35,81 @@ st.markdown(
 # =========================================================================
 st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
-URL_API_SHEET = st.secrets["URL_API_SHEET"] if "URL_API_SHEET" in st.secrets else ""
+# =========================================================================
+# CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
+# =========================================================================
+st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
+
+# Inicializar la conexión a la base de datos de microsegundos
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
-    max_reintentos = 3
-    
-    for intento in range(max_reintentos):
-        try:
-            # Subimos el límite a 30 segundos para darle respiro a Google
-            response = requests.get(URL_API_SHEET, timeout=30)
-            response.raise_for_status() # Verifica que Google no haya devuelto un error 500
-            
-            data = response.json()
-            df = pd.DataFrame(data[1:], columns=data[0])
+    try:
+        response = requests.get(URL_API_SHEET)
+        data = response.json()
+        df = pd.DataFrame(data[1:], columns=data[0])
 
-            cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
-            for col in cols_requeridas:
-                if col not in df.columns:
-                    df[col] = ''
+        cols_requeridas = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
+        for col in cols_requeridas:
+            if col not in df.columns:
+                df[col] = ''
+                
+        # Aseguramos formatos numéricos limpios
+        df['% Adicional'] = pd.to_numeric(df['% Adicional'], errors='coerce').fillna(0)
+        df['% Retención'] = pd.to_numeric(df['% Retención'], errors='coerce').fillna(0)
+        df['Monto Retenido'] = pd.to_numeric(df['Monto Retenido'], errors='coerce').fillna(0)
+
+        # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
+        df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
+        
+        meses_3_letras = {
+            1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
+            7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+        }
+        
+        def normalizar_fecha_interfaz(val):
+            if not val or val in ['nan', 'NaN', 'None', 'NaT', 'null', '<NA>', '']:
+                return ''
+            
+            # Si ya contiene un mes en texto (ej. Ene, Jul), se mantiene intacto
+            if any(m in val for m in meses_3_letras.values()):
+                return val
+                
+            try:
+                # Procesador ultra-flexible con pandas para capturar formatos ISO, fechas con T, Z, etc.
+                dt = pd.to_datetime(val, errors='coerce')
+                if pd.isna(dt):
+                    return val
+                
+                # Si el servidor de Google adjunta información de zona horaria, se convierte a México
+                if dt.tzinfo is not None:
+                    dt = dt.tz_convert('America/Mexico_City')
                     
-            # Aseguramos formatos numéricos limpios
-            df['% Adicional'] = pd.to_numeric(df['% Adicional'], errors='coerce').fillna(0)
-            df['% Retención'] = pd.to_numeric(df['% Retención'], errors='coerce').fillna(0)
-            df['Monto Retenido'] = pd.to_numeric(df['Monto Retenido'], errors='coerce').fillna(0)
+                dia = dt.strftime("%d")
+                mes = meses_3_letras[dt.month]
+                anio = dt.strftime("%Y")
+                hora = dt.strftime("%H:%M:%S")
+                return f"{dia}/{mes}/{anio} {hora}"
+            except:
+                return val
 
-            # Limpieza absoluta de la Fecha para evitar valores vacíos erróneos
-            df['Fecha pago'] = df['Fecha pago'].astype(str).replace(['nan', 'NaN', 'None', 'NaT', 'null', '<NA>'], '').str.strip()
-            
-            meses_3_letras = {
-                1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
-                7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
-            }
-            
-            def normalizar_fecha_interfaz(val):
-                if not val or val in ['nan', 'NaN', 'None', 'NaT', 'null', '<NA>', '']:
-                    return ''
-                if any(m in val for m in meses_3_letras.values()):
-                    return val
-                try:
-                    dt = pd.to_datetime(val, errors='coerce')
-                    if pd.isna(dt):
-                        return val
-                    if dt.tzinfo is not None:
-                        dt = dt.tz_convert('America/Mexico_City')
-                        
-                    dia = dt.strftime("%d")
-                    mes = meses_3_letras[dt.month]
-                    anio = dt.strftime("%Y")
-                    hora = dt.strftime("%H:%M:%S")
-                    return f"{dia}/{mes}/{anio} {hora}"
-                except:
-                    return val
+        df['Fecha pago'] = df['Fecha pago'].apply(normalizar_fecha_interfaz)
+        
+        df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
+        df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
+        df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
 
-            df['Fecha pago'] = df['Fecha pago'].apply(normalizar_fecha_interfaz)
-            
-            df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
-            df['Pagar'] = df['Pagar'].astype(str).str.lower().isin(['true', '1', 'sí', 'si', 'x', 'checked'])
-            df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
-
-            return df[cols_requeridas] 
-            
-        except requests.exceptions.Timeout:
-            if intento < max_reintentos - 1:
-                # Si falla por tiempo, esperamos 2 segundos y lo volvemos a intentar silenciosamente
-                time.sleep(2)
-                continue
-            else:
-                st.error("⏳ El servidor de Google Sheets está saturado en este momento. Por favor, intenta de nuevo en unos minutos.")
-                return pd.DataFrame()
-        except Exception as e:
-            st.error(f"Error crítico al conectar con la base de datos: {e}")
-            return pd.DataFrame()
+        return df[cols_requeridas] 
+    except Exception as e:
+        st.error(f"Error al conectar con Google Sheets: {e}")
+        return pd.DataFrame()
     
 def actualizar_datos_gsheet(df):
     try:
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
-        response = requests.post(URL_API_SHEET, json=datos_a_enviar, timeout=15)
+        response = requests.post(URL_API_SHEET, json=datos_a_enviar)
         if response.status_code != 200:
             st.error("⚠️ Hubo un problema al guardar en la nube.")
     except Exception as e:
