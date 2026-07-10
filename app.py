@@ -941,12 +941,17 @@ if menu == "Registro de Destajos":
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
     # ====================================================
-    # BOTÓN PARA INVOCAR EL FORMULARIO DE NUEVA PARTIDA
+    # BOTONES DE ACCIÓN SUPERIOR (Añadir y Actualizar)
     # ====================================================
-    c_btn_add, c_btn_space = st.columns([2, 8])
+    c_btn_add, c_btn_space, c_btn_update = st.columns([2, 5.5, 2.5])
     with c_btn_add:
         if st.button("➕ Añadir nueva partida", type="primary", use_container_width=True):
             dialogo_nueva_partida()
+            
+    with c_btn_update:
+        # Colocamos el botón de actualizar a la derecha, a la misma altura, sin trucos CSS
+        st.button("🔄 Actualizar Totales", type="primary", use_container_width=True)
+        
     st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
     # ====================================================
 
@@ -1116,57 +1121,23 @@ if menu == "Registro de Destajos":
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     
-    # --- INICIO DEL CAMINO 1: TABLA SILENCIADA ---
-    with st.form(key=f"form_grid_destajos_{st.session_state.grid_key}"):
-        
-        # MAGIA VISUAL: Usamos CSS para "arrancar" el botón del formulario y flotarlo hacia arriba y a la derecha
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stForm"] {
-                border: none !important;
-                padding: 0 !important;
-            }
-            div[data-testid="stForm"] button {
-                position: absolute !important;
-                top: -70px !important; /* <--- Esto lo sube exactamente a la altura del botón Añadir */
-                right: 0px !important; /* <--- Lo ancla a la derecha */
-                width: 220px !important;
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                height: 42px !important;
-                font-weight: bold !important;
-                z-index: 9999 !important;
-            }
-            div[data-testid="stForm"] button:hover {
-                background-color: #2563EB !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        st.form_submit_button("🔄 Actualizar Totales")
-
-        # Como el botón flota, la tabla comienza inmediatamente arriba sin dejar espacios vacíos
-        response = AgGrid(
-            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
-            gridOptions=grid_options,
-            key=f"grid_destajos_{st.session_state.grid_key}",
-            reload_data=st.session_state.reload_trigger,
-            enable_enterprise_modules=False,
-            allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            data_return_mode=DataReturnMode.AS_INPUT,
-            fit_columns_on_grid_load=False,
-            theme='balham',
-            height=600,
-            custom_css=mis_estilos
-        )
+    # --- TABLA LIBERADA DEL FORMULARIO Y SILENCIADA NATIVAMENTE ---
+    response = AgGrid(
+        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
+        gridOptions=grid_options,
+        key=f"grid_destajos_{st.session_state.grid_key}",
+        reload_data=st.session_state.reload_trigger,
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        update_mode=GridUpdateMode.MANUAL,  # <--- MAGIA: Esto "apaga el micrófono" de la tabla y evita los parpadeos
+        data_return_mode=DataReturnMode.AS_INPUT,
+        fit_columns_on_grid_load=False,
+        theme='balham',
+        height=800,
+        custom_css=mis_estilos
+    )
     st.session_state.reload_trigger = False
-    # --- FIN DEL CAMINO 1 ---
+    # --------------------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
