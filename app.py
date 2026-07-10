@@ -1050,14 +1050,17 @@ if menu == "Registro de Destajos":
             div[data-testid="stForm"] { 
                 border: none !important; 
                 padding: 0 !important; 
-                position: relative !important; 
             }
-            /* Aplicamos la posición absoluta DIRECTAMENTE al botón para ignorar su caja invisible */
-            div[data-testid="stFormSubmitButton"] button {
+            /* Mueve el contenedor completo del botón arriba y a la derecha */
+            div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
-                top: -52px !important;       /* La altura que ya comprobaste que está perfecta */
-                right: 0px !important;       /* 100% pegado a la derecha (encima de la columna Usuario) */
-                width: 220px !important;     
+                top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
+                right: -105px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
+                z-index: 9999 !important;
+            }
+            /* Le da el diseño azul y el tamaño correcto */
+            div[data-testid="stFormSubmitButton"] button {
+                width: 220px !important;
                 background-color: #3B82F6 !important;
                 color: white !important;
                 border-radius: 8px !important;
@@ -1065,17 +1068,9 @@ if menu == "Registro de Destajos":
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
                 height: 42px !important;
                 font-weight: bold !important;
-                z-index: 99999 !important;
             }
             div[data-testid="stFormSubmitButton"] button:hover { 
                 background-color: #2563EB !important; 
-            }
-            /* Destruimos el espacio de la caja invisible para que no estorbe abajo */
-            div[data-testid="stFormSubmitButton"] {
-                height: 0px !important;
-                min-height: 0px !important;
-                margin: 0px !important;
-                padding: 0px !important;
             }
             </style>
             """,
