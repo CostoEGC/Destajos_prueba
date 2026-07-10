@@ -1047,18 +1047,20 @@ if menu == "Registro de Destajos":
         st.markdown(
             """
             <style>
+            /* Le decimos al navegador que el límite derecho es el ancho de la tabla */
             div[data-testid="stForm"] { 
                 border: none !important; 
                 padding: 0 !important; 
+                position: relative !important; /* <--- ESTO PEGA EL BOTÓN A LA DERECHA */
             }
-            /* Mueve el contenedor completo del botón arriba y a la derecha */
+            /* Botón nivelado y forzado a la extrema derecha */
             div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
-                top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
-                right: -20px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
+                top: -52px !important;   /* <--- La altura que ya comprobaste que está perfecta */
+                right: 0px !important;   /* <--- Se pega al borde derecho de la tabla */
                 z-index: 9999 !important;
             }
-            /* Le da el diseño azul y el tamaño correcto */
+            /* Estilo del botón */
             div[data-testid="stFormSubmitButton"] button {
                 width: 220px !important;
                 background-color: #3B82F6 !important;
