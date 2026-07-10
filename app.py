@@ -1199,6 +1199,8 @@ elif menu == "Fondo de Garantía (Retenciones)":
 
         # 🛑 BLINDAJE DE INTERFAZ WEB: Forzamos a que las fechas y usuarios sean tratados estrictamente como texto en la tabla
         df_ret_filtrado['Fecha Liberación'] = df_ret_filtrado['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
+        df_ret_filtrado['Usuario Liberó'] = df_ret_filtrado['Usuario Liberó'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
+
         # --- NUEVO FILTRO DE FECHAS Y LABEL AZUL ---
         st.markdown("##### 📅 Filtrar por Rango de Fechas (Liberación)")
         filtro_fecha_ret = st.date_input("Selecciona el período:", value=[], key="fecha_filtro_ret")
@@ -1217,6 +1219,12 @@ elif menu == "Fondo de Garantía (Retenciones)":
 
             total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
             st.markdown(f"<div style='background-color:#3B82F6; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px;'>Total Monto Retenido en estas fechas: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
+        # -------------------------------------------
+
+        # ESTA ES LA LÍNEA QUE SE HABÍA BORRADO POR ACCIDENTE:
+        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
+        
+             
         gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
         gb_ret.configure_column("_original_index", hide=True)
         gb_ret.configure_column("Estatus Retención", hide=True) 
