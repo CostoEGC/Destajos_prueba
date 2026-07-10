@@ -94,9 +94,8 @@ def obtener_datos_gsheet():
         return df[cols_requeridas] 
     except Exception as e:
         st.error(f"Error al conectar con Google Sheets: {e}")
-        # BLINDAJE: Devolvemos una estructura vacía pero con los nombres de columna correctos para que la app no colapse.
-        cols_req = ['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', 'Pagar', 'Fecha pago', 'Usuario']
-        return pd.DataFrame(columns=cols_req)
+        return pd.DataFrame()
+    
 def actualizar_datos_gsheet(df):
     try:
         datos_a_enviar = [df.columns.values.tolist()] + df.values.tolist()
@@ -220,24 +219,8 @@ if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
 if st.session_state.menu_actual != menu:
-    # --- GUARDIÁN DE MEMORIA ---
-    # 1. Guardar cambios vivos de la tabla antes de brincar de pestaña
-    if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
-        df_vivo = st.session_state.current_grid_state
-        for _, row in df_vivo.iterrows():
-            idx_orig = int(row['_original_index'])
-            for col in df_vivo.columns:
-                if col in st.session_state.df.columns and col != '_original_index':
-                    st.session_state.df.at[idx_orig, col] = row[col]
-                    
-    # 2. Rescatar valores de los widgets/filtros para que no se destruyan
-    for key in list(st.session_state.keys()):
-        if key.startswith('sel_') or key.startswith('rep_'):
-            st.session_state[key] = st.session_state[key]
-            
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
-        
     st.session_state.menu_actual = menu
     st.rerun()
 
@@ -353,20 +336,10 @@ def dialogo_reportes():
     
     df_base_rep = st.session_state.df.copy()
     
-    # --- MULTIFILTRO DINÁMICO EN CASCADA ---
-    df_opciones = df_base_rep.copy()
-    
-    # Si el usuario ya seleccionó algo en memoria, ajustamos las opciones disponibles
-    if st.session_state.get('rep_sel_proto'):
-        df_opciones = df_opciones[df_opciones['Prototipo'].isin(st.session_state.rep_sel_proto)]
-    if st.session_state.get('rep_sel_manzana'):
-        df_opciones = df_opciones[df_opciones['Manzana'].isin(st.session_state.rep_sel_manzana)]
-        
-    # Los prototipos siempre muestran todos para no quedarse atrapado, el resto reacciona en cascada
+    # Extraer catálogos dinámicos idénticos a la pestaña de registros
     list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
-    list_manzanas = sorted([x for x in df_opciones['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    # ---------------------------------------
+    list_manzanas = sorted([x for x in df_base_rep['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+    list_lotes = sorted([str(x) for x in df_base_rep['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     # Le quitamos el "Todos" a la lista porque el multiselect vacío ya significa "Todos"
     list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
     
@@ -1002,7 +975,7 @@ if menu == "Registro de Destajos":
         
         /* 2. Tamaño de letra para los TÍTULOS de las columnas */
         .ag-header-cell-text {
-            font-size: 2px !important; 
+            font-size: 20px !important; 
         }
         
         /* 3. Tamaño de letra para el texto normal de las FILAS */
@@ -1109,7 +1082,7 @@ if menu == "Registro de Destajos":
    
     mis_estilos = {
         # --- AQUÍ CONTROLAS LOS TÍTULOS (ENCABEZADOS) ---
-        ".ag-header-cell-text": {"font-size": "18px !important"}, 
+        ".ag-header-cell-text": {"font-size": "20px !important"}, 
         ".ag-header-cell-label": {"justify-content": "center !important"}, 
         
         # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
@@ -1124,7 +1097,7 @@ if menu == "Registro de Destajos":
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
     response = AgGrid(
-        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']],
+        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
         gridOptions=grid_options,
         key=f"grid_destajos_{st.session_state.grid_key}",
         reload_data=st.session_state.reload_trigger,
@@ -1209,31 +1182,8 @@ elif menu == "Fondo de Garantía (Retenciones)":
         df_ret_filtrado['Fecha Liberación'] = df_ret_filtrado['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
         df_ret_filtrado['Usuario Liberó'] = df_ret_filtrado['Usuario Liberó'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
 
-        # --- NUEVO FILTRO DE FECHAS Y LABEL AZUL ---
-        st.markdown("##### 📅 Filtrar por Rango de Fechas (Liberación)")
-        filtro_fecha_ret = st.date_input("Selecciona el período:", value=[], key="fecha_filtro_ret")
-
-        if filtro_fecha_ret and len(filtro_fecha_ret) == 2:
-            meses_regex = {
-                r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/',
-                r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/',
-                r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
-            }
-            # Convertimos la fecha de texto de Google Sheets a objeto de fecha
-            df_ret_filtrado['Fecha_Parse'] = df_ret_filtrado['Fecha Liberación'].replace(meses_regex, regex=True)
-            df_ret_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_ret_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-
-            # Filtramos la tabla
-            df_ret_filtrado = df_ret_filtrado[(df_ret_filtrado['Fecha_Obj_Temp'] >= filtro_fecha_ret[0]) & (df_ret_filtrado['Fecha_Obj_Temp'] <= filtro_fecha_ret[1])]
-            df_ret_filtrado = df_ret_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
-
-            # Calculamos y mostramos el total de la columna "Monto Retenido"
-            total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
-            st.markdown(f"<div style='background-color:#3B82F6; color:white; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:16px; margin-bottom:15px;'>Total Monto Retenido en estas fechas: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
-        # -------------------------------------------
-
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
-        gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
+        gb_ret.configure_default_column(sortable=False, filter=False, resizable=True)
         gb_ret.configure_column("_original_index", hide=True)
         gb_ret.configure_column("Estatus Retención", hide=True) 
         
@@ -1268,7 +1218,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         }
         
         response_ret = AgGrid(
-            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']],
+            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy(),
             gridOptions=gb_ret.build(),
             key=f"grid_fondos_garantia_{st.session_state.grid_key}",
             reload_data=False,
@@ -1280,17 +1230,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
             height=400,
             custom_css=mis_estilos_ret
         )
-
-        # --- ACUMULADO EN VIVO DE CHECKBOXES ACTIVADOS ---
-        if response_ret['data'] is not None and not pd.DataFrame(response_ret['data']).empty:
-            df_ret_pantalla_vivo = pd.DataFrame(response_ret['data'])
-            # Filtramos para asegurar que lee correctamente el "True" del checkbox
-            df_ret_pantalla_vivo['Check_Bool'] = df_ret_pantalla_vivo['Liberar_Check'].astype(str).str.lower().isin(['true', '1'])
-            
-            suma_activados = df_ret_pantalla_vivo[df_ret_pantalla_vivo['Check_Bool'] == True]['Monto Retenido'].sum()
-
-            st.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; font-weight:bold; font-size:22px; margin-top:15px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);'>💰 Suma acumulada de fondos a liberar:<br>${suma_activados:,.2f}</div>", unsafe_allow_html=True)
-        # -------------------------------------------------
         
         # 3. LÓGICA DE BOTÓN MAESTRO: GUARDAR Y PREPARAR RECIBO
         st.markdown("<br>", unsafe_allow_html=True)
