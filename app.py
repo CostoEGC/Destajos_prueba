@@ -1054,7 +1054,7 @@ if menu == "Registro de Destajos":
             /* Mueve el contenedor completo del botón arriba y a la derecha */
             div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
-                top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
+                top: -52px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
                 right: 0px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
                 z-index: 9999 !important;
             }
