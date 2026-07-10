@@ -1047,11 +1047,19 @@ if menu == "Registro de Destajos":
         st.markdown(
             """
             <style>
-            div[data-testid="stForm"] { border: none !important; padding: 0 !important; }
-            div[data-testid="stForm"] button[kind="primaryFormSubmit"] {
+            div[data-testid="stForm"] { 
+                border: none !important; 
+                padding: 0 !important; 
+            }
+            /* Mueve el contenedor completo del botón arriba y a la derecha */
+            div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
-                top: -65px !important; 
-                right: 0px !important; 
+                top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
+                right: 0px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
+                z-index: 9999 !important;
+            }
+            /* Le da el diseño azul y el tamaño correcto */
+            div[data-testid="stFormSubmitButton"] button {
                 width: 220px !important;
                 background-color: #3B82F6 !important;
                 color: white !important;
@@ -1060,15 +1068,15 @@ if menu == "Registro de Destajos":
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
                 height: 42px !important;
                 font-weight: bold !important;
-                z-index: 9999 !important;
             }
-            div[data-testid="stForm"] button[kind="primaryFormSubmit"]:hover { background-color: #2563EB !important; }
+            div[data-testid="stFormSubmitButton"] button:hover { 
+                background-color: #2563EB !important; 
+            }
             </style>
             """,
             unsafe_allow_html=True
         )
         st.form_submit_button("🔄 Actualizar Totales", type="primary")
-
         # 🛑 PARÁMETROS ORIGINALES INTÁCTOS: No cambiamos nada para evitar colapsos
         response = AgGrid(
             df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
