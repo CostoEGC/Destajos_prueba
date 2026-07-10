@@ -1115,21 +1115,53 @@ if menu == "Registro de Destajos":
     }
 
     # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
-    response = AgGrid(
-        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
-        gridOptions=grid_options,
-        key=f"grid_destajos_{st.session_state.grid_key}",
-        reload_data=st.session_state.reload_trigger,
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        data_return_mode=DataReturnMode.AS_INPUT,
-        fit_columns_on_grid_load=False,
-        theme='balham',
-        height=600,
-        custom_css=mis_estilos  # <--- INYECTAMOS EL CSS DIRECTO A LA TABLA AQUÍ
-    )
+    
+    # --- INICIO DEL CAMINO 1: TABLA SILENCIADA (TIPO EXCEL) ---
+    with st.form(key=f"form_grid_destajos_{st.session_state.grid_key}"):
+        
+        # Acomodamos el botón azul a la derecha, de tamaño compacto
+        col_espacio, col_boton = st.columns([8.5, 1.5])
+        with col_boton:
+            st.markdown(
+                """
+                <style>
+                /* Estilo para forzar el botón cuadrado, chico y azul */
+                div[data-testid="stForm"] button {
+                    background-color: #3B82F6 !important;
+                    color: white !important;
+                    border-radius: 8px !important;
+                    border: none !important;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                    height: 45px !important;
+                    font-weight: bold !important;
+                }
+                div[data-testid="stForm"] button:hover {
+                    background-color: #2563EB !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+            # El botón de actualización
+            st.form_submit_button("🔄 Actualizar Totales", use_container_width=True)
+
+        # La tabla ahora vive DENTRO de la cápsula del formulario
+        response = AgGrid(
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
+            gridOptions=grid_options,
+            key=f"grid_destajos_{st.session_state.grid_key}",
+            reload_data=st.session_state.reload_trigger,
+            enable_enterprise_modules=False,
+            allow_unsafe_jscode=True,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            data_return_mode=DataReturnMode.AS_INPUT,
+            fit_columns_on_grid_load=False,
+            theme='balham',
+            height=800,
+            custom_css=mis_estilos
+        )
     st.session_state.reload_trigger = False
+    # --- FIN DEL CAMINO 1 ---
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
