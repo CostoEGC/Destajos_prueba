@@ -1047,22 +1047,17 @@ if menu == "Registro de Destajos":
         st.markdown(
             """
             <style>
-            /* Le decimos al navegador que el límite derecho es el ancho de la tabla */
             div[data-testid="stForm"] { 
                 border: none !important; 
                 padding: 0 !important; 
-                position: relative !important; /* <--- ESTO PEGA EL BOTÓN A LA DERECHA */
+                position: relative !important; 
             }
-            /* Botón nivelado y forzado a la extrema derecha */
-            div[data-testid="stFormSubmitButton"] {
-                position: absolute !important;
-                top: -52px !important;   /* <--- La altura que ya comprobaste que está perfecta */
-                right: 0px !important;   /* <--- Se pega al borde derecho de la tabla */
-                z-index: 9999 !important;
-            }
-            /* Estilo del botón */
+            /* Aplicamos la posición absoluta DIRECTAMENTE al botón para ignorar su caja invisible */
             div[data-testid="stFormSubmitButton"] button {
-                width: 220px !important;
+                position: absolute !important;
+                top: -52px !important;       /* La altura que ya comprobaste que está perfecta */
+                right: 0px !important;       /* 100% pegado a la derecha (encima de la columna Usuario) */
+                width: 220px !important;     
                 background-color: #3B82F6 !important;
                 color: white !important;
                 border-radius: 8px !important;
@@ -1070,9 +1065,17 @@ if menu == "Registro de Destajos":
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
                 height: 42px !important;
                 font-weight: bold !important;
+                z-index: 99999 !important;
             }
             div[data-testid="stFormSubmitButton"] button:hover { 
                 background-color: #2563EB !important; 
+            }
+            /* Destruimos el espacio de la caja invisible para que no estorbe abajo */
+            div[data-testid="stFormSubmitButton"] {
+                height: 0px !important;
+                min-height: 0px !important;
+                margin: 0px !important;
+                padding: 0px !important;
             }
             </style>
             """,
