@@ -953,7 +953,6 @@ if menu == "Registro de Destajos":
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
-    # Inicialización segura en memoria
     for c_ad in ['% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó']:
         if c_ad not in df_filtrado_grid.columns:
             df_filtrado_grid[c_ad] = 0.0 if 'Monto' in c_ad or '%' in c_ad else ""
@@ -963,8 +962,6 @@ if menu == "Registro de Destajos":
     df_filtrado_grid['Costo_Temp'] = pd.to_numeric(df_filtrado_grid['Costo'], errors='coerce').fillna(0)
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
-    
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
     
     # --- SOLUCIÓN AL KEYERROR: Creamos las columnas en la memoria antes de mandarlas a la tabla ---
     if '% Adicional' not in df_filtrado_grid.columns: 
@@ -982,113 +979,49 @@ if menu == "Registro de Destajos":
     gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
-    # Inyectamos estilos CSS para centrar el texto de los encabezados de AgGrid
+    
     st.markdown(
         """
         <style>
-        /* 1. Centrar los encabezados */
-        .ag-header-cell-label {
-            justify-content: center !important;
-            text-align: center !important;
-        }
-        
-        /* 2. Tamaño de letra para los TÍTULOS de las columnas */
-        .ag-header-cell-text {
-            font-size: 20px !important; 
-        }
-        
-        /* 3. Tamaño de letra para el texto normal de las FILAS */
-        .ag-cell, .ag-cell-value {
-            font-size: 18px !important; 
-            display: flex !important;
-            align-items: center !important; 
-        }
+        .ag-header-cell-label { justify-content: center !important; text-align: center !important; }
+        .ag-header-cell-text { font-size: 20px !important; }
+        .ag-cell, .ag-cell-value { font-size: 18px !important; display: flex !important; align-items: center !important; }
+        .centrar-valor { justify-content: center !important; }
         </style>
         """,
         unsafe_allow_html=True
     )
     
-    # Configuración de columnas con encabezados y VALORES perfectamente centrados
     gb.configure_column("Lote", editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
-    gb.configure_column("Partida", editable=False, width=300) # Se queda a la izquierda
+    gb.configure_column("Partida", editable=False, width=300) 
     gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
     
-    # Configuración avanzada con apertura de listas desplegables a UN SOLO CLIC (singleClickEdit)
-    gb.configure_column("Destajista", 
-                        editable=True, 
-                        cellEditor='agSelectCellEditor', 
-                        cellEditorParams={'values': LISTA_DESTAJISTAS}, 
-                        singleClickEdit=True, # <- Abre con 1 solo clic
-                        width=200)
-                        
-    gb.configure_column("C.C", 
-                        editable=True, 
-                        cellEditor='agSelectCellEditor', 
-                        cellEditorParams={'values': LISTA_CC}, 
-                        cellClass='centrar-valor', 
-                        headerClass='ag-center-header', 
-                        singleClickEdit=True, # <- Abre con 1 solo clic
-                        width=180)
+    gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, singleClickEdit=True, width=200)
+    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=180)
+    gb.configure_column("% Adicional", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.10]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=110)
+    gb.configure_column("% Retención", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.05]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=110)
     
-    gb.configure_column("% Adicional", 
-                        editable=True, 
-                        cellEditor='agSelectCellEditor', 
-                        cellEditorParams={'values': [0, 0.10]}, 
-                        valueFormatter="x ? (x*100)+'%' : '0%'", 
-                        cellClass='centrar-valor', 
-                        headerClass='ag-center-header', 
-                        singleClickEdit=True, # <- Abre con 1 solo clic
-                        width=110)
-                        
-    gb.configure_column("% Retención", 
-                        editable=True, 
-                        cellEditor='agSelectCellEditor', 
-                        cellEditorParams={'values': [0, 0.05]}, 
-                        valueFormatter="x ? (x*100)+'%' : '0%'", 
-                        cellClass='centrar-valor', 
-                        headerClass='ag-center-header', 
-                        singleClickEdit=True, # <- Abre con 1 solo clic
-                        width=110)
-    
-    # Esta columna calcula en vivo: Costo + (Costo * % Adicional) - (Costo * % Retención)
     formula_neto = "Number(data.Costo) + (Number(data.Costo) * (Number(data['% Adicional']) || 0)) - (Number(data.Costo) * (Number(data['% Retención']) || 0))"
     gb.configure_column("Monto Neto", editable=False, valueGetter=formula_neto, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
-    # ----------------------------------------------
-    
     gb.configure_column("Pagar", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Fecha pago", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=160)
     gb.configure_column("Usuario", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=120)
 
-    # (Corrección 1) Comprobación segura en el front-end para saber si está pagado o no (sin evaluar basura de texto)
     rowStyle = JsCode("""
     function(params) {
         let fp = params.data['Fecha pago'];
         let esta_pagado = (fp && fp.toString().trim() !== '' && fp !== 'nan' && fp !== 'null' && fp !== '<NA>');
+        if (esta_pagado) { return { 'backgroundColor': '#e0e0e0', 'color': '#808080', 'pointerEvents': 'none', 'borderBottom': '1px solid #d3d3d3' }; }
         
-        if (esta_pagado) {
-            return {
-                'backgroundColor': '#e0e0e0',
-                'color': '#808080',
-                'pointerEvents': 'none',
-                'borderBottom': '1px solid #d3d3d3'
-            };
-        }
-        
-        let style = {
-            'backgroundColor': '#0D0D0D',
-            'color': '#00FFFF',
-            'borderBottom': '1px solid #4a4a4a'
-        };
+        let style = { 'backgroundColor': '#0D0D0D', 'color': '#00FFFF', 'borderBottom': '1px solid #4a4a4a' };
         
         let check_pagar = params.data['Pagar'];
         if (check_pagar === true || check_pagar === 'true' || check_pagar === 1) {
             let dest = params.data['Destajista'];
             let cc = params.data['C.C'];
-            if (!dest || dest.trim() === '' || !cc || cc.trim() === '') {
-                style['backgroundColor'] = '#4a0000';
-            }
+            if (!dest || dest.trim() === '' || !cc || cc.trim() === '') { style['backgroundColor'] = '#4a0000'; }
         }
         return style;
     }
@@ -1097,56 +1030,85 @@ if menu == "Registro de Destajos":
     
     grid_options = gb.build()
 
-    # Definimos un diccionario con el tamaño forzado para perforar las capas internas de AgGrid
-   
     mis_estilos = {
-        # --- AQUÍ CONTROLAS LOS TÍTULOS (ENCABEZADOS) ---
         ".ag-header-cell-text": {"font-size": "20px !important"}, 
         ".ag-header-cell-label": {"justify-content": "center !important"}, 
-        
-        # --- AQUÍ CONTROLAS EL CONTENIDO DE LAS FILAS ---
         ".ag-cell": {"font-size": "18px !important", "display": "flex", "align-items": "center"},
         ".ag-cell-value": {"font-size": "18px !important"},
-
-        # --- NUEVO: REGLA INFALIBLE PARA CENTRAR LOS VALORES HORIZONTALMENTE ---
         ".centrar-valor": {"justify-content": "center !important"}
-
-        
     }
 
-    # (Corrección 3) reload_data=False evita que la tabla parpadee y pierda el foco al escribir.
-    response = AgGrid(
-        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
-        gridOptions=grid_options,
-        key=f"grid_destajos_{st.session_state.grid_key}",
-        reload_data=st.session_state.reload_trigger,
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.VALUE_CHANGED,
-        data_return_mode=DataReturnMode.AS_INPUT,
-        fit_columns_on_grid_load=False,
-        theme='balham',
-        height=600,
-        custom_css=mis_estilos  # <--- INYECTAMOS EL CSS DIRECTO A LA TABLA AQUÍ
-    )
+    # ====================================================
+    # FORMULARIO ENCAPSULADOR (CERO INTERMITENCIAS)
+    # ====================================================
+    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
+        
+        # MAGIA VISUAL: CSS para flotar el botón a la derecha, a la misma altura que el de Añadir
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stForm"] { border: none !important; padding: 0 !important; }
+            div[data-testid="stForm"] button[kind="primaryFormSubmit"] {
+                position: absolute !important;
+                top: -65px !important; 
+                right: 0px !important; 
+                width: 220px !important;
+                background-color: #3B82F6 !important;
+                color: white !important;
+                border-radius: 8px !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                height: 42px !important;
+                font-weight: bold !important;
+                z-index: 9999 !important;
+            }
+            div[data-testid="stForm"] button[kind="primaryFormSubmit"]:hover { background-color: #2563EB !important; }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        st.form_submit_button("🔄 Actualizar Totales", type="primary")
+
+        # 🛑 PARÁMETROS ORIGINALES INTÁCTOS: No cambiamos nada para evitar colapsos
+        response = AgGrid(
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
+            gridOptions=grid_options,
+            key=f"grid_destajos_{st.session_state.grid_key}",
+            reload_data=st.session_state.reload_trigger,
+            enable_enterprise_modules=False,
+            allow_unsafe_jscode=True,
+            update_mode=GridUpdateMode.VALUE_CHANGED,  # Se mantiene intacto, el formulario bloquea el parpadeo
+            data_return_mode=DataReturnMode.AS_INPUT,  # Se mantiene intacto para que PyArrow no choque
+            fit_columns_on_grid_load=False,
+            theme='balham',
+            height=600,
+            custom_css=mis_estilos
+        )
     st.session_state.reload_trigger = False
 
+    # ====================================================
+    # LÓGICA DE ACTUALIZACIÓN (SUMANDO MONTO NETO REAL)
+    # ====================================================
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
         
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
-        
-        # Limpieza segura de la columna de fecha para evaluar correctamente el estado
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
-        # 📊 CONTEO EN TIEMPO REAL: Filtra solo las filas marcadas que NO tienen fecha de pago previa
-        df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')]
+        df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')].copy()
         total_checked = len(df_pagar_actual)
         
-        # Ahora sumamos el Monto Neto modificado con bonos y retenciones
-        costo_seleccionado = df_pagar_actual['Monto Neto'].sum()
+        # --- CÁLCULO MATEMÁTICO: Suma de la columna Monto Neto (Punto 3) ---
+        df_pagar_actual['C_Temp'] = pd.to_numeric(df_pagar_actual['Costo'], errors='coerce').fillna(0)
+        df_pagar_actual['Ad_Temp'] = pd.to_numeric(df_pagar_actual['% Adicional'], errors='coerce').fillna(0)
+        df_pagar_actual['Ret_Temp'] = pd.to_numeric(df_pagar_actual['% Retención'], errors='coerce').fillna(0)
+        
+        # Fórmula exacta del Monto Neto
+        df_pagar_actual['Monto_Neto_Real'] = df_pagar_actual['C_Temp'] + (df_pagar_actual['C_Temp'] * df_pagar_actual['Ad_Temp']) - (df_pagar_actual['C_Temp'] * df_pagar_actual['Ret_Temp'])
+        
+        costo_seleccionado = df_pagar_actual['Monto_Neto_Real'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
@@ -1229,12 +1191,12 @@ elif menu == "Fondo de Garantía (Retenciones)":
         # ----------------------------------------------------
 
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
-        gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
+        gb_ret.configure_default_column(sortable=False, filter=True, resizable=True)
 
         
         
              
-        #gb_ret.configure_default_column(sortable=True, filter=True, resizable=True)
+       
         gb_ret.configure_column("_original_index", hide=True)
         gb_ret.configure_column("Estatus Retención", hide=True) 
         
