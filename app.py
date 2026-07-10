@@ -1138,27 +1138,7 @@ if menu == "Registro de Destajos":
 # =========================================================================
 elif menu == "Fondo de Garantía (Retenciones)":
     mostrar_cabecera_con_logo("🔒 Control de Fondos de Garantía y Retenciones", "Visualiza y libera los montos retenidos a los destajistas.")
-    
-    # --- LÓGICA DEL RECIBO RECIÉN GENERADO ---
-    # Si el sistema acaba de generar un PDF, lo muestra aquí arriba para descargarlo
-    if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
-        st.success("✅ ¡Liberación guardada en Google Sheets! Las partidas han sido bloqueadas exitosamente.")
-        c_desc1, c_desc2, c_desc3 = st.columns([2, 6, 2])
-        with c_desc2:
-            st.download_button(
-                label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
-                data=st.session_state.ultimo_recibo_pdf,
-                file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                type="primary"
-            )
-            if st.button("❌ Ocultar este recibo", use_container_width=True):
-                st.session_state.ultimo_recibo_pdf = None
-                st.rerun()
-        st.markdown("<hr>", unsafe_allow_html=True)
-    # -----------------------------------------
-    
+          
     df_ret = st.session_state.df.copy()
     df_ret['_original_index'] = df_ret.index
     
@@ -1353,6 +1333,25 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         st.rerun() # <- Esto recarga la página mostrando las filas bloqueadas y el botón azul gigante
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
+
+    if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
+            st.success("✅ ¡Liberación guardada en Google Sheets! Las partidas han sido bloqueadas exitosamente.")
+            
+            # Usamos la misma proporción [3, 4, 3] para que quede alineado perfecto con el botón de guardar
+            c_desc1, c_desc2, c_desc3 = st.columns([3, 4, 3])
+            with c_desc2:
+                st.download_button(
+                    label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
+                    data=st.session_state.ultimo_recibo_pdf,
+                    file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+                if st.button("❌ Ocultar este recibo", use_container_width=True):
+                    st.session_state.ultimo_recibo_pdf = None
+                    st.rerun()
+        # ==========================================================
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
