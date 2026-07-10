@@ -1138,7 +1138,8 @@ if menu == "Registro de Destajos":
 # =========================================================================
 elif menu == "Fondo de Garantía (Retenciones)":
     mostrar_cabecera_con_logo("🔒 Control de Fondos de Garantía y Retenciones", "Visualiza y libera los montos retenidos a los destajistas.")
-          
+    
+       
     df_ret = st.session_state.df.copy()
     df_ret['_original_index'] = df_ret.index
     
