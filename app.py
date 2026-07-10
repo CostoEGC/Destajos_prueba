@@ -1176,6 +1176,10 @@ elif menu == "Fondo de Garantía (Retenciones)":
         
         df_ret_filtrado['Liberar_Check'] = df_ret_filtrado['Estatus Retención'].apply(lambda x: True if str(x).strip() == 'Liberado' else False)
 
+        # 🛑 BLINDAJE DE INTERFAZ WEB: Forzamos a que las fechas y usuarios sean tratados estrictamente como texto en la tabla
+        df_ret_filtrado['Fecha Liberación'] = df_ret_filtrado['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
+        df_ret_filtrado['Usuario Liberó'] = df_ret_filtrado['Usuario Liberó'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
+
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
         gb_ret.configure_default_column(sortable=False, filter=False, resizable=True)
         gb_ret.configure_column("_original_index", hide=True)
@@ -1234,7 +1238,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
-                    # Exactamente la misma lógica y formato de zona horaria que hemos usado
                     tz_mx = ZoneInfo("America/Mexico_City")
                     tiempo_actual = datetime.now(tz_mx)
                     meses_3_letras = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
@@ -1244,7 +1247,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     cambios_detectados = False
                     df_recibo_nuevo = []
                     
-                    # ---> BLINDAJE: Forzamos la base de datos a reconocer las columnas vacías como TEXTO PURO <---
+                    # 🛑 BLINDAJE EN MEMORIA GLOBAL: Asegura que la base de datos local acepte el texto libre de la fecha
                     st.session_state.df['Fecha Liberación'] = st.session_state.df['Fecha Liberación'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
                     st.session_state.df['Usuario Liberó'] = st.session_state.df['Usuario Liberó'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
                     
@@ -1255,8 +1258,8 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         if (est_val == True or est_val == 'true' or est_val == 1) and str(st.session_state.df.loc[idx_orig, 'Estatus Retención']) == "Retenido":
                             
                             st.session_state.df.loc[idx_orig, 'Estatus Retención'] = "Liberado"
-                            st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = ahora_lib
-                            st.session_state.df.loc[idx_orig, 'Usuario Liberó'] = usr_lib
+                            st.session_state.df.loc[idx_orig, 'Fecha Liberación'] = str(ahora_lib)
+                            st.session_state.df.loc[idx_orig, 'Usuario Liberó'] = str(usr_lib)
                             
                             df_recibo_nuevo.append(row_p)
                             cambios_detectados = True
