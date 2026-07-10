@@ -1,7 +1,9 @@
-streamlit
-pandas
+streamlit==1.59.1
+pandas==2.2.2
+numpy<2.0.0
 plotly
-requests
-beautifulsoup4
 streamlit-aggrid
 fpdf
+beautifulsoup4
+pillow
+requests
