@@ -433,6 +433,13 @@ def dialogo_reportes():
         # 1. GENERACIÓN AUTOMÁTICA DEL PDF (Sin necesidad de hacer clic)
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
+
+        # --- INSERCIÓN DEL LOGO EN LA ESQUINA SUPERIOR DERECHA ---
+        if os.path.exists("logo.png"):
+            pdf.image("logo.png", x=175, y=10, w=30)
+        # ---------------------------------------------------------
+
+        
         
         # Encabezado principal del Reporte
         pdf.set_font("Arial", 'B', 14)
@@ -1271,6 +1278,11 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         
                         pdf = FPDF(orientation='P', unit='mm', format='Letter')
                         pdf.add_page()
+
+                        # --- INSERCIÓN DEL LOGO EN LA ESQUINA SUPERIOR DERECHA ---
+                        if os.path.exists("logo.png"):
+                            pdf.image("logo.png", x=175, y=10, w=30)
+
                         
                         pdf.set_font("Arial", 'B', 14)
                         pdf.set_text_color(30, 58, 138)
