@@ -1211,7 +1211,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
             ".ag-checkbox-input-wrapper.ag-checked": {"background-color": "#10B981 !important", "border-color": "#10B981 !important"}
         }
         
-        # ---> SOLUCIÓN: Hacemos que la tabla sea dinámica usando grid_key para que se actualice al guardar <---
         response_ret = AgGrid(
             df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']],
             gridOptions=gb_ret.build(),
@@ -1235,14 +1234,19 @@ elif menu == "Fondo de Garantía (Retenciones)":
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
+                    # Exactamente la misma lógica y formato de zona horaria que hemos usado
                     tz_mx = ZoneInfo("America/Mexico_City")
                     tiempo_actual = datetime.now(tz_mx)
                     meses_3_letras = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
                     ahora_lib = f"{tiempo_actual.strftime('%d')}/{meses_3_letras[tiempo_actual.month]}/{tiempo_actual.strftime('%Y')} {tiempo_actual.strftime('%H:%M:%S')}"
-                    usr_lib = st.session_state.usuario
+                    usr_lib = str(st.session_state.usuario)
                     
                     cambios_detectados = False
                     df_recibo_nuevo = []
+                    
+                    # ---> BLINDAJE: Forzamos la base de datos a reconocer las columnas vacías como TEXTO PURO <---
+                    st.session_state.df['Fecha Liberación'] = st.session_state.df['Fecha Liberación'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
+                    st.session_state.df['Usuario Liberó'] = st.session_state.df['Usuario Liberó'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
                     
                     for _, row_p in df_ret_pantalla.iterrows():
                         idx_orig = int(row_p['_original_index'])
@@ -1316,7 +1320,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         if 'Concepto_Limpio' in df_envio_ret.columns:
                             df_envio_ret = df_envio_ret.drop(columns=['Concepto_Limpio'])
                         
-                        # Formateamos las columnas para que Google las acepte como texto limpio
                         df_envio_ret['Fecha pago'] = df_envio_ret['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         df_envio_ret['Fecha Liberación'] = df_envio_ret['Fecha Liberación'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         
@@ -1324,8 +1327,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                             actualizar_datos_gsheet(df_envio_ret)
                             
                         st.session_state.df_original = st.session_state.df.copy()
-                        
-                        # ---> SOLUCIÓN: Incrementamos el candado para obligar a la tabla a mostrar los datos nuevos <---
                         st.session_state.grid_key += 1 
                         st.rerun() 
                     else:
@@ -1351,6 +1352,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     st.session_state.ultimo_recibo_pdf = None
                     st.rerun()
         # ==========================================================
+
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
 # =========================================================================
