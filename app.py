@@ -191,10 +191,18 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, str(s))]
 
-def sort_conceptos(s):
-    match = re.search(r'^\d+', str(s))
-    num = int(match.group()) if match else 9999
-    return num
+# 1. Motor de ordenamiento para Prototipos (1, 1+, 2, 2+, 2A, 2A+, etc.)
+def sort_prototipos_key(s):
+    s = str(s).replace("Prototipo ", "").strip()
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'([0-9]+)', s)]
+
+# 2. Auxiliares para limpiar el número del filtro y ordenar por su valor numérico real
+def limpiar_concepto(s):
+    return re.sub(r'^\s*\d+(?:\s*\.-\s*|\s*-\s*|\s+)?', '', str(s)).strip()
+
+def obtener_numero_partida(s):
+    match = re.match(r'^\s*(\d+)', str(s))
+    return int(match.group(1)) if match else 9999
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -398,18 +406,18 @@ def dialogo_reportes():
     if st.session_state.get('rep_sel_manzana'):
         df_opciones = df_opciones[df_opciones['Manzana'].isin(st.session_state.rep_sel_manzana)]
         
-    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
-    list_manzanas = sorted([x for x in df_opciones['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    # Le quitamos el "Todos" a la lista porque el multiselect vacío ya significa "Todos"
-    list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
+    # --- FILTROS PARA EL REPORTE PDF ORDENADOS ---
+    list_prototipos = sorted(list(set([str(x).strip() for x in df_base_rep['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
+    list_manzanas = sorted(list(set([str(x).strip() for x in df_opciones['Manzana'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
+    list_lotes = sorted(list(set([str(x).strip() for x in df_opciones['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
+    list_destajistas_filtro = sorted(list(set([str(d).strip() for d in df_base_rep['Destajista'].dropna().unique() if str(d).strip()])))
     
-    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_concepto)
     conceptos_unicos_tuplas = {}
     for _, row in df_base_rep.iterrows():
         limpio = row['Concepto_Limpio']
         if limpio not in conceptos_unicos_tuplas:
-            conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+            conceptos_unicos_tuplas[limpio] = obtener_numero_partida(row['Partida'])
     list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
     # Distribución visual con Multiselects
@@ -865,19 +873,22 @@ if menu == "Registro de Destajos":
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
-        list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-        list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-        list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
+        # --- FILTROS DE TABLA CORREGIDOS Y ORDENADOS ---
+        list_prototipos = sorted(list(set([str(x).strip() for x in df_actual['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
+        list_manzanas = sorted(list(set([str(x).strip() for x in df_actual['Manzana'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
+        list_lotes = sorted(list(set([str(x).strip() for x in df_actual['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
         
+        destajistas_unicos_db = sorted(list(set([str(d).strip() for d in df_actual['Destajista'].dropna().unique() if str(d).strip()])))
+        list_destajistas_filtro = ["Todos"] + destajistas_unicos_db
+
         df_temporal_filtros = df_actual.copy()
-        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(limpiar_concepto)
         
         conceptos_unicos_tuplas = {}
         for _, row in df_temporal_filtros.iterrows():
             limpio = row['Concepto_Limpio']
             if limpio not in conceptos_unicos_tuplas:
-                conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+                conceptos_unicos_tuplas[limpio] = obtener_numero_partida(row['Partida'])
         list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
         f_col1, f_col2 = st.columns(2)
@@ -895,7 +906,7 @@ if menu == "Registro de Destajos":
 
     # --- 2. APLICAR FILTROS LÓGICOS (Invisible para el usuario) ---
     df_filtrado = df_actual.copy()
-    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(limpiar_concepto)
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -1483,9 +1494,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
     st.markdown("### 🔍 Panel de Control y Filtros Dinámicos")
     
     d_col1, d_col2, d_col3 = st.columns(3)
-    protos_disponibles = sorted(df_dash_base['Prototipo'].unique(), key=ordenar_prototipos)
-    lotes_disponibles = sorted(list(df_dash_base['Lote'].unique()), key=natural_sort_key)
-    destajistas_disponibles = ["Todos"] + sorted(list(df_dash_base['Destajista'].replace('', pd.NA).dropna().unique()), key=natural_sort_key)
+    protos_disponibles = sorted(list(set([str(x).strip() for x in df_dash_base['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
+    lotes_disponibles = sorted(list(set([str(x).strip() for x in df_dash_base['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
+    destajistas_disponibles = ["Todos"] + sorted(list(set([str(d).strip() for d in df_dash_base['Destajista'].dropna().unique() if str(d).strip()])))
     
     if 'tab2_lotes_seleccionados' not in st.session_state:
         st.session_state.tab2_lotes_seleccionados = lotes_disponibles
@@ -1745,12 +1756,17 @@ elif menu == "Mapa Interactivo":
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
     partidas_ordenadas = []
+    # Extraer conceptos únicos limpios y ordenarlos por su número original
+    conceptos_mapa_tuplas = {}
     for p in df_map_base['Partida'].dropna().unique():
-        if str(p).strip() and str(p) not in partidas_ordenadas:
-            partidas_ordenadas.append(str(p))
-            
-    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
-    destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
+        p_str = str(p).strip()
+        if p_str:
+            limpio = limpiar_concepto(p_str)
+            if limpio not in conceptos_mapa_tuplas:
+                conceptos_mapa_tuplas[limpio] = obtener_numero_partida(p_str)
+                
+    partidas_display = sorted(conceptos_mapa_tuplas.keys(), key=lambda k: conceptos_mapa_tuplas[k])
+    destajistas_unicos_filtro = sorted(list(set([str(d).strip() for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()])))
     
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
         "Filtrar por Partida (Máx 4):", 
@@ -1758,7 +1774,8 @@ elif menu == "Mapa Interactivo":
         max_selections=4
     )
     
-    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
+    # Al no tener números en el control, el filtro recibe el texto directo
+    filtro_partidas_mapa = filtro_partidas_mapa_display
     
     filtro_destajistas_mapa = f_col_mapa2.multiselect(
         "Filtrar por Destajista (Máx 4):", 
@@ -1768,10 +1785,11 @@ elif menu == "Mapa Interactivo":
     
     filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
     
-    # Adaptado a solo buscar los que ya fueron Pagados para los filtros interactivos
     df_filtered = df_map_base[df_map_base['Estado'] == 'Pagado'].copy()
+    df_filtered['Concepto_Limpio'] = df_filtered['Partida'].apply(limpiar_concepto)
+    
     if filtro_partidas_mapa:
-        df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
+        df_filtered = df_filtered[df_filtered['Concepto_Limpio'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
