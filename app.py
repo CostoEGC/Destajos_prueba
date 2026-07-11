@@ -16,6 +16,10 @@ from fpdf import FPDF
 import tempfile
 from supabase import create_client, Client
 
+# =========================================================================
+# CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
+# =========================================================================
+st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
@@ -30,10 +34,6 @@ st.markdown(
 )
 # -----------------------------------
 
-# =========================================================================
-# CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
-# =========================================================================
-st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 # Inicializar la conexión a la base de datos de microsegundos
 url = st.secrets["SUPABASE_URL"]
@@ -82,6 +82,14 @@ def obtener_datos_gsheet():
         df['Fecha Liberación'] = df['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
         df['Pagar'] = df['Pagar'].map(lambda x: True if str(x).lower() in ['true', '1', 'sí', 'si'] else False)
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
+        
+        # =========================================================================
+        # CORRECCIÓN DE ORDENAMIENTO NUMÉRICO DEL LOTE
+        # =========================================================================
+        if 'Lote' in df.columns:
+            df['Lote'] = pd.to_numeric(df['Lote'], errors='coerce')
+            df = df.sort_values(by='Lote').reset_index(drop=True)
+        # =========================================================================
         
         return df
     except Exception as e:
@@ -249,7 +257,7 @@ if st.session_state.usuario is None:
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
-    "Fondo de Garantía (Retenciones)",
+    "Fondo de Garantía (Retenciones)", 
     "Dashboard (Gráficos y Visor)", 
     "Mapa Interactivo"
 ])
@@ -257,7 +265,6 @@ menu = st.sidebar.radio("Menú Principal:", [
 if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
-# Lógica de limpieza al cambiar de pestaña (Optimizada para evitar colapsos)
 if st.session_state.menu_actual != menu:
     # --- GUARDIÁN DE MEMORIA ---
     if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
@@ -268,11 +275,8 @@ if st.session_state.menu_actual != menu:
                 if col in st.session_state.df.columns and col != '_original_index':
                     st.session_state.df.at[idx_orig, col] = row[col]
                     
-    # (Se eliminó el bucle redundante que reasignaba variables a sí mismas)
-            
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
-        
     st.session_state.menu_actual = menu
 
 # --- BOTONES DE LA BARRA LATERAL ---
