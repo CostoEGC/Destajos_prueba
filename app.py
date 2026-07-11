@@ -80,7 +80,7 @@ def obtener_datos_gsheet():
         # 3. Limpieza de fechas y booleanos
         df['Fecha pago'] = df['Fecha pago'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
         df['Fecha Liberación'] = df['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
-        df['Pagar'] = df['Pagar'].fillna(False).astype(bool)
+        df['Pagar'] = df['Pagar'].map(lambda x: True if str(x).lower() in ['true', '1', 'sí', 'si'] else False)
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
         
         return df
@@ -1117,15 +1117,26 @@ if menu == "Registro de Destajos":
         )
         st.form_submit_button("🔄 Actualizar Totales", type="primary")
         # 🛑 PARÁMETROS ORIGINALES INTÁCTOS: No cambiamos nada para evitar colapsos
+        # 🛑 BLINDAJE CONTRA SEGMENTATION FAULT (PYARROW) 🛑
+        df_para_aggrid = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
+        
+        # Limpiamos textos vacíos que hacen chocar al motor
+        for col in df_para_aggrid.columns:
+            if df_para_aggrid[col].dtype == 'object':
+                df_para_aggrid[col] = df_para_aggrid[col].fillna('')
+                
+        # Reconstruimos la memoria del dataframe desde cero
+        df_para_aggrid = pd.DataFrame(df_para_aggrid.to_dict(orient='list'))
+        
+        # Parámetros originales actualizados a la nueva versión
         response = AgGrid(
-            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy(),
+            df_para_aggrid,
             gridOptions=grid_options,
             key=f"grid_destajos_{st.session_state.grid_key}",
-            reload_data=st.session_state.reload_trigger,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,  # Se mantiene intacto, el formulario bloquea el parpadeo
-            data_return_mode=DataReturnMode.AS_INPUT,  # Se mantiene intacto para que PyArrow no choque
+            update_on=['cellValueChanged'],  # <-- NUEVA API DE AGGRID
+            data_return_mode=DataReturnMode.AS_INPUT,
             fit_columns_on_grid_load=False,
             theme='balham',
             height=600,
@@ -1285,14 +1296,22 @@ elif menu == "Fondo de Garantía (Retenciones)":
             ".ag-checkbox-input-wrapper.ag-checked": {"background-color": "#10B981 !important", "border-color": "#10B981 !important"}
         }
         
+        # 🛑 BLINDAJE CONTRA SEGMENTATION FAULT (PYARROW) 🛑
+        df_para_aggrid_ret = df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy()
+        
+        for col in df_para_aggrid_ret.columns:
+            if df_para_aggrid_ret[col].dtype == 'object':
+                df_para_aggrid_ret[col] = df_para_aggrid_ret[col].fillna('')
+                
+        df_para_aggrid_ret = pd.DataFrame(df_para_aggrid_ret.to_dict(orient='list'))
+
         response_ret = AgGrid(
-            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy(),
+            df_para_aggrid_ret,
             gridOptions=gb_ret.build(),
             key=f"grid_fondos_garantia_{st.session_state.grid_key}",
-            reload_data=False,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
+            update_on=['cellValueChanged'],  # <-- NUEVA API DE AGGRID
             data_return_mode=DataReturnMode.AS_INPUT,
             theme='streamlit',
             height=400,
