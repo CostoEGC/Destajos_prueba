@@ -1943,7 +1943,7 @@ elif menu == "Mapa Interactivo":
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
                     svg_content = f.read()
 
-                soup = BeautifulSoup(svg_content, "html.perser")
+                soup = BeautifulSoup(svg_content, "html.parser")
                 
                     
                     
