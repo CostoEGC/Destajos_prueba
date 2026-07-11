@@ -43,7 +43,7 @@ supabase: Client = create_client(url, key)
 def obtener_datos_gsheet():
     try:
         # Pedimos los datos a Supabase en microsegundos
-        response = supabase.table('destajos').select('*').execute()
+        response = supabase.table('destajos').select('*').limit(50000).execute()
         datos = response.data
         
         # 1. Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
