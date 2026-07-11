@@ -203,6 +203,148 @@ def limpiar_concepto(s):
 def obtener_numero_partida(s):
     match = re.match(r'^\s*(\d+)', str(s))
     return int(match.group(1)) if match else 9999
+# =====================================================================
+# LISTA MAESTRA DE CONCEPTOS (EXTRAÍDA DEL EXCEL)
+# =====================================================================
+ORDEN_EXCEL_PARTIDAS = [
+    "Trazo de cimentacion, muros e instalaciones",
+    "Cisterna",
+    "Excavaciones drenaje y cimentacion",
+    "Cimbra losa de cimentacion",
+    "Nivelacion de plataformas",
+    "Acero losa de cimentacion",
+    "Concreto en cimentacion",
+    "Instalaciones losa de cimentacion",
+    "Muros planta baja",
+    "Muros bajo escalera",
+    "Castillos, dalas y cerramientos pb",
+    "Muros de concreto en pb",
+    "Muros reforzados pb",
+    "Instalaciones en muros p.b.",
+    "Muro lateral cochera",
+    "Muros y castillos en patio de servicio",
+    "Instalacion hidraulica y electrica en patio",
+    "Cimbra en losa de entrepiso 1",
+    "Acero en losa de entrepiso 1",
+    "Concreto en losa de entrepiso 1",
+    "Instalaciones losa de entrepiso 1",
+    "Escalera de pb-n1",
+    "Muros nivel 1",
+    "Castillos, dalas y cerramientos nivel1",
+    "Muros de reforzados en nivel 1",
+    "Muros de concreto en nivel 1",
+    "Instalaciones en muros n1",
+    "Cimbra en losa de entrepiso 2",
+    "Acero en losa de entrepiso 2",
+    "Concreto en losa de entrepiso 2",
+    "Hormigon en losa de entrepiso 2",
+    "Veneciano en terraza",
+    "Instalaciones en losa de entrepiso 2",
+    "Escalera de n1-n2",
+    "Muros nivel 2",
+    "Castillos, dalas y cerramientos nivel2",
+    "Muros de concreto en nivel 2",
+    "Instalaciones en muros n2",
+    "Cimbra en losa de entrepiso 3",
+    "Acero en losa de entrepiso 3 inc. pretiles",
+    "Concreto en losa de entrepiso 3",
+    "Instalaciones en losa entrepiso 3",
+    "Albañilerias en azotea y terraza",
+    "Subcontrato por impermeabilizacion de azotea",
+    "Apalillado en azotea",
+    "Estructura tinaco",
+    "Instalaciones de gas y calentador solar",
+    "Subcontrato por aplanados de yeso y pasta",
+    "Base para cocina",
+    "Aplanados en baños",
+    "Zarpeos en losas y castillos",
+    "Recibir instalaciones de luz, agua",
+    "Guiado de ductos",
+    "Resane en balcon de nivel 1",
+    "Sardinel en balcon de nivel 1",
+    "Colocacion de monomandos en regaderas",
+    "Repison medio baño planta baja",
+    "Forjado de nicho en escalera",
+    "Albañilerias de patio y muro medianero",
+    "Aplanado de patio",
+    "Albañilerias en cochera",
+    "Base para cuadro de medicion hidraulico",
+    "Huellas vehiculares en cochera",
+    "Limpieza en patio",
+    "Instalacion de base medidor electrico",
+    "Instalacion de cuadro de medicion hidraulico",
+    "Encofrado de tuberia en patio",
+    "Forjado de registro pluvial en cochera",
+    "Resane de llave de chorro en cochera",
+    "Abultado en ventanas",
+    "Aplanados fachadas ppal",
+    "Junta fachada ppal",
+    "Aplanados fachada posterior",
+    "Junta fachada posterior",
+    "Pisos y azulejos",
+    "Recubrimientos en fachada ppal",
+    "Terminacion de zoclo",
+    "Elaboracion de sardinel en baños",
+    "Forjado de jaboneras en area de regaderas",
+    "Nivelacion de charolas de baños",
+    "Subcontrato por aplicacion de fondo en fachada principal",
+    "Subcontrato por aplicacion de pintura 1° mano en fachada principal",
+    "Subcontrato por aplicacion de pintura 2° mano en fachada principal",
+    "Subcontrato por aplicacion de fondo en fachada posterior",
+    "Subcontrato por aplicacion de pintura 1° mano en fachada posterior",
+    "Subcontrato por aplicacion de pintura 2° mano en fachada posterior",
+    "Subcontrato por aplicacion de fondo en interiores",
+    "Subcontrato por aplicacion de pintura 1° mano en interiores",
+    "Subcontrato por aplicacion de pintura 2° mano en interiores",
+    "Subcontrato de tablaroca y durock en muros y plafones",
+    "Subcontrato de ventaneria de aluminio y vidrio iva cero",
+    "Barandales de herreria en escalera",
+    "Fabricacion de escalera marina",
+    "Herreria para rejillas en cocheras y patios",
+    "Subcontrato por fabricacion y colocacion de barra desayunadora a base de herreria",
+    "Subcontrato de barandal de herreria entre escalera entre sala",
+    "Subcontrato de canceles de baño iva cero",
+    "Subcontrato por topes de aluminio iva cero",
+    "Subcontrato por numeros de aluminio iva cero",
+    "Subcontrato por barandales de cristal en balcones iva cero",
+    "Subcontrato por barandales de cristal en terraza iva cero",
+    "Subcontrato domos iva cero",
+    "Colocacion de escalera marina",
+    "Subcontrato por suministro e instalacion de cocina integral, closets, muebles de baño. cocina con granito gris, madera en melamina deacuerdo a plano, incluye: tarja, contracanasta, estufa, campana",
+    "Pata granito itaunas",
+    "Splash granito itaunas",
+    "Subcontrato de carpinteria para puertas madera",
+    "Suministro de tierra vegetal",
+    "Suministro y colocacion de pasto en rollo cochera y patio",
+    "Colocacion de accesorios para baño",
+    "Amueblado hidraulico y sanitario",
+    "Amueblado electrico",
+    "Limpieza gruesa 1 y retiro de escombro fuera de obra",
+    "Limpieza gruesa de cisterna",
+    "Subcontrato de laboratorio de control de calidad",
+    "Detallado de vivienda y garantias",
+    "Limpieza gruesa 2 y retiro de escombro fuera de obra",
+    "Prueba general sanitaria, hidraulica y pluvial",
+    "Instalacion de bomba, boyler, tanque y toma de gas",
+    "Instalacion para aire acondicionado",
+    "Cableado aire acondicionado",
+    "Base para boiler",
+    "Limpieza fina de cisterna",
+    "Guiado telmex de registro a casa",
+    "Retiro medidor hidráulico",
+    "Colocacion de medidor hidraulico",
+    "Colocacion de tinaco y ramaleo de tuberias",
+    "Colocacion de tanque y control press con alimentacion electrica",
+    "Conexión de toma de gas a tanque estacionario",
+    "Alimentacion electrica para bomba sumergible y tanque presurizado 5 hilos",
+    "Alimentacion de registro a vivienda (ponchado)"
+]
+
+def sort_por_excel(concepto):
+    c_limpio = str(concepto).strip()
+    if c_limpio in ORDEN_EXCEL_PARTIDAS:
+        return ORDEN_EXCEL_PARTIDAS.index(c_limpio)
+    return 9999 # Partidas no listadas se van al final
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -413,12 +555,8 @@ def dialogo_reportes():
     list_destajistas_filtro = sorted(list(set([str(d).strip() for d in df_base_rep['Destajista'].dropna().unique() if str(d).strip()])))
     
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_concepto)
-    conceptos_unicos_tuplas = {}
-    for _, row in df_base_rep.iterrows():
-        limpio = row['Concepto_Limpio']
-        if limpio not in conceptos_unicos_tuplas:
-            conceptos_unicos_tuplas[limpio] = obtener_numero_partida(row['Partida'])
-    list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
+    
+    list_conceptos = sorted(list(set([str(x).strip() for x in df_base_rep['Concepto_Limpio'].dropna().unique() if str(x).strip()])), key=sort_por_excel)
 
     # Distribución visual con Multiselects
     r_col1, r_col2 = st.columns(2)
@@ -820,7 +958,7 @@ if not st.session_state.df.empty:
     ).reset_index()
     
     # Aplicar ordenamiento natural nativo (1, 1+, 2, 2+, 2A...)
-    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(natural_sort_key)
+    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(sort_prototipos_key)
     df_resumen_proto = df_resumen_proto.sort_values(by='sort_key').drop(columns=['sort_key'])
     
     total_cantidad_protos = df_resumen_proto['Cantidad'].sum()
@@ -884,12 +1022,7 @@ if menu == "Registro de Destajos":
         df_temporal_filtros = df_actual.copy()
         df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(limpiar_concepto)
         
-        conceptos_unicos_tuplas = {}
-        for _, row in df_temporal_filtros.iterrows():
-            limpio = row['Concepto_Limpio']
-            if limpio not in conceptos_unicos_tuplas:
-                conceptos_unicos_tuplas[limpio] = obtener_numero_partida(row['Partida'])
-        list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
+        list_conceptos = sorted(list(set([str(x).strip() for x in df_temporal_filtros['Concepto_Limpio'].dropna().unique() if str(x).strip()])), key=sort_por_excel)
 
         f_col1, f_col2 = st.columns(2)
         
@@ -1756,16 +1889,10 @@ elif menu == "Mapa Interactivo":
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
     partidas_ordenadas = []
-    # Extraer conceptos únicos limpios y ordenarlos por su número original
-    conceptos_mapa_tuplas = {}
-    for p in df_map_base['Partida'].dropna().unique():
-        p_str = str(p).strip()
-        if p_str:
-            limpio = limpiar_concepto(p_str)
-            if limpio not in conceptos_mapa_tuplas:
-                conceptos_mapa_tuplas[limpio] = obtener_numero_partida(p_str)
-                
-    partidas_display = sorted(conceptos_mapa_tuplas.keys(), key=lambda k: conceptos_mapa_tuplas[k])
+    # Extraer conceptos únicos limpios y ordenarlos estrictamente por el Excel
+    conceptos_unicos_mapa = list(set([limpiar_concepto(str(p)) for p in df_map_base['Partida'].dropna().unique() if str(p).strip()]))
+    partidas_display = sorted(conceptos_unicos_mapa, key=sort_por_excel)
+    
     destajistas_unicos_filtro = sorted(list(set([str(d).strip() for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()])))
     
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
