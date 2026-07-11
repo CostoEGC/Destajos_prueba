@@ -9,3 +9,4 @@ pillow==10.4.0
 requests==2.32.3
 tzdata==2024.1
 supabase==2.10.0
+lxml==5.2.1
