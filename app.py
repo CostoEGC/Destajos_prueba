@@ -249,7 +249,7 @@ if st.session_state.usuario is None:
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
-    "Fondo de Garantía (Retenciones)", # <-- Nueva pestaña agregada
+    "Fondo de Garantía (Retenciones)",
     "Dashboard (Gráficos y Visor)", 
     "Mapa Interactivo"
 ])
@@ -257,6 +257,7 @@ menu = st.sidebar.radio("Menú Principal:", [
 if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
+# Lógica de limpieza al cambiar de pestaña (Optimizada para evitar colapsos)
 if st.session_state.menu_actual != menu:
     # --- GUARDIÁN DE MEMORIA ---
     if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
@@ -267,14 +268,12 @@ if st.session_state.menu_actual != menu:
                 if col in st.session_state.df.columns and col != '_original_index':
                     st.session_state.df.at[idx_orig, col] = row[col]
                     
-    for key in list(st.session_state.keys()):
-        if key.startswith('sel_') or key.startswith('rep_'):
-            st.session_state[key] = st.session_state[key]
+    # (Se eliminó el bucle redundante que reasignaba variables a sí mismas)
             
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
+        
     st.session_state.menu_actual = menu
-    st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
