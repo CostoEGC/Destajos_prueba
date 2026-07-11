@@ -1225,70 +1225,32 @@ if menu == "Registro de Destajos":
     }
 
     # ====================================================
-    # FORMULARIO ENCAPSULADOR (CERO INTERMITENCIAS)
+    # 🛑 TABLA RESTAURADA PARA FUNCIONAR AL INSTANTE (SIN FORMULARIO) 🛑
     # ====================================================
-    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
-        
-        # MAGIA VISUAL: CSS para flotar el botón a la derecha, a la misma altura que el de Añadir
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stForm"] { 
-                border: none !important; 
-                padding: 0 !important; 
-            }
-            /* Mueve el contenedor completo del botón arriba y a la derecha */
-            div[data-testid="stFormSubmitButton"] {
-                position: absolute !important;
-                top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
-                right: -1050px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
-                z-index: 9999 !important;
-            }
-            /* Le da el diseño azul y el tamaño correcto */
-            div[data-testid="stFormSubmitButton"] button {
-                width: 220px !important;
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                height: 42px !important;
-                font-weight: bold !important;
-            }
-            div[data-testid="stFormSubmitButton"] button:hover { 
-                background-color: #2563EB !important; 
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        st.form_submit_button("🔄 Actualizar Totales", type="primary")
-        # 🛑 PARÁMETROS ORIGINALES INTÁCTOS: No cambiamos nada para evitar colapsos
-        # 🛑 BLINDAJE CONTRA SEGMENTATION FAULT (PYARROW) 🛑
-        df_para_aggrid = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
-        
-        # Limpiamos textos vacíos que hacen chocar al motor
-        for col in df_para_aggrid.columns:
-            if df_para_aggrid[col].dtype == 'object':
-                df_para_aggrid[col] = df_para_aggrid[col].fillna('')
-                
-        # Reconstruimos la memoria del dataframe desde cero
-        df_para_aggrid = pd.DataFrame(df_para_aggrid.to_dict(orient='list'))
-        
-        # Parámetros originales actualizados a la nueva versión
-        response = AgGrid(
-            df_para_aggrid,
-            gridOptions=grid_options,
-            key=f"grid_destajos_{st.session_state.grid_key}",
-            enable_enterprise_modules=False,
-            allow_unsafe_jscode=True,
-            update_on=['cellValueChanged'],  # <-- NUEVA API DE AGGRID
-            data_return_mode=DataReturnMode.AS_INPUT,
-            fit_columns_on_grid_load=False,
-            theme='balham',
-            height=600,
-            custom_css=mis_estilos
-        )
+    df_para_aggrid = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
+    
+    # Limpiamos textos vacíos que hacen chocar al motor
+    for col in df_para_aggrid.columns:
+        if df_para_aggrid[col].dtype == 'object':
+            df_para_aggrid[col] = df_para_aggrid[col].fillna('')
+            
+    # Reconstruimos la memoria del dataframe desde cero
+    df_para_aggrid = pd.DataFrame(df_para_aggrid.to_dict(orient='list'))
+    
+    # Parámetros originales actualizados a la nueva versión (LIBRE)
+    response = AgGrid(
+        df_para_aggrid,
+        gridOptions=grid_options,
+        key=f"grid_destajos_{st.session_state.grid_key}",
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        update_on=['cellValueChanged'],  
+        data_return_mode=DataReturnMode.AS_INPUT,
+        fit_columns_on_grid_load=False,
+        theme='balham',
+        height=600,
+        custom_css=mis_estilos
+    )
     st.session_state.reload_trigger = False
 
     # ====================================================
@@ -1892,7 +1854,7 @@ elif menu == "Mapa Interactivo":
     # Extraer conceptos únicos limpios y ordenarlos estrictamente por el Excel
     conceptos_unicos_mapa = list(set([limpiar_concepto(str(p)) for p in df_map_base['Partida'].dropna().unique() if str(p).strip()]))
     partidas_display = sorted(conceptos_unicos_mapa, key=sort_por_excel)
-    
+
     destajistas_unicos_filtro = sorted(list(set([str(d).strip() for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()])))
     
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
