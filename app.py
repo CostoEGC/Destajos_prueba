@@ -16,7 +16,6 @@ from fpdf import FPDF
 import tempfile
 from supabase import create_client, Client
 
-
 # --- OCULTAR BARRAS DE STREAMLIT ---
 st.markdown(
     """
@@ -31,11 +30,10 @@ st.markdown(
 # -----------------------------------
 
 # =========================================================================
-# CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
+# CONFIGURACIÓN INICIAL DE LA PÁGINA
 # =========================================================================
 st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
-# Inicializar la conexión a la base de datos de microsegundos
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -143,6 +141,8 @@ def actualizar_datos_gsheet(df_envio):
             
     except Exception as e:
         st.error(f"Error al enviar datos a la base de datos: {e}")
+
+
 
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
@@ -1094,7 +1094,7 @@ if menu == "Registro de Destajos":
             div[data-testid="stFormSubmitButton"] {
                 position: absolute !important;
                 top: -105px !important;  /* <--- NÚMERO CLAVE PARA SUBIRLO */
-                right: -1050px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
+                right: -1105px !important;   /* <--- LO PEGA TOTALMENTE A LA DERECHA */
                 z-index: 9999 !important;
             }
             /* Le da el diseño azul y el tamaño correcto */
