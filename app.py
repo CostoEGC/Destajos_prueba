@@ -137,8 +137,7 @@ def actualizar_datos_gsheet(df_envio):
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
 # =========================================================================
-LISTA_DESTAJISTAS = [
-    " ",
+LISTA_DESTAJISTAS_BASE = [
     "Pablo Barragán (Albañilería)",
     "Andrés (Albañilería)",
     "Miguel Leyva (Instalaciones)",
@@ -146,6 +145,7 @@ LISTA_DESTAJISTAS = [
     "Guillermo (Pintura)",
     "Gerardo Zamora (Yeso y pintura)"
 ]
+LISTA_DESTAJISTAS = [" "] + sorted(LISTA_DESTAJISTAS_BASE)
 
 LISTA_CC = [
     " ",
@@ -173,10 +173,27 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, str(s))]
 
-def sort_conceptos(s):
-    match = re.search(r'^\d+', str(s))
-    num = int(match.group()) if match else 9999
-    return num
+def sort_prototipos(p):
+    # Separa el número, la letra y el signo + para ordenar perfectamente (1, 1+, 2, 2+, 2A, 2A+)
+    p_str = str(p).replace("Prototipo ", "").strip()
+    match = re.match(r"(\d+)([a-zA-Z]*)(\+?)", p_str)
+    if match:
+        num = int(match.group(1))
+        letra = match.group(2).lower()
+        plus = 1 if match.group(3) == '+' else 0
+        return (num, letra, plus)
+    return (999, p_str, 0)
+
+# Cargar orden desde el CSV automáticamente
+try:
+    df_orden = pd.read_csv('orden_partidas.csv')
+    ORDEN_PARTIDAS = {str(row['PARTIDA']).strip().lower(): int(row['Numero']) for _, row in df_orden.iterrows()}
+except Exception:
+    ORDEN_PARTIDAS = {}
+
+def sort_conceptos(concepto_limpio):
+    c_lower = str(concepto_limpio).strip().lower()
+    return ORDEN_PARTIDAS.get(c_lower, 9999) # 9999 los manda al final si no existen en el CSV
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -338,7 +355,8 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                st.session_state.grid_key += 1 
+                #st.session_state.grid_key += 1 
+                st.session_state.reload_trigger = True
                 st.success("¡Datos guardados!")
                 st.rerun()
 
@@ -355,18 +373,14 @@ def dialogo_reportes():
     if st.session_state.get('rep_sel_manzana'):
         df_opciones = df_opciones[df_opciones['Manzana'].isin(st.session_state.rep_sel_manzana)]
         
-    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
+    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=sort_prototipos)
     list_manzanas = sorted([x for x in df_opciones['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
     
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
-    conceptos_unicos_tuplas = {}
-    for _, row in df_base_rep.iterrows():
-        limpio = row['Concepto_Limpio']
-        if limpio not in conceptos_unicos_tuplas:
-            conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
-    list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
+    
+    list_conceptos = sorted([c for c in df_base_rep['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
 
     r_col1, r_col2 = st.columns(2)
     with r_col1:
@@ -775,7 +789,7 @@ if menu == "Registro de Destajos":
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
+        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=sort_prototipos)
         list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
         list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
         list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
@@ -783,12 +797,7 @@ if menu == "Registro de Destajos":
         df_temporal_filtros = df_actual.copy()
         df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
         
-        conceptos_unicos_tuplas = {}
-        for _, row in df_temporal_filtros.iterrows():
-            limpio = row['Concepto_Limpio']
-            if limpio not in conceptos_unicos_tuplas:
-                conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
-        list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
+        list_conceptos = sorted([c for c in df_base_rep['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
 
         f_col1, f_col2 = st.columns(2)
         
@@ -858,20 +867,23 @@ if menu == "Registro de Destajos":
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
         st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-        st.session_state.grid_key += 1
+        #st.session_state.grid_key += 1
+        st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-        st.session_state.grid_key += 1
+        #st.session_state.grid_key += 1
+        st.session_state.reload_trigger = True
         st.rerun()
 
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
             st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
-            st.session_state.grid_key += 1
+            #st.session_state.grid_key += 1
+            st.session_state.reload_trigger = True
             st.success("Destajista asignado masivamente.")
             st.rerun()
 
@@ -879,7 +891,8 @@ if menu == "Registro de Destajos":
     if b_col4.button("Asignar C.C Masivo", use_container_width=True):
         if cc_masivo != "Seleccionar...":
             st.session_state.df.loc[df_filtrado.index, 'C.C'] = cc_masivo
-            st.session_state.grid_key += 1
+            #st.session_state.grid_key += 1
+            st.session_state.reload_trigger = True
             st.success("C.C asignado masivamente.")
             st.rerun()
 
@@ -893,6 +906,10 @@ if menu == "Registro de Destajos":
     st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
 
     df_filtrado_grid = df_filtrado.copy()
+    # INYECCIÓN: Forzar orden numérico estricto de Lotes
+    df_filtrado_grid['Lote_Num'] = pd.to_numeric(df_filtrado_grid['Lote'], errors='coerce').fillna(9999)
+    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', '_original_index']).drop(columns=['Lote_Num'])
+
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
     for c_ad in ['% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó']:
@@ -933,7 +950,7 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
-    gb.configure_column("Lote", editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
     gb.configure_column("Partida", editable=False, width=300) 
@@ -1777,11 +1794,8 @@ elif menu == "Mapa Interactivo":
         if archivo_encontrado:
             try:
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
-                    svg_content = f.read()
-
-                #try:
-                #    soup = BeautifulSoup(svg_content, "xml")
-                #except:
+                    svg_content = f.read()           
+                                
                     soup = BeautifulSoup(svg_content, "html.parser")
                     
                 for path_elem in soup.find_all(['path', 'polygon']):
