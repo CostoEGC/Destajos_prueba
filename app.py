@@ -19,6 +19,7 @@ from supabase import create_client, Client
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
 # =========================================================================
+# ESTA LÍNEA DEBE SER ESTRICTAMENTE LA PRIMERA DE STREAMLIT PARA EVITAR COLAPSOS
 st.set_page_config(page_title="ERP Destajos EGC", layout="wide")
 
 # --- OCULTAR BARRAS DE STREAMLIT ---
@@ -34,21 +35,19 @@ st.markdown(
 )
 # -----------------------------------
 
-
-# Inicializar la conexión a la base de datos de microsegundos
+# Inicializar la conexión a la base de datos de Supabase
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
     try:
-        # Pedimos los datos a Supabase en microsegundos
         response = supabase.table('destajos').select('*').limit(50000).execute()
         datos = response.data
         
-        # 1. Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
+        # Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
         mapeo_columnas = {
-            'id': 'ID_DB', # Clave invisible para poder actualizar filas precisas
+            'id': 'ID_DB', 
             'lote': 'Lote',
             'manzana': 'Manzana',
             'prototipo': 'Prototipo',
@@ -73,23 +72,13 @@ def obtener_datos_gsheet():
         df = pd.DataFrame(datos)
         df = df.rename(columns=mapeo_columnas)
         
-        # 2. Formatos numéricos limpios
         for col in ['% Adicional', '% Retención', 'Monto Retenido', 'Costo']:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             
-        # 3. Limpieza de fechas y booleanos
         df['Fecha pago'] = df['Fecha pago'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
         df['Fecha Liberación'] = df['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'None', '<NA>'], '').str.strip()
         df['Pagar'] = df['Pagar'].map(lambda x: True if str(x).lower() in ['true', '1', 'sí', 'si'] else False)
         df['Prototipo'] = df['Prototipo'].apply(lambda x: f"Prototipo {x}" if "Prototipo" not in str(x) else x)
-        
-        # =========================================================================
-        # CORRECCIÓN DE ORDENAMIENTO NUMÉRICO DEL LOTE
-        # =========================================================================
-        if 'Lote' in df.columns:
-            df['Lote'] = pd.to_numeric(df['Lote'], errors='coerce')
-            df = df.sort_values(by='Lote').reset_index(drop=True)
-        # =========================================================================
         
         return df
     except Exception as e:
@@ -98,7 +87,6 @@ def obtener_datos_gsheet():
 
 def actualizar_datos_gsheet(df_envio):
     try:
-        # 1. Mapeo Inverso: Traducimos de la aplicación de vuelta a la BD
         mapeo_inverso = {
             'ID_DB': 'id',
             'Lote': 'lote',
@@ -121,24 +109,18 @@ def actualizar_datos_gsheet(df_envio):
         
         df_db = df_envio.copy()
         
-        # Nos quedamos solo con las columnas que existen en la BD
         cols_validas = [c for c in df_db.columns if c in mapeo_inverso.keys()]
         df_db = df_db[cols_validas]
-        
         df_db = df_db.rename(columns=mapeo_inverso)
         
-        # 2. Limpieza estricta: quitamos el truco del apóstrofe que usábamos para Google Sheets ('20/Ene/...)
         df_db['fecha_pago'] = df_db['fecha_pago'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
         df_db['fecha_liberacion'] = df_db['fecha_liberacion'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
         
-        # Convertimos NaN a None (Nulo) para que la base de datos no choque
-        df_db = df_db.replace({float('nan'): None})
+        df_db = df_db.replace({float('nan'): None, pd.NA: None})
         
-        # 3. Separar partidas nuevas (de tu formulario) de las que ya existen (pagos)
+        # Inyección Inteligente: Separamos nuevas vs existentes para Supabase
         if 'id' in df_db.columns:
-            # Las nuevas partidas no tienen ID aún, la BD se los asignará
             nuevas = df_db[df_db['id'].isna()].drop(columns=['id']).to_dict(orient='records')
-            # Partidas existentes que solo estamos actualizando
             existentes = df_db[df_db['id'].notna()].to_dict(orient='records')
             
             if nuevas:
@@ -191,160 +173,10 @@ def mostrar_cabecera_con_logo(titulo, subtitulo=None):
 def natural_sort_key(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(_nsre, str(s))]
 
-# 1. Motor de ordenamiento para Prototipos (1, 1+, 2, 2+, 2A, 2A+, etc.)
-def sort_prototipos_key(s):
-    s = str(s).replace("Prototipo ", "").strip()
-    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'([0-9]+)', s)]
-
-# 2. Auxiliares para limpiar el número del filtro y ordenar por su valor numérico real
-def limpiar_concepto(s):
-    return re.sub(r'^\s*\d+(?:\s*\.-\s*|\s*-\s*|\s+)?', '', str(s)).strip()
-
-def obtener_numero_partida(s):
-    match = re.match(r'^\s*(\d+)', str(s))
-    return int(match.group(1)) if match else 9999
-# =====================================================================
-# LISTA MAESTRA DE CONCEPTOS (EXTRAÍDA DEL EXCEL)
-# =====================================================================
-ORDEN_EXCEL_PARTIDAS = [
-    "Trazo de cimentacion, muros e instalaciones",
-    "Cisterna",
-    "Excavaciones drenaje y cimentacion",
-    "Cimbra losa de cimentacion",
-    "Nivelacion de plataformas",
-    "Acero losa de cimentacion",
-    "Concreto en cimentacion",
-    "Instalaciones losa de cimentacion",
-    "Muros planta baja",
-    "Muros bajo escalera",
-    "Castillos, dalas y cerramientos pb",
-    "Muros de concreto en pb",
-    "Muros reforzados pb",
-    "Instalaciones en muros p.b.",
-    "Muro lateral cochera",
-    "Muros y castillos en patio de servicio",
-    "Instalacion hidraulica y electrica en patio",
-    "Cimbra en losa de entrepiso 1",
-    "Acero en losa de entrepiso 1",
-    "Concreto en losa de entrepiso 1",
-    "Instalaciones losa de entrepiso 1",
-    "Escalera de pb-n1",
-    "Muros nivel 1",
-    "Castillos, dalas y cerramientos nivel1",
-    "Muros de reforzados en nivel 1",
-    "Muros de concreto en nivel 1",
-    "Instalaciones en muros n1",
-    "Cimbra en losa de entrepiso 2",
-    "Acero en losa de entrepiso 2",
-    "Concreto en losa de entrepiso 2",
-    "Hormigon en losa de entrepiso 2",
-    "Veneciano en terraza",
-    "Instalaciones en losa de entrepiso 2",
-    "Escalera de n1-n2",
-    "Muros nivel 2",
-    "Castillos, dalas y cerramientos nivel2",
-    "Muros de concreto en nivel 2",
-    "Instalaciones en muros n2",
-    "Cimbra en losa de entrepiso 3",
-    "Acero en losa de entrepiso 3 inc. pretiles",
-    "Concreto en losa de entrepiso 3",
-    "Instalaciones en losa entrepiso 3",
-    "Albañilerias en azotea y terraza",
-    "Subcontrato por impermeabilizacion de azotea",
-    "Apalillado en azotea",
-    "Estructura tinaco",
-    "Instalaciones de gas y calentador solar",
-    "Subcontrato por aplanados de yeso y pasta",
-    "Base para cocina",
-    "Aplanados en baños",
-    "Zarpeos en losas y castillos",
-    "Recibir instalaciones de luz, agua",
-    "Guiado de ductos",
-    "Resane en balcon de nivel 1",
-    "Sardinel en balcon de nivel 1",
-    "Colocacion de monomandos en regaderas",
-    "Repison medio baño planta baja",
-    "Forjado de nicho en escalera",
-    "Albañilerias de patio y muro medianero",
-    "Aplanado de patio",
-    "Albañilerias en cochera",
-    "Base para cuadro de medicion hidraulico",
-    "Huellas vehiculares en cochera",
-    "Limpieza en patio",
-    "Instalacion de base medidor electrico",
-    "Instalacion de cuadro de medicion hidraulico",
-    "Encofrado de tuberia en patio",
-    "Forjado de registro pluvial en cochera",
-    "Resane de llave de chorro en cochera",
-    "Abultado en ventanas",
-    "Aplanados fachadas ppal",
-    "Junta fachada ppal",
-    "Aplanados fachada posterior",
-    "Junta fachada posterior",
-    "Pisos y azulejos",
-    "Recubrimientos en fachada ppal",
-    "Terminacion de zoclo",
-    "Elaboracion de sardinel en baños",
-    "Forjado de jaboneras en area de regaderas",
-    "Nivelacion de charolas de baños",
-    "Subcontrato por aplicacion de fondo en fachada principal",
-    "Subcontrato por aplicacion de pintura 1° mano en fachada principal",
-    "Subcontrato por aplicacion de pintura 2° mano en fachada principal",
-    "Subcontrato por aplicacion de fondo en fachada posterior",
-    "Subcontrato por aplicacion de pintura 1° mano en fachada posterior",
-    "Subcontrato por aplicacion de pintura 2° mano en fachada posterior",
-    "Subcontrato por aplicacion de fondo en interiores",
-    "Subcontrato por aplicacion de pintura 1° mano en interiores",
-    "Subcontrato por aplicacion de pintura 2° mano en interiores",
-    "Subcontrato de tablaroca y durock en muros y plafones",
-    "Subcontrato de ventaneria de aluminio y vidrio iva cero",
-    "Barandales de herreria en escalera",
-    "Fabricacion de escalera marina",
-    "Herreria para rejillas en cocheras y patios",
-    "Subcontrato por fabricacion y colocacion de barra desayunadora a base de herreria",
-    "Subcontrato de barandal de herreria entre escalera entre sala",
-    "Subcontrato de canceles de baño iva cero",
-    "Subcontrato por topes de aluminio iva cero",
-    "Subcontrato por numeros de aluminio iva cero",
-    "Subcontrato por barandales de cristal en balcones iva cero",
-    "Subcontrato por barandales de cristal en terraza iva cero",
-    "Subcontrato domos iva cero",
-    "Colocacion de escalera marina",
-    "Subcontrato por suministro e instalacion de cocina integral, closets, muebles de baño. cocina con granito gris, madera en melamina deacuerdo a plano, incluye: tarja, contracanasta, estufa, campana",
-    "Pata granito itaunas",
-    "Splash granito itaunas",
-    "Subcontrato de carpinteria para puertas madera",
-    "Suministro de tierra vegetal",
-    "Suministro y colocacion de pasto en rollo cochera y patio",
-    "Colocacion de accesorios para baño",
-    "Amueblado hidraulico y sanitario",
-    "Amueblado electrico",
-    "Limpieza gruesa 1 y retiro de escombro fuera de obra",
-    "Limpieza gruesa de cisterna",
-    "Subcontrato de laboratorio de control de calidad",
-    "Detallado de vivienda y garantias",
-    "Limpieza gruesa 2 y retiro de escombro fuera de obra",
-    "Prueba general sanitaria, hidraulica y pluvial",
-    "Instalacion de bomba, boyler, tanque y toma de gas",
-    "Instalacion para aire acondicionado",
-    "Cableado aire acondicionado",
-    "Base para boiler",
-    "Limpieza fina de cisterna",
-    "Guiado telmex de registro a casa",
-    "Retiro medidor hidráulico",
-    "Colocacion de medidor hidraulico",
-    "Colocacion de tinaco y ramaleo de tuberias",
-    "Colocacion de tanque y control press con alimentacion electrica",
-    "Conexión de toma de gas a tanque estacionario",
-    "Alimentacion electrica para bomba sumergible y tanque presurizado 5 hilos",
-    "Alimentacion de registro a vivienda (ponchado)"
-]
-
-def sort_por_excel(concepto):
-    c_limpio = str(concepto).strip()
-    if c_limpio in ORDEN_EXCEL_PARTIDAS:
-        return ORDEN_EXCEL_PARTIDAS.index(c_limpio)
-    return 9999 # Partidas no listadas se van al final
+def sort_conceptos(s):
+    match = re.search(r'^\d+', str(s))
+    num = int(match.group()) if match else 9999
+    return num
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -356,7 +188,6 @@ if 'df' not in st.session_state:
 
 if 'grid_key' not in st.session_state: st.session_state.grid_key = 0
 if 'current_grid_state' not in st.session_state: st.session_state.current_grid_state = pd.DataFrame()
-# ➡️ AÑADE ESTA LÍNEA JUSTO AQUÍ ABAJO:
 if 'reload_trigger' not in st.session_state: st.session_state.reload_trigger = False
 
 df = st.session_state.df
@@ -379,18 +210,12 @@ if 'sel_fecha' not in st.session_state: st.session_state.sel_fecha = ()
 # --- 1. FORMULARIO DE ACCESO ---
 def login():
     mostrar_cabecera_con_logo("🔐 Control de estimaciones", "Por favor, introduce tus credenciales para ingresar.")
-    
-    # Creamos 3 columnas: las de los extremos ([1.2] y [1.2]) sirven como espacio en blanco 
-    # para empujar y centrar la columna del medio ([1]), dándole un tamaño estético y proporcional.
     col_izq, col_centro, col_der = st.columns([1.2, 1, 1.2])
-    
     with col_centro:
-        st.markdown("<br>", unsafe_allow_html=True) # Pequeño espacio para que no quede pegado a la cabecera
-        
+        st.markdown("<br>", unsafe_allow_html=True)
         usuario = st.text_input("Usuario", key="input_user")
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
-        # Agregamos use_container_width=True para que el botón abarque exactamente el mismo ancho de las celdas
         if st.button("Ingresar", use_container_width=True, type="primary"):
             usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {}
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
@@ -416,7 +241,6 @@ if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
 if st.session_state.menu_actual != menu:
-    # --- GUARDIÁN DE MEMORIA ---
     if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
         df_vivo = st.session_state.current_grid_state
         for _, row in df_vivo.iterrows():
@@ -425,9 +249,14 @@ if st.session_state.menu_actual != menu:
                 if col in st.session_state.df.columns and col != '_original_index':
                     st.session_state.df.at[idx_orig, col] = row[col]
                     
+    for key in list(st.session_state.keys()):
+        if key.startswith('sel_') or key.startswith('rep_'):
+            st.session_state[key] = st.session_state[key]
+            
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
     st.session_state.menu_actual = menu
+    st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
@@ -436,10 +265,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     if df_actual_pantalla.empty:
         st.sidebar.warning("No hay cambios en pantalla para guardar.")
     else:
-        # Forzar booleanos limpios por seguridad de evaluación
         df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-        
-        # Limpieza absoluta para detectar de forma segura las celdas vacías devueltas por AgGrid
         df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
         filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
@@ -448,26 +274,17 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
         else:
-            with st.spinner("Sincronizando con Google..."):
-                # CORRECCIÓN DE HORA Y FORMATO: Forzamos zona horaria de México y formato DD/MMM/AAAA
-                from zoneinfo import ZoneInfo
+            with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
                 tiempo_actual = datetime.now(tz_mx)
-                
-                meses_3_letras = {
-                    1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun",
-                    7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
-                }
-                
+                meses_3_letras = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
                 dia = tiempo_actual.strftime("%d")
                 mes = meses_3_letras[tiempo_actual.month]
                 anio = tiempo_actual.strftime("%Y")
                 hora = tiempo_actual.strftime("%H:%M:%S")
-                
                 ahora = f"{dia}/{mes}/{anio} {hora}"
                 usuario_actual = st.session_state.usuario
                 
-                # 1. Guardar partidas que se van a pagar
                 if not filas_a_pagar.empty:
                     for _, row in filas_a_pagar.iterrows():
                         idx_original = int(row['_original_index'])
@@ -477,14 +294,10 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
                 
-                
-                # === SOLUCIÓN AL TYPEERROR: Forzamos las columnas a numérico antes de guardar ===
                 for col_num in ['% Adicional', '% Retención', 'Monto Retenido', 'Costo']:
                     if col_num in st.session_state.df.columns:
                         st.session_state.df[col_num] = pd.to_numeric(st.session_state.df[col_num], errors='coerce').fillna(0).astype(float)
-                # ==============================================================================
 
-                # Guardar cambios generales y calcular retenciones en dinero real (Usamos .loc en vez de .at)
                 for _, row in df_actual_pantalla.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.loc[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
@@ -497,17 +310,14 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                     st.session_state.df.loc[idx_original, '% Adicional'] = pct_ad
                     st.session_state.df.loc[idx_original, '% Retención'] = pct_ret
                     
-                    # Si hay un porcentaje de retención asignado, calculamos su valor en dinero
                     if pct_ret > 0:
                         st.session_state.df.loc[idx_original, 'Monto Retenido'] = costo_orig * pct_ret
-                        # Solo asignamos "Retenido" si la columna estaba completamente vacía
                         if str(st.session_state.df.loc[idx_original, 'Estatus Retención']).strip() == "":
                             st.session_state.df.loc[idx_original, 'Estatus Retención'] = "Retenido"
                     else:
                         st.session_state.df.loc[idx_original, 'Monto Retenido'] = 0.0
                         st.session_state.df.loc[idx_original, 'Estatus Retención'] = ""
                         
-                # 1. Guardar partidas que se van a pagar
                 if not filas_a_pagar.empty:
                     for _, row in filas_a_pagar.iterrows():
                         idx_original = int(row['_original_index'])
@@ -515,25 +325,23 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                         st.session_state.df.loc[idx_original, 'Fecha pago'] = ahora
                         st.session_state.df.loc[idx_original, 'Usuario'] = usuario_actual
 
-                # 3. Eliminar columnas temporales "fantasmas" y preparar el dataframe de envío
                 df_envio = st.session_state.df.copy()
                 if 'Concepto_Limpio' in df_envio.columns:
                     df_envio = df_envio.drop(columns=['Concepto_Limpio'])
 
-                # TRUCO DE INYECCIÓN: Forzamos la celda como Texto añadiendo un apóstrofe al inicio.
-                # Esto blinda el formato y la hora contra cualquier auto-conversión de Google Sheets.
                 df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
-
+                
+                # Actualizar hacia Supabase (Solo envía las filas modificadas/nuevas gracias a upsert)
                 actualizar_datos_gsheet(df_envio)
                 
-                # 4. Sincronizar memoria y refrescar la pantalla de manera limpia
+                # Recargar memoria de base de datos fresca (Con IDs asignados por la BD)
+                st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
                 st.session_state.grid_key += 1 
                 st.success("¡Datos guardados!")
                 st.rerun()
 
-# (Corrección 4) Rango de fechas unificado para evitar cierre del modal y agregar filtros avanzados
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
@@ -541,24 +349,25 @@ def dialogo_reportes():
     
     df_base_rep = st.session_state.df.copy()
     
-   # --- MULTIFILTRO DINÁMICO EN CASCADA ---
     df_opciones = df_base_rep.copy()
     if st.session_state.get('rep_sel_proto'):
         df_opciones = df_opciones[df_opciones['Prototipo'].isin(st.session_state.rep_sel_proto)]
     if st.session_state.get('rep_sel_manzana'):
         df_opciones = df_opciones[df_opciones['Manzana'].isin(st.session_state.rep_sel_manzana)]
         
-    # --- FILTROS PARA EL REPORTE PDF ORDENADOS ---
-    list_prototipos = sorted(list(set([str(x).strip() for x in df_base_rep['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
-    list_manzanas = sorted(list(set([str(x).strip() for x in df_opciones['Manzana'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
-    list_lotes = sorted(list(set([str(x).strip() for x in df_opciones['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
-    list_destajistas_filtro = sorted(list(set([str(d).strip() for d in df_base_rep['Destajista'].dropna().unique() if str(d).strip()])))
+    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=natural_sort_key)
+    list_manzanas = sorted([x for x in df_opciones['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+    list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+    list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
     
-    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_concepto)
-    
-    list_conceptos = sorted(list(set([str(x).strip() for x in df_base_rep['Concepto_Limpio'].dropna().unique() if str(x).strip()])), key=sort_por_excel)
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    conceptos_unicos_tuplas = {}
+    for _, row in df_base_rep.iterrows():
+        limpio = row['Concepto_Limpio']
+        if limpio not in conceptos_unicos_tuplas:
+            conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+    list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
-    # Distribución visual con Multiselects
     r_col1, r_col2 = st.columns(2)
     with r_col1:
         st.multiselect("Prototipo(s):", options=list_prototipos, placeholder="Todos", key="rep_sel_proto")
@@ -618,52 +427,33 @@ def dialogo_reportes():
         df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
         df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
         df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
+        
     st.markdown("<br>", unsafe_allow_html=True)
-
     st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
-    # ====================================================
-    # NUEVO CÓDIGO: CONTROLES EN UNA SOLA FILA
-    # ====================================================
-    #st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    #st.markdown("##### 📑 Opciones de Impresión")
-    
-    
-    # ====================================================
 
-    # ====================================================
-    # LÓGICA DE GENERACIÓN AUTOMÁTICA Y BOTÓN ROJO A LA DERECHA
-    # ====================================================
     if df_rep_filtrado.empty:
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
-        # 1. GENERACIÓN AUTOMÁTICA DEL PDF (Sin necesidad de hacer clic)
         pdf = FPDF(orientation='P', unit='mm', format='Letter')
         pdf.add_page()
-
                 
-        
-        # Encabezado principal del Reporte
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(30, 58, 138) 
         pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
         
-        # Pie de cabecera con marcas de tiempo
         pdf.set_font("Arial", 'I', 9)
         pdf.set_text_color(108, 117, 125)
-        from zoneinfo import ZoneInfo
         tz_mx = ZoneInfo("America/Mexico_City")
         fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
         pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
         pdf.ln(5)
         
-        # Cuadro resumen de los criterios impresos
         pdf.set_font("Arial", 'B', 9)
         pdf.set_text_color(0, 0, 0)
         pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
         pdf.set_font("Arial", '', 9)
         
-        # Transformamos las listas a texto separado por comas para que se lea bien en el documento
         txt_proto = ", ".join(st.session_state.rep_sel_proto) if st.session_state.rep_sel_proto else "Todos"
         txt_mz = ", ".join(st.session_state.rep_sel_manzana) if st.session_state.rep_sel_manzana else "Todas"
         txt_dest = ", ".join(st.session_state.rep_sel_dest) if st.session_state.rep_sel_dest else "Todos"
@@ -677,9 +467,7 @@ def dialogo_reportes():
         pdf.cell(195, 5, txt=criterios[:115], ln=True)
         pdf.ln(4)
 
-        # BIFURCACIÓN: RESUMEN VS DETALLADO
         if chk_resumen:
-            # --- MODO RESUMIDO ---
             mapa_columnas = {
                 "Destajista": "Destajista",
                 "Estado de Pago": "Estado_Pago_Temp",
@@ -693,7 +481,6 @@ def dialogo_reportes():
             if col_agrupar == "Estado_Pago_Temp":
                 df_rep_filtrado["Estado_Pago_Temp"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
 
-            # Calculamos el Monto Neto Real en el reporte antes de agrupar
             df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
             df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
             df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
@@ -701,7 +488,7 @@ def dialogo_reportes():
             df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
             
             df_resumen = df_rep_filtrado.groupby(col_agrupar)['Monto_Neto_Reporte'].sum().reset_index()
-            df_resumen.columns = [col_agrupar, 'Costo'] # Renombramos para que el resto del bucle siga funcionando intacto
+            df_resumen.columns = [col_agrupar, 'Costo'] 
 
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(30, 58, 138) 
@@ -719,12 +506,9 @@ def dialogo_reportes():
 
             for _, row in df_resumen.iterrows():
                 valor_txt = str(row[col_agrupar]).strip()
-                
-                # 🛑 NUEVA LÓGICA: Si la fila está vacía o sin asignar, la saltamos por completo
                 if valor_txt == "" or valor_txt.lower() in ['nan', 'none', '<na>']:
                     continue
                 
-                # Si pasó el filtro, aplicamos el color y sumamos
                 if fondo_cebra:
                     pdf.set_fill_color(245, 247, 250) 
                 else:
@@ -745,7 +529,6 @@ def dialogo_reportes():
             pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
 
         else:
-            # --- MODO DETALLADO ORIGINAL ---
             w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
             pdf.set_font("Arial", 'B', 10)
             pdf.set_fill_color(30, 58, 138) 
@@ -792,7 +575,6 @@ def dialogo_reportes():
         
         pdf_bytes = pdf.output(dest='S').encode('latin-1')
 
-        # 2. COLOCACIÓN DEL BOTÓN CHICO A LA DERECHA Y ESTILO ROJO
         st.markdown(
             """
             <style>
@@ -811,7 +593,6 @@ def dialogo_reportes():
             unsafe_allow_html=True
         )
 
-        # Generamos las columnas para empujar el botón a la derecha
         c_vacia1, c_vacia2, c_boton = st.columns([3, 1, 1.2])
         with c_boton:
             st.download_button(
@@ -821,8 +602,6 @@ def dialogo_reportes():
                 mime="application/pdf",
                 use_container_width=True
             )
-    
-        
         
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
@@ -831,15 +610,11 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
     st.session_state.usuario = None
     st.rerun()
 
-# ====================================================
-# FUNCIÓN DEFINITIVA: FORMULARIO Y ORDENAMIENTO EXACTO
-# ====================================================
 @st.dialog("➕ Añadir Nueva Partida Adicional", width="large")
 def dialogo_nueva_partida():
     st.markdown("### 📝 Registrar nuevo concepto")
     st.write("El sistema inyectará la partida exactamente debajo de la última fila del lote correspondiente.")
     
-    # 🛑 CORRECCIÓN: Filtramos duplicados desde la raíz por si Sheets tiene suciedad
     lotes_unicos = list(set([str(x).strip() for x in st.session_state.df['Lote'].unique() if str(x).strip()]))
     list_lotes = sorted(lotes_unicos, key=natural_sort_key)
     
@@ -896,13 +671,9 @@ def dialogo_nueva_partida():
             datos_lote_existente = df_temp[df_temp['Lote'].astype(str).str.strip() == str(lote).strip()]
             
             if not datos_lote_existente.empty:
-                # 🛑 CORRECCIÓN: Extraemos el valor EXACTO (su formato natural de Sheets)
-                # Esto evita que se generen "clones" fantasma en los filtros
                 lote_original = datos_lote_existente['Lote'].iloc[0]
                 mz_original = datos_lote_existente['Manzana'].iloc[0]
                 pr_original = datos_lote_existente['Prototipo'].iloc[0]
-                
-                # Encontramos la ÚLTIMA fila de este lote
                 idx_insert = datos_lote_existente.index.max() + 1
             else:
                 lote_original = lote
@@ -910,7 +681,9 @@ def dialogo_nueva_partida():
                 pr_original = ""
                 idx_insert = len(df_temp)
 
+            # Inyectamos ID_DB como nulo para que Supabase lo detecte como nueva inserción
             nueva_fila = {
+                'ID_DB': None,
                 'Lote': lote_original,
                 'Manzana': mz_original,
                 'Prototipo': pr_original,
@@ -918,14 +691,13 @@ def dialogo_nueva_partida():
                 'Costo': costo_float,
                 'Destajista': dest_sel,
                 'C.C': cc_str,
-                '% Adicional': 0.0,  # Nace en 0%
-                '% Retención': 0.0,  # Nace en 0%
+                '% Adicional': 0.0,  
+                '% Retención': 0.0,  
                 'Pagar': pagar_bool,
                 'Fecha pago': ahora,
                 'Usuario': usr
             }
             
-            # Partimos la tabla y metemos la fila en la posición exacta
             df_arriba = df_temp.iloc[:idx_insert]
             df_abajo = df_temp.iloc[idx_insert:]
             df_temp = pd.concat([df_arriba, pd.DataFrame([nueva_fila]), df_abajo]).reset_index(drop=True)
@@ -936,40 +708,36 @@ def dialogo_nueva_partida():
             
         df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
         
-        with st.spinner("Inyectando partida en el lote correspondiente y sincronizando con Google..."):
+        with st.spinner("Inyectando partida en el lote correspondiente y sincronizando con Supabase..."):
             actualizar_datos_gsheet(df_envio)
+            # Refrescamos desde la BD para obtener el nuevo ID asignado
+            st.session_state.df = obtener_datos_gsheet()
             
-        st.session_state.df = df_temp
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
         st.success("¡Partida(s) inyectada(s) exactamente en su grupo!")
         st.rerun()
-# ====================================================
-# ====================================================
+
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
 if not st.session_state.df.empty:
     df_side = st.session_state.df.copy()
     df_side['Costo'] = pd.to_numeric(df_side['Costo'], errors='coerce').fillna(0)
     
-    # Agrupar por prototipo: Contar casas (Lotes únicos) y sumar Costo
     df_resumen_proto = df_side.groupby('Prototipo').agg(
         Cantidad=('Lote', 'nunique'),
         Costo=('Costo', 'sum')
     ).reset_index()
     
-    # Aplicar ordenamiento natural nativo (1, 1+, 2, 2+, 2A...)
-    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(sort_prototipos_key)
+    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(natural_sort_key)
     df_resumen_proto = df_resumen_proto.sort_values(by='sort_key').drop(columns=['sort_key'])
     
     total_cantidad_protos = df_resumen_proto['Cantidad'].sum()
     total_general_protos = df_resumen_proto['Costo'].sum()
     
-    # Dar formato estético
     df_mostrar_sidebar = df_resumen_proto.copy()
     df_mostrar_sidebar['Total'] = df_mostrar_sidebar['Costo'].apply(lambda x: f"${x:,.2f}")
     df_mostrar_sidebar = df_mostrar_sidebar[['Prototipo', 'Cantidad', 'Total']]
     
-    # Añadir renglón final con sumatorias totales
     fila_total = pd.DataFrame([{
         'Prototipo': 'TOTAL', 
         'Cantidad': total_cantidad_protos, 
@@ -977,7 +745,6 @@ if not st.session_state.df.empty:
     }])
     df_mostrar_sidebar = pd.concat([df_mostrar_sidebar, fila_total], ignore_index=True)
     
-    # Dibujar la tabla limpia en el panel de la izquierda
     st.sidebar.markdown("<br><hr>", unsafe_allow_html=True)
     st.sidebar.markdown("##### 📊 Resumen por Prototipo")
     st.sidebar.dataframe(df_mostrar_sidebar, hide_index=True, use_container_width=True)
@@ -990,12 +757,9 @@ if menu == "Registro de Destajos":
     
     df_actual = st.session_state.df
     
-    # === INICIO DEL CAMBIO DE ORDEN VISUAL ===
-    # Reservamos los espacios físicos en el orden que deseas verlos
     espacio_kpi = st.empty() 
     espacio_filtros = st.container() 
 
-    # 1. Dibujamos los filtros dentro de su contenedor reservado
     with espacio_filtros:
         st.markdown("##### ⏳ Filtros de Tabla")
         
@@ -1011,18 +775,20 @@ if menu == "Registro de Destajos":
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-        # --- FILTROS DE TABLA CORREGIDOS Y ORDENADOS ---
-        list_prototipos = sorted(list(set([str(x).strip() for x in df_actual['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
-        list_manzanas = sorted(list(set([str(x).strip() for x in df_actual['Manzana'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
-        list_lotes = sorted(list(set([str(x).strip() for x in df_actual['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
+        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=natural_sort_key)
+        list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+        list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+        list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
         
-        destajistas_unicos_db = sorted(list(set([str(d).strip() for d in df_actual['Destajista'].dropna().unique() if str(d).strip()])))
-        list_destajistas_filtro = ["Todos"] + destajistas_unicos_db
-
         df_temporal_filtros = df_actual.copy()
-        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(limpiar_concepto)
+        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
         
-        list_conceptos = sorted(list(set([str(x).strip() for x in df_temporal_filtros['Concepto_Limpio'].dropna().unique() if str(x).strip()])), key=sort_por_excel)
+        conceptos_unicos_tuplas = {}
+        for _, row in df_temporal_filtros.iterrows():
+            limpio = row['Concepto_Limpio']
+            if limpio not in conceptos_unicos_tuplas:
+                conceptos_unicos_tuplas[limpio] = sort_conceptos(row['Partida'])
+        list_conceptos = sorted(conceptos_unicos_tuplas.keys(), key=lambda k: conceptos_unicos_tuplas[k])
 
         f_col1, f_col2 = st.columns(2)
         
@@ -1037,9 +803,8 @@ if menu == "Registro de Destajos":
             st.selectbox("Destajista:", list_destajistas_filtro, key="sel_dest")
             st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
-    # --- 2. APLICAR FILTROS LÓGICOS (Invisible para el usuario) ---
     df_filtrado = df_actual.copy()
-    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(limpiar_concepto)
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -1061,12 +826,10 @@ if menu == "Registro de Destajos":
         df_filtrado = df_filtrado[(df_filtrado['Fecha_Obj_Temp'] >= st.session_state.sel_fecha[0]) & (df_filtrado['Fecha_Obj_Temp'] <= st.session_state.sel_fecha[1])]
         df_filtrado = df_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
-    # --- 3. CÁLCULO DE KPI REACTIVOS ---
     costo_total_filtrado = df_filtrado['Costo'].sum()
     pagado_filtrado = df_filtrado.loc[df_filtrado['Fecha pago'] != '', 'Costo'].sum()
     pendiente_filtrado = costo_total_filtrado - pagado_filtrado
     
-    # 4. Inyectamos la tabla de resumen en el espacio vacío que dejamos hasta arriba
     espacio_kpi.markdown(f"""
     <div style="background-color:{COLOR_FONDO_PROTOTIPO}; padding:20px; border-radius:10px; margin-bottom:20px; color:{COLOR_TEXTO_PROTOTIPO};">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px;">
@@ -1088,7 +851,6 @@ if menu == "Registro de Destajos":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    # === FIN DEL CAMBIO DE ORDEN VISUAL ===
     
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1100,9 +862,7 @@ if menu == "Registro de Destajos":
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        # 1. Filtramos para obtener solo los índices de las partidas que NO tienen fecha de pago
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        # 2. Desmarcamos solo esas partidas pendientes, respetando las bloqueadas
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
         st.session_state.grid_key += 1
         st.rerun()
@@ -1126,15 +886,11 @@ if menu == "Registro de Destajos":
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
-    # ====================================================
-    # BOTÓN PARA INVOCAR EL FORMULARIO DE NUEVA PARTIDA
-    # ====================================================
     c_btn_add, c_btn_space = st.columns([2, 8])
     with c_btn_add:
         if st.button("➕ Añadir nueva partida", type="primary", use_container_width=True):
             dialogo_nueva_partida()
     st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
-    # ====================================================
 
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
@@ -1149,7 +905,6 @@ if menu == "Registro de Destajos":
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
     
-    # --- SOLUCIÓN AL KEYERROR: Creamos las columnas en la memoria antes de mandarlas a la tabla ---
     if '% Adicional' not in df_filtrado_grid.columns: 
         df_filtrado_grid['% Adicional'] = 0.0
     if '% Retención' not in df_filtrado_grid.columns: 
@@ -1160,11 +915,11 @@ if menu == "Registro de Destajos":
     df_filtrado_grid['Costo_Temp'] = pd.to_numeric(df_filtrado_grid['Costo'], errors='coerce').fillna(0)
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
-    # ----------------------------------------------------------------------------------------------
     
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']])
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
+    gb.configure_column("ID_DB", hide=True) # SE OCULTA LA CLAVE DE SUPABASE PERO VIAJA EN MEMORIA
     
     st.markdown(
         """
@@ -1225,37 +980,57 @@ if menu == "Registro de Destajos":
     }
 
     # ====================================================
-    # 🛑 TABLA RESTAURADA PARA FUNCIONAR AL INSTANTE (SIN FORMULARIO) 🛑
+    # FORMULARIO ENCAPSULADOR (LA MAGIA CONTRA EL PARPADEO ESTÁ AQUÍ)
     # ====================================================
-    df_para_aggrid = df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index']].copy()
-    
-    # Limpiamos textos vacíos que hacen chocar al motor
-    for col in df_para_aggrid.columns:
-        if df_para_aggrid[col].dtype == 'object':
-            df_para_aggrid[col] = df_para_aggrid[col].fillna('')
-            
-    # Reconstruimos la memoria del dataframe desde cero
-    df_para_aggrid = pd.DataFrame(df_para_aggrid.to_dict(orient='list'))
-    
-    # Parámetros originales actualizados a la nueva versión (LIBRE)
-    response = AgGrid(
-        df_para_aggrid,
-        gridOptions=grid_options,
-        key=f"grid_destajos_{st.session_state.grid_key}",
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True,
-        update_on=['cellValueChanged'],  
-        data_return_mode=DataReturnMode.AS_INPUT,
-        fit_columns_on_grid_load=False,
-        theme='balham',
-        height=600,
-        custom_css=mis_estilos
-    )
+    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stForm"] { 
+                border: none !important; 
+                padding: 0 !important; 
+            }
+            div[data-testid="stFormSubmitButton"] {
+                position: absolute !important;
+                top: -105px !important;  
+                right: -1105px !important;   
+                z-index: 9999 !important;
+            }
+            div[data-testid="stFormSubmitButton"] button {
+                width: 220px !important;
+                background-color: #3B82F6 !important;
+                color: white !important;
+                border-radius: 8px !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                height: 42px !important;
+                font-weight: bold !important;
+            }
+            div[data-testid="stFormSubmitButton"] button:hover { 
+                background-color: #2563EB !important; 
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        st.form_submit_button("🔄 Actualizar Totales", type="primary")
+        
+        response = AgGrid(
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            gridOptions=grid_options,
+            key=f"grid_destajos_{st.session_state.grid_key}",
+            reload_data=st.session_state.reload_trigger,
+            enable_enterprise_modules=False,
+            allow_unsafe_jscode=True,
+            update_mode=GridUpdateMode.VALUE_CHANGED,  
+            data_return_mode=DataReturnMode.AS_INPUT,  
+            fit_columns_on_grid_load=False,
+            theme='balham',
+            height=600,
+            custom_css=mis_estilos
+        )
     st.session_state.reload_trigger = False
 
-    # ====================================================
-    # LÓGICA DE ACTUALIZACIÓN (SUMANDO MONTO NETO REAL)
-    # ====================================================
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
@@ -1267,12 +1042,10 @@ if menu == "Registro de Destajos":
         df_pagar_actual = df_grid[(df_grid['Pagar_Bool'] == True) & (df_grid['Fecha_Pago_Limpia'] == '')].copy()
         total_checked = len(df_pagar_actual)
         
-        # --- CÁLCULO MATEMÁTICO: Suma de la columna Monto Neto (Punto 3) ---
         df_pagar_actual['C_Temp'] = pd.to_numeric(df_pagar_actual['Costo'], errors='coerce').fillna(0)
         df_pagar_actual['Ad_Temp'] = pd.to_numeric(df_pagar_actual['% Adicional'], errors='coerce').fillna(0)
         df_pagar_actual['Ret_Temp'] = pd.to_numeric(df_pagar_actual['% Retención'], errors='coerce').fillna(0)
         
-        # Fórmula exacta del Monto Neto
         df_pagar_actual['Monto_Neto_Real'] = df_pagar_actual['C_Temp'] + (df_pagar_actual['C_Temp'] * df_pagar_actual['Ad_Temp']) - (df_pagar_actual['C_Temp'] * df_pagar_actual['Ret_Temp'])
         
         costo_seleccionado = df_pagar_actual['Monto_Neto_Real'].sum()
@@ -1292,14 +1065,12 @@ elif menu == "Fondo de Garantía (Retenciones)":
     df_ret = st.session_state.df.copy()
     df_ret['_original_index'] = df_ret.index
     
-    # Nos quedamos únicamente con los renglones que tienen dinero retenido de origen
     df_ret['Monto Retenido'] = pd.to_numeric(df_ret['Monto Retenido'], errors='coerce').fillna(0)
     df_ret_filtrado = df_ret[df_ret['Monto Retenido'] > 0].copy()
     
     if df_ret_filtrado.empty:
         st.info("🎉 ¡Excelente! No existen fondos de garantía ni retenciones acumuladas en el sistema actualmente.")
     else:
-        # 1. TARJETAS RESUMEN DE RETENCIONES POR DESTAJISTA
         st.markdown("##### 💰 Acumulado de Retenciones por Contratista")
         kpi_cols = st.columns(3)
         idx_c = 0
@@ -1326,19 +1097,16 @@ elif menu == "Fondo de Garantía (Retenciones)":
         
         df_ret_filtrado['Liberar_Check'] = df_ret_filtrado['Estatus Retención'].apply(lambda x: True if str(x).strip() == 'Liberado' else False)
 
-        # 🛑 BLINDAJE DE INTERFAZ WEB: Forzamos a que las fechas y usuarios sean tratados estrictamente como texto
         df_ret_filtrado['Fecha Liberación'] = df_ret_filtrado['Fecha Liberación'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
         df_ret_filtrado['Usuario Liberó'] = df_ret_filtrado['Usuario Liberó'].fillna('').astype(str).replace(['nan', 'NaN', 'None', 'NaT', '<NA>'], '').str.strip()
 
-        # --- DISTRIBUCIÓN: FILTRO FECHA (IZQ) Y SUMA (DER) ---
         col_fecha, col_espacio, col_suma = st.columns([1.5, 0.5, 2])
         
         with col_fecha:
             st.markdown("##### 📅 Filtrar por Rango de Fechas")
             filtro_fecha_ret = st.date_input("Selecciona el período:", value=[], key="fecha_filtro_ret")
-            ph_label_azul = st.empty() # Espacio reservado para el label azul
+            ph_label_azul = st.empty() 
 
-        # Espacio reservado para inyectar la caja naranja DESPUÉS de que la tabla calcule
         ph_suma_naranja = col_suma.empty()
 
         if filtro_fecha_ret and len(filtro_fecha_ret) == 2:
@@ -1355,16 +1123,12 @@ elif menu == "Fondo de Garantía (Retenciones)":
 
             total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
             ph_label_azul.markdown(f"<div style='background-color:#3B82F6; color:white; padding:8px; border-radius:5px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px;'>Total Monto Retenido: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
-        # ----------------------------------------------------
 
-        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']])
+        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']])
         gb_ret.configure_default_column(sortable=False, filter=True, resizable=True)
 
-        
-        
-             
-       
         gb_ret.configure_column("_original_index", hide=True)
+        gb_ret.configure_column("ID_DB", hide=True)
         gb_ret.configure_column("Estatus Retención", hide=True) 
         
         gb_ret.configure_column("Lote", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
@@ -1380,12 +1144,10 @@ elif menu == "Fondo de Garantía (Retenciones)":
         rowStyleRet = JsCode("""
         function(params) {
             let estatus = params.data['Estatus Retención'];
-            // 1. Si YA ESTÁ guardado como Liberado en la base de datos, lo bloqueamos (congelado)
             if (estatus === 'Liberado') {
                 return { 'backgroundColor': 'rgba(16, 185, 129, 0.1)', 'color': '#6EE7B7', 'pointerEvents': 'none', 'borderBottom': '1px solid #10B981' };
             }
             
-            // 2. Si apenas lo están palomeando, lo iluminamos naranja/amarillo pero NO lo bloqueamos
             let chk = params.data['Liberar_Check'];
             if (chk === true || chk === 'true' || chk === 1) {
                 return { 'backgroundColor': 'rgba(245, 158, 11, 0.2)', 'color': '#FCD34D', 'borderBottom': '1px solid #F59E0B' };
@@ -1405,43 +1167,30 @@ elif menu == "Fondo de Garantía (Retenciones)":
             ".ag-checkbox-input-wrapper.ag-checked": {"background-color": "#10B981 !important", "border-color": "#10B981 !important"}
         }
         
-        # 🛑 BLINDAJE CONTRA SEGMENTATION FAULT (PYARROW) 🛑
-        df_para_aggrid_ret = df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index']].copy()
-        
-        for col in df_para_aggrid_ret.columns:
-            if df_para_aggrid_ret[col].dtype == 'object':
-                df_para_aggrid_ret[col] = df_para_aggrid_ret[col].fillna('')
-                
-        df_para_aggrid_ret = pd.DataFrame(df_para_aggrid_ret.to_dict(orient='list'))
-
         response_ret = AgGrid(
-            df_para_aggrid_ret,
+            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']].copy(),
             gridOptions=gb_ret.build(),
             key=f"grid_fondos_garantia_{st.session_state.grid_key}",
+            reload_data=False,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
-            update_on=['cellValueChanged'],  # <-- NUEVA API DE AGGRID
+            update_mode=GridUpdateMode.VALUE_CHANGED,
             data_return_mode=DataReturnMode.AS_INPUT,
             theme='streamlit',
             height=400,
             custom_css=mis_estilos_ret
         )
 
-        # --- ACUMULADO EN VIVO (SE MANDA AL ESPACIO DE ARRIBA) ---
         if response_ret['data'] is not None and not pd.DataFrame(response_ret['data']).empty:
             df_ret_pantalla = pd.DataFrame(response_ret['data'])
             df_ret_pantalla['Check_Bool'] = df_ret_pantalla['Liberar_Check'].astype(str).str.lower().isin(['true', '1'])
             
-            # MAGIA: Sumamos SOLO los checkeados en este momento y que NO estaban liberados desde antes
             suma_activados = df_ret_pantalla[(df_ret_pantalla['Check_Bool'] == True) & (df_ret_pantalla['Estatus Retención'] != 'Liberado')]['Monto Retenido'].sum()
 
             ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>${suma_activados:,.2f}</span></div>", unsafe_allow_html=True)
         else:
             ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>$0.00</span></div>", unsafe_allow_html=True)
-        # --------------------------------------------
 
-                
-        # 3. LÓGICA DE BOTÓN MAESTRO: GUARDAR Y PREPARAR RECIBO
         st.markdown("<br>", unsafe_allow_html=True)
         c_sav_r1, c_sav_r2, c_sav_r3 = st.columns([3, 4, 3])
         
@@ -1459,7 +1208,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     cambios_detectados = False
                     df_recibo_nuevo = []
                     
-                    # 🛑 BLINDAJE EN MEMORIA GLOBAL: Asegura que la base de datos local acepte el texto libre de la fecha
                     st.session_state.df['Fecha Liberación'] = st.session_state.df['Fecha Liberación'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
                     st.session_state.df['Usuario Liberó'] = st.session_state.df['Usuario Liberó'].astype(str).replace(['nan', 'NaN', 'NaT', 'None', '<NA>'], '')
                     
@@ -1483,7 +1231,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         
                         pdf = FPDF(orientation='P', unit='mm', format='Letter')
                         pdf.add_page()
-
                                                 
                         pdf.set_font("Arial", 'B', 14)
                         pdf.set_text_color(30, 58, 138)
@@ -1531,7 +1278,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         
                         st.session_state.ultimo_recibo_pdf = pdf.output(dest='S').encode('latin-1')
 
-                        # --- ENVÍO COMPLETO Y TOTAL DE LA BASE DE DATOS A GOOGLE SHEETS ---
                         df_envio_ret = st.session_state.df.copy()
                         if 'Concepto_Limpio' in df_envio_ret.columns:
                             df_envio_ret = df_envio_ret.drop(columns=['Concepto_Limpio'])
@@ -1539,8 +1285,9 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         df_envio_ret['Fecha pago'] = df_envio_ret['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         df_envio_ret['Fecha Liberación'] = df_envio_ret['Fecha Liberación'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                         
-                        with st.spinner("Registrando liberaciones y construyendo recibo..."):
+                        with st.spinner("Registrando liberaciones y sincronizando con Supabase..."):
                             actualizar_datos_gsheet(df_envio_ret)
+                            st.session_state.df = obtener_datos_gsheet()
                             
                         st.session_state.df_original = st.session_state.df.copy()
                         st.session_state.grid_key += 1 
@@ -1548,11 +1295,8 @@ elif menu == "Fondo de Garantía (Retenciones)":
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
 
-        # ==========================================================
-        # --- LA DESCARGA APARECE EXACTAMENTE AQUÍ ABAJO ---
-        # ==========================================================
         if 'ultimo_recibo_pdf' in st.session_state and st.session_state.ultimo_recibo_pdf is not None:
-            st.success("✅ ¡Liberación guardada en Google Sheets! Las partidas han sido bloqueadas exitosamente.")
+            st.success("✅ ¡Liberación guardada en Supabase! Las partidas han sido bloqueadas exitosamente.")
             
             c_desc1, c_desc2, c_desc3 = st.columns([3, 4, 3])
             with c_desc2:
@@ -1567,7 +1311,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
                 if st.button("❌ Ocultar este recibo", use_container_width=True):
                     st.session_state.ultimo_recibo_pdf = None
                     st.rerun()
-        # ==========================================================
 
 # =========================================================================
 # PESTAÑA 2: DASHBOARD INTERACTIVO Y GERENCIAL 
@@ -1589,9 +1332,9 @@ elif menu == "Dashboard (Gráficos y Visor)":
     st.markdown("### 🔍 Panel de Control y Filtros Dinámicos")
     
     d_col1, d_col2, d_col3 = st.columns(3)
-    protos_disponibles = sorted(list(set([str(x).strip() for x in df_dash_base['Prototipo'].dropna().unique() if str(x).strip()])), key=sort_prototipos_key)
-    lotes_disponibles = sorted(list(set([str(x).strip() for x in df_dash_base['Lote'].dropna().unique() if str(x).strip()])), key=natural_sort_key)
-    destajistas_disponibles = ["Todos"] + sorted(list(set([str(d).strip() for d in df_dash_base['Destajista'].dropna().unique() if str(d).strip()])))
+    protos_disponibles = sorted(df_dash_base['Prototipo'].unique(), key=ordenar_prototipos)
+    lotes_disponibles = sorted(list(df_dash_base['Lote'].unique()), key=natural_sort_key)
+    destajistas_disponibles = ["Todos"] + sorted(list(df_dash_base['Destajista'].replace('', pd.NA).dropna().unique()), key=natural_sort_key)
     
     if 'tab2_lotes_seleccionados' not in st.session_state:
         st.session_state.tab2_lotes_seleccionados = lotes_disponibles
@@ -1699,18 +1442,14 @@ elif menu == "Dashboard (Gráficos y Visor)":
             else:
                 g_col4.success("¡Excelente! No hay deuda pendiente para la selección actual.")
 
-
 # =========================================================================
-# =========================================================================
-# PESTAÑA 3: MAPA INTERACTIVO (RESTAURADA VERSIÓN ANTERIOR Y ADAPTADA A 'COSTO')
+# PESTAÑA 3: MAPA INTERACTIVO
 # =========================================================================
 elif menu == "Mapa Interactivo":
     mostrar_cabecera_con_logo("🗺️ Plano Interactivo Dinámico", "Visualización gráfica del avance del desarrollo.")
 
-    # --- ADAPTACIÓN AL NUEVO MODELO DE DATOS ---
     df_map_base = df.copy()
     df_map_base['Costo'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
-    # Lógica actual: Si tiene fecha de pago, está 100% Pagado. Si no, está Pendiente.
     df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
     def hex_to_rgba(hex_val, opacity):
@@ -1719,7 +1458,6 @@ elif menu == "Mapa Interactivo":
             return f"rgba({int(hex_val[0:2], 16)}, {int(hex_val[2:4], 16)}, {int(hex_val[4:6], 16)}, {opacity})"
         return "rgba(0,0,0,0)"
 
-    # --- ARCHIVO DE COORDENADAS INTERNO ORIGINAL ---
     COORDENADAS_LOTES = {
         "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
         "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
@@ -1766,7 +1504,6 @@ elif menu == "Mapa Interactivo":
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            # Adaptación para calcular lo que está realmente pagado sumando el Costo de las partidas terminadas
             df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
             total_precio_lote = df_lote_mapa['Costo'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
@@ -1774,29 +1511,27 @@ elif menu == "Mapa Interactivo":
             porcentaje = (total_pagado_lote / total_precio_lote * 100) if total_precio_lote > 0 else 0
             pagadas_completas = len(df_lote_mapa[df_lote_mapa['Estado'] == 'Pagado'])
             
-            # --- LÓGICA ORIGINAL DE ETAPAS DE OBRA ---
             if porcentaje == 0:
                 color_lote = "🔴 No iniciado"
-                hex_color = "#EF4444"      # Rojo
+                hex_color = "#EF4444"      
             elif 0 < porcentaje <= 50:
                 color_lote = "⚫ Obra negra"
-                hex_color = "#57534E"      # Gris oscuro
+                hex_color = "#57534E"      
             elif 50 < porcentaje <= 60:
                 color_lote = "⚪ Obra gris"
-                hex_color = "#752BA7"      # Morado
+                hex_color = "#752BA7"      
             elif 60 < porcentaje <= 70:
                 color_lote = "🟡 Obra blanca"
-                hex_color = "#FADE50"      # Amarillo
+                hex_color = "#FADE50"      
             elif 70 < porcentaje <= 80:
                 color_lote = "🟠 Pisos"
-                hex_color = "#F97316"      # Naranja
+                hex_color = "#F97316"      
             elif 80 < porcentaje <= 95:
                 color_lote = "🔵 Equipamientos (avalúos)"
-                hex_color = "#3B82F6"      # Azul
-            else: # Mayor a 95% hasta 100%
+                hex_color = "#3B82F6"      
+            else: 
                 color_lote = "🟢 Detallado y entrega"
-                hex_color = "#10B981"      # Verde
-            # --------------------------------------
+                hex_color = "#10B981"      
                 
             lotes_datos_mapa.append({
                 "Lote": f"Lote {lote_num}",
@@ -1851,11 +1586,12 @@ elif menu == "Mapa Interactivo":
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
     partidas_ordenadas = []
-    # Extraer conceptos únicos limpios y ordenarlos estrictamente por el Excel
-    conceptos_unicos_mapa = list(set([limpiar_concepto(str(p)) for p in df_map_base['Partida'].dropna().unique() if str(p).strip()]))
-    partidas_display = sorted(conceptos_unicos_mapa, key=sort_por_excel)
-
-    destajistas_unicos_filtro = sorted(list(set([str(d).strip() for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()])))
+    for p in df_map_base['Partida'].dropna().unique():
+        if str(p).strip() and str(p) not in partidas_ordenadas:
+            partidas_ordenadas.append(str(p))
+            
+    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
+    destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
     
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
         "Filtrar por Partida (Máx 4):", 
@@ -1863,8 +1599,7 @@ elif menu == "Mapa Interactivo":
         max_selections=4
     )
     
-    # Al no tener números en el control, el filtro recibe el texto directo
-    filtro_partidas_mapa = filtro_partidas_mapa_display
+    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
     
     filtro_destajistas_mapa = f_col_mapa2.multiselect(
         "Filtrar por Destajista (Máx 4):", 
@@ -1875,14 +1610,11 @@ elif menu == "Mapa Interactivo":
     filtros_activos = bool(filtro_partidas_mapa) or bool(filtro_destajistas_mapa)
     
     df_filtered = df_map_base[df_map_base['Estado'] == 'Pagado'].copy()
-    df_filtered['Concepto_Limpio'] = df_filtered['Partida'].apply(limpiar_concepto)
-    
     if filtro_partidas_mapa:
-        df_filtered = df_filtered[df_filtered['Concepto_Limpio'].isin(filtro_partidas_mapa)]
+        df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
-    # --- LEYENDA VISUAL DE AVANCES ORIGINAL ---
     st.markdown("""
     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; margin-bottom: 20px; padding: 12px; background-color: rgba(255,255,255,0.05); border-radius: 8px; justify-content: center; border: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 14px; height: 14px; background-color: #EF4444; border-radius: 50%;"></div><span style="font-size: 12px;">0% No iniciado</span></div>
@@ -1935,7 +1667,6 @@ elif menu == "Mapa Interactivo":
         
         st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
 
-        # --- LÓGICA DE LA TABLA (SEPARACIÓN MOSTRAR TODOS vs LOTE ESPECÍFICO) ---
         if st.session_state.mostrar_todos_mapa:
             if filtros_activos:
                 st.markdown("**Desglose de Filtros Activos (Todos los Lotes):**")
@@ -1988,7 +1719,6 @@ elif menu == "Mapa Interactivo":
                 styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
                 st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
         else:
-            # MOSTRANDO LOTE ESPECÍFICO (Cruzando datos con filtros activos)
             lote_puro_num = str(st.session_state.lote_actual)
             
             if filtros_activos:
@@ -2036,7 +1766,6 @@ elif menu == "Mapa Interactivo":
                 st.info(msg)
 
     with col_mapa:
-        # --- AQUÍ EMPIEZA LA INTEGRACIÓN DEL SVG PURO CON ESFERAS Y RELLENOS (VERSIÓN ANTERIOR) ---
         nombres_posibles = ["SVGsembrado.txt"]
         archivo_encontrado = None
         
@@ -2050,9 +1779,10 @@ elif menu == "Mapa Interactivo":
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
                     svg_content = f.read()
 
-                soup = BeautifulSoup(svg_content, "html.parser")
-                
-                    
+                try:
+                    soup = BeautifulSoup(svg_content, "xml")
+                except:
+                    soup = BeautifulSoup(svg_content, "html.parser")
                     
                 for path_elem in soup.find_all(['path', 'polygon']):
                     path_elem['fill-rule'] = "evenodd"
@@ -2117,17 +1847,14 @@ elif menu == "Mapa Interactivo":
                         lote_path = soup.find(id=id_lote) or soup.find(id=f"Lote-{int(id_lote):02d}")
 
                     if lote_path:
-                        # --- MEJORA DE LEYENDA HOVER EN EL POLÍGONO ---
                         etiqueta_hover = lote_path.find('title')
                         if not etiqueta_hover:
                             etiqueta_hover = soup.new_tag('title')
                             lote_path.append(etiqueta_hover)
                         
-                        # Extraemos el porcentaje y la fase (Estado) directamente de los datos del lote
                         avance_lote = item["Avance"]
                         fase_lote = item["Estado"]
                         
-                        # Formateamos la leyenda limpia: Lote X | Avance: XX% | Fase
                         etiqueta_hover.string = f"Lote {id_lote} | Avance: {avance_lote} | {fase_lote}"
 
                         df_lote_esferas = pd.DataFrame()
@@ -2160,7 +1887,6 @@ elif menu == "Mapa Interactivo":
                                         id_grad = f"grad_{id_lote}"
                                         n_cols = len(colores_opacidades)
 
-                                        # --- LÓGICA DE CORTE RECTANGULAR AUTOCONTENIDA ORIGINAL ---
                                         angulo_rotacion = 0
                                         try:
                                             d_attr = lote_path.get('d', '')
@@ -2238,9 +1964,7 @@ elif menu == "Mapa Interactivo":
         else:
             st.error("⚠️ No se encontró el archivo del mapa.")
             st.info(f"Por favor asegúrate de tener el archivo de texto en la misma carpeta que app.py y que se llame de alguna de estas formas: {nombres_posibles}")
-        # --- FIN DE LA INTEGRACIÓN DEL SVG ---
 
-    # --- INICIO DEL DIAGRAMA INTERACTIVO INYECTADO DEBAJO DEL MAPA (VERSIÓN ANTERIOR ADAPTADA) ---
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("### 🔗 Diagrama Interactivo de Partidas")
     
@@ -2257,7 +1981,6 @@ elif menu == "Mapa Interactivo":
             
             x_coords, y_coords, colores_relleno, textos_hover = [], [], [], []
 
-            # 1. Cuadrícula virtual perfecta original (10x5)
             ancho_celda = 10
             alto_celda = 5
             
@@ -2265,7 +1988,6 @@ elif menu == "Mapa Interactivo":
                 col_actual = i % cols
                 fila_actual = i // cols
                 
-                # 2. Posicionamiento en intersecciones
                 x = (col_actual * ancho_celda) + (ancho_celda / 2.0)
                 y = (fila_actual * alto_celda) + (alto_celda / 2.0)
                     
@@ -2273,22 +1995,20 @@ elif menu == "Mapa Interactivo":
                 y_coords.append(y)
 
                 estado = row.Estado
-                costo = row.Costo # ADAPTADO A LA COLUMNA ACTUAL
-                pago_real = costo if estado == 'Pagado' else 0.0 # ADAPTADO
+                costo = row.Costo 
+                pago_real = costo if estado == 'Pagado' else 0.0 
                 destajista = row.Destajista if pd.notna(row.Destajista) and row.Destajista != "" else "Sin Asignar"
                 
                 color_asignado = mapa_colores_partida.get(row.Partida, "#3B82F6")
 
-                # RELLENOS EXACTOS DE VERSIÓN ANTERIOR
                 if estado == "Pagado":
                     colores_relleno.append(color_asignado)
                 else:
-                    colores_relleno.append("rgba(0,0,0,0)") # Sin relleno si no está pagado
+                    colores_relleno.append("rgba(0,0,0,0)") 
 
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
-            # 3. Altura física y diseño visual estricto de la versión anterior
             diametro_esfera_px = 60
             padding_px = 25 
             altura_grafico = max(350, filas * (diametro_esfera_px + padding_px))
@@ -2301,13 +2021,12 @@ elif menu == "Mapa Interactivo":
                     size=diametro_esfera_px, 
                     color=colores_relleno,
                     symbol='circle',
-                    line=dict(width=1, color="#374151") # Bordes mínimos para las esferas transparentes 
+                    line=dict(width=1, color="#374151") 
                 ),
                 text=textos_hover,
                 hoverinfo='text'
             ))
 
-            # 4. Rectángulo verde brillante para delimitar
             x_min, y_min = 0.0, 0.0
             x_max = cols * ancho_celda
             y_max = filas * alto_celda
@@ -2322,7 +2041,6 @@ elif menu == "Mapa Interactivo":
             
             prototipo_diag = df_lote_diag['Prototipo'].iloc[0] if not df_lote_diag.empty else "N/A"
 
-            # 5. Geometría fijada en 1:1 para evitar deformaciones
             fig_diag.update_layout(
                 title=dict(text=f"Esferas del Lote {st.session_state.lote_actual} – {prototipo_diag}", font=dict(size=20)),
                 xaxis=dict(visible=False, showgrid=False, zeroline=False),
@@ -2341,4 +2059,3 @@ elif menu == "Mapa Interactivo":
             
         else:
             st.warning("⚠️ No hay partidas registradas para este lote.")
-    # --- FIN DEL DIAGRAMA INTERACTIVO ---
