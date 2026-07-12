@@ -1779,9 +1779,9 @@ elif menu == "Mapa Interactivo":
                 with open(archivo_encontrado, "r", encoding="utf-8") as f:
                     svg_content = f.read()
 
-                try:
-                    soup = BeautifulSoup(svg_content, "xml")
-                except:
+                #try:
+                #    soup = BeautifulSoup(svg_content, "xml")
+                #except:
                     soup = BeautifulSoup(svg_content, "html.parser")
                     
                 for path_elem in soup.find_all(['path', 'polygon']):
