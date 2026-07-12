@@ -907,10 +907,11 @@ if menu == "Registro de Destajos":
 
     df_filtrado_grid = df_filtrado.copy()
     # INYECCIÓN: Forzar orden numérico estricto de Lotes
+    df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     df_filtrado_grid['Lote_Num'] = pd.to_numeric(df_filtrado_grid['Lote'], errors='coerce').fillna(9999)
     df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', '_original_index']).drop(columns=['Lote_Num'])
 
-    df_filtrado_grid['_original_index'] = df_filtrado_grid.index
+    
     
     for c_ad in ['% Adicional', '% Retención', 'Monto Retenido', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó']:
         if c_ad not in df_filtrado_grid.columns:
