@@ -797,7 +797,7 @@ if menu == "Registro de Destajos":
         df_temporal_filtros = df_actual.copy()
         df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
         
-        list_conceptos = sorted([c for c in df_base_rep['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
+        list_conceptos = sorted([c for c in df_temporal_filtros['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
 
         f_col1, f_col2 = st.columns(2)
         
