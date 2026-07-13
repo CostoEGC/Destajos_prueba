@@ -191,20 +191,15 @@ def normalizar_texto(texto):
     texto = str(texto).strip().lower()
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')    
 
-# Cargar orden desde el CSV automáticamente
-try:
-    df_orden = pd.read_csv('orden_partidas.csv')
-    ORDEN_PARTIDAS = {normalizar_texto(row['PARTIDA']): int(row['Numero']) for _, row in df_orden.iterrows()}
-except Exception:
-    ORDEN_PARTIDAS = {}
 
-def sort_conceptos(concepto_limpio):
-    # 1. Eliminar CUALQUIER número, punto, guion o espacio inicial (ej. "1.- Cimentación" -> "Cimentación")
-    c_clean = re.sub(r'^\d+[\s\.\-]*', '', str(concepto_limpio))
-    # 2. Normalizar para igualarlo exactamente al formato seguro del CSV
-    c_norm = normalizar_texto(c_clean)
-    # 3. Retornar el número del CSV, o 9999 si no existe
-    return ORDEN_PARTIDAS.get(c_norm, 9999)
+def extraer_numero_partida(partida_str):
+    """Extrae el número inicial de la partida (solo se usa en secreto para ordenar)."""
+    match = re.search(r'^(\d+)', str(partida_str).strip())
+    return int(match.group(1)) if match else 99999
+
+def limpiar_texto_partida(partida_str):
+    """Elimina el número y guiones para que en pantalla solo aparezcan las palabras."""
+    return re.sub(r'^\d+[\s\.\-]*', '', str(partida_str)).strip()
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -802,9 +797,10 @@ if menu == "Registro de Destajos":
 
         # --- CÓDIGO PARA FILTROS EN CASCADA / DEPENDIENTES ---
         df_p = df_actual.copy()
-        df_p['Concepto_Limpio'] = df_p['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
+        df_p['Partida_Num'] = df_p['Partida'].apply(extraer_numero_partida)
+        df_p['Concepto_Limpio'] = df_p['Partida'].apply(limpiar_texto_partida)
 
-        # 1. Opciones de Prototipo (dependen de Manzana, Lotes, Concepto, Destajista y Estado)
+        # 1. Opciones de Prototipo
         df_proto_opts = df_p.copy()
         if st.session_state.sel_manzana != "Todos": df_proto_opts = df_proto_opts[df_proto_opts['Manzana'] == st.session_state.sel_manzana]
         if st.session_state.sel_lotes: df_proto_opts = df_proto_opts[df_proto_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -815,7 +811,7 @@ if menu == "Registro de Destajos":
             else: df_proto_opts = df_proto_opts[df_proto_opts['Fecha pago'] == '']
         list_prototipos = sorted(df_proto_opts['Prototipo'].unique().tolist(), key=sort_prototipos)
 
-        # 2. Opciones de Manzana (dependen de Prototipo, Lotes, Concepto, Destajista y Estado)
+        # 2. Opciones de Manzana
         df_mz_opts = df_p.copy()
         if st.session_state.sel_proto != "Todos": df_mz_opts = df_mz_opts[df_mz_opts['Prototipo'] == st.session_state.sel_proto]
         if st.session_state.sel_lotes: df_mz_opts = df_mz_opts[df_mz_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -826,7 +822,7 @@ if menu == "Registro de Destajos":
             else: df_mz_opts = df_mz_opts[df_mz_opts['Fecha pago'] == '']
         list_manzanas = sorted([x for x in df_mz_opts['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
 
-        # 3. Opciones de Lotes (dependen de Prototipo, Manzana, Concepto, Destajista y Estado)
+        # 3. Opciones de Lotes
         df_lote_opts = df_p.copy()
         if st.session_state.sel_proto != "Todos": df_lote_opts = df_lote_opts[df_lote_opts['Prototipo'] == st.session_state.sel_proto]
         if st.session_state.sel_manzana != "Todos": df_lote_opts = df_lote_opts[df_lote_opts['Manzana'] == st.session_state.sel_manzana]
@@ -837,7 +833,7 @@ if menu == "Registro de Destajos":
             else: df_lote_opts = df_lote_opts[df_lote_opts['Fecha pago'] == '']
         list_lotes = sorted([str(x) for x in df_lote_opts['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
 
-        # 4. Opciones de Concepto / Partida (dependen de Prototipo, Manzana, Lotes, Destajista y Estado)
+        # 4. Opciones de Concepto / Partida (MÁGIA DE ORDENAMIENTO OCULTO)
         df_concepto_opts = df_p.copy()
         if st.session_state.sel_proto != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Prototipo'] == st.session_state.sel_proto]
         if st.session_state.sel_manzana != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Manzana'] == st.session_state.sel_manzana]
@@ -846,9 +842,12 @@ if menu == "Registro de Destajos":
         if st.session_state.sel_estado != "Todos":
             if st.session_state.sel_estado == "Pagado": df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] != '']
             else: df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] == '']
-        list_conceptos = sorted([c for c in df_concepto_opts['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
+        
+        # Agrupamos por nombre limpio y ordenamos en base al número
+        conceptos_unicos = df_concepto_opts[['Concepto_Limpio', 'Partida_Num']].drop_duplicates().sort_values('Partida_Num')
+        list_conceptos = [c for c in conceptos_unicos['Concepto_Limpio'].tolist() if str(c).strip()]
 
-        # 5. Opciones de Destajista (dependen de Prototipo, Manzana, Lotes, Concepto y Estado)
+        # 5. Opciones de Destajista
         df_dest_opts = df_p.copy()
         if st.session_state.sel_proto != "Todos": df_dest_opts = df_dest_opts[df_dest_opts['Prototipo'] == st.session_state.sel_proto]
         if st.session_state.sel_manzana != "Todos": df_dest_opts = df_dest_opts[df_dest_opts['Manzana'] == st.session_state.sel_manzana]
@@ -858,12 +857,10 @@ if menu == "Registro de Destajos":
             if st.session_state.sel_estado == "Pagado": df_dest_opts = df_dest_opts[df_dest_opts['Fecha pago'] != '']
             else: df_dest_opts = df_dest_opts[df_dest_opts['Fecha pago'] == '']
         list_destajistas_filtro = ["Todos"] + sorted([str(d) for d in df_dest_opts['Destajista'].unique() if str(d).strip()], key=natural_sort_key)
-        # -----------------------------------------------------
         
-        df_temporal_filtros = df_actual.copy()
-        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
-        
-        list_conceptos = sorted([c for c in df_temporal_filtros['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
+        df_filtrado = df_actual.copy()
+        df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(limpiar_texto_partida)
+       
 
         f_col1, f_col2 = st.columns(2)
         
@@ -972,10 +969,20 @@ if menu == "Registro de Destajos":
     st.markdown("<hr style='margin:5px 0 10px 0;'>", unsafe_allow_html=True)
 
     df_filtrado_grid = df_filtrado.copy()
-    # INYECCIÓN: Forzar orden numérico estricto de Lotes
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
+    
+    # 1. Obtenemos el número oculto
     df_filtrado_grid['Lote_Num'] = pd.to_numeric(df_filtrado_grid['Lote'], errors='coerce').fillna(9999)
-    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', '_original_index']).drop(columns=['Lote_Num'])
+    df_filtrado_grid['Partida_Num'] = df_filtrado_grid['Partida'].apply(extraer_numero_partida)
+    
+    # 2. ORDENAMOS usando el número de Lote y el número oculto de Partida
+    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Partida_Num', '_original_index'])
+    
+    # 3. TRUCO VISUAL: Sobrescribimos el texto de la columna para que la tabla solo muestre palabras
+    df_filtrado_grid['Partida'] = df_filtrado_grid['Partida'].apply(limpiar_texto_partida)
+    
+    df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Partida_Num'])
+    # -------------------------------------------------------------
 
     
     
@@ -1669,19 +1676,23 @@ elif menu == "Mapa Interactivo":
         
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    # Cambia el bucle antiguo por esta línea optimizada que usa tu orden personalizado:
-    partidas_ordenadas = sorted(list(df_map_base['Partida'].dropna().unique()), key=sort_conceptos)
-                
-    partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
+    # Generamos las columnas necesarias
+    df_map_base['Partida_Num'] = df_map_base['Partida'].apply(extraer_numero_partida)
+    df_map_base['Concepto_Limpio'] = df_map_base['Partida'].apply(limpiar_texto_partida)
+
+    # Ordenamos y obtenemos nombres totalmente limpios
+    partidas_unicas = df_map_base[['Concepto_Limpio', 'Partida_Num']].drop_duplicates().sort_values('Partida_Num')
+    partidas_ordenadas_limpias = [str(p) for p in partidas_unicas['Concepto_Limpio'].tolist() if str(p).strip()]
+    
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
     
     filtro_partidas_mapa_display = f_col_mapa1.multiselect(
         "Filtrar por Partida (Máx 4):", 
-        options=partidas_display,
+        options=partidas_ordenadas_limpias,
         max_selections=4
     )
     
-    filtro_partidas_mapa = [val.split(".- ", 1)[1] for val in filtro_partidas_mapa_display]
+    filtro_partidas_mapa = filtro_partidas_mapa_display # Como ya es limpio, no necesitamos hacer el "split" de antes
     
     filtro_destajistas_mapa = f_col_mapa2.multiselect(
         "Filtrar por Destajista (Máx 4):", 
@@ -1693,7 +1704,7 @@ elif menu == "Mapa Interactivo":
     
     df_filtered = df_map_base[df_map_base['Estado'] == 'Pagado'].copy()
     if filtro_partidas_mapa:
-        df_filtered = df_filtered[df_filtered['Partida'].isin(filtro_partidas_mapa)]
+        df_filtered = df_filtered[df_filtered['Concepto_Limpio'].isin(filtro_partidas_mapa)]
     if filtro_destajistas_mapa:
         df_filtered = df_filtered[df_filtered['Destajista'].isin(filtro_destajistas_mapa)]
 
