@@ -29,6 +29,9 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stAppDeployButton {display: none;}
+    /* Inyección de escala visual para toda la app */
+    html, body, [data-testid="stApp"] {
+        zoom: 75%; /* Amplía los elementos un 75% más (Total 175%) */
     </style>
     """,
     unsafe_allow_html=True
@@ -192,8 +195,9 @@ except Exception:
     ORDEN_PARTIDAS = {}
 
 def sort_conceptos(concepto_limpio):
-    c_lower = str(concepto_limpio).strip().lower()
-    return ORDEN_PARTIDAS.get(c_lower, 9999) # 9999 los manda al final si no existen en el CSV
+    # Remueve números iniciales o prefijos del estilo "1.- " o "1 " antes de buscar en el CSV
+    c_clean = re.sub(r'^\d+\.-s*|^\d+\s*', '', str(concepto_limpio)).strip().lower()
+    return ORDEN_PARTIDAS.get(c_clean, 9999)
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -742,7 +746,7 @@ if not st.session_state.df.empty:
         Costo=('Costo', 'sum')
     ).reset_index()
     
-    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(natural_sort_key)
+    df_resumen_proto['sort_key'] = df_resumen_proto['Prototipo'].apply(sort_prototipos)
     df_resumen_proto = df_resumen_proto.sort_values(by='sort_key').drop(columns=['sort_key'])
     
     total_cantidad_protos = df_resumen_proto['Cantidad'].sum()
@@ -789,10 +793,65 @@ if menu == "Registro de Destajos":
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
-        list_prototipos = sorted(df_actual['Prototipo'].unique().tolist(), key=sort_prototipos)
-        list_manzanas = sorted([x for x in df_actual['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-        list_lotes = sorted([str(x) for x in df_actual['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-        list_destajistas_filtro = ["Todos"] + [d for d in LISTA_DESTAJISTAS if d != ""]
+        # --- CÓDIGO PARA FILTROS EN CASCADA / DEPENDIENTES ---
+        df_p = df_actual.copy()
+        df_p['Concepto_Limpio'] = df_p['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+
+        # 1. Opciones de Prototipo (dependen de Manzana, Lotes, Concepto, Destajista y Estado)
+        df_proto_opts = df_p.copy()
+        if st.session_state.sel_manzana != "Todos": df_proto_opts = df_proto_opts[df_proto_opts['Manzana'] == st.session_state.sel_manzana]
+        if st.session_state.sel_lotes: df_proto_opts = df_proto_opts[df_proto_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
+        if st.session_state.sel_concepto: df_proto_opts = df_proto_opts[df_proto_opts['Concepto_Limpio'].isin(st.session_state.sel_concepto)]
+        if st.session_state.sel_dest != "Todos": df_proto_opts = df_proto_opts[df_proto_opts['Destajista'] == st.session_state.sel_dest]
+        if st.session_state.sel_estado != "Todos":
+            if st.session_state.sel_estado == "Pagado": df_proto_opts = df_proto_opts[df_proto_opts['Fecha pago'] != '']
+            else: df_proto_opts = df_proto_opts[df_proto_opts['Fecha pago'] == '']
+        list_prototipos = sorted(df_proto_opts['Prototipo'].unique().tolist(), key=sort_prototipos)
+
+        # 2. Opciones de Manzana (dependen de Prototipo, Lotes, Concepto, Destajista y Estado)
+        df_mz_opts = df_p.copy()
+        if st.session_state.sel_proto != "Todos": df_mz_opts = df_mz_opts[df_mz_opts['Prototipo'] == st.session_state.sel_proto]
+        if st.session_state.sel_lotes: df_mz_opts = df_mz_opts[df_mz_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
+        if st.session_state.sel_concepto: df_mz_opts = df_mz_opts[df_mz_opts['Concepto_Limpio'].isin(st.session_state.sel_concepto)]
+        if st.session_state.sel_dest != "Todos": df_mz_opts = df_mz_opts[df_mz_opts['Destajista'] == st.session_state.sel_dest]
+        if st.session_state.sel_estado != "Todos":
+            if st.session_state.sel_estado == "Pagado": df_mz_opts = df_mz_opts[df_mz_opts['Fecha pago'] != '']
+            else: df_mz_opts = df_mz_opts[df_mz_opts['Fecha pago'] == '']
+        list_manzanas = sorted([x for x in df_mz_opts['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+
+        # 3. Opciones de Lotes (dependen de Prototipo, Manzana, Concepto, Destajista y Estado)
+        df_lote_opts = df_p.copy()
+        if st.session_state.sel_proto != "Todos": df_lote_opts = df_lote_opts[df_lote_opts['Prototipo'] == st.session_state.sel_proto]
+        if st.session_state.sel_manzana != "Todos": df_lote_opts = df_lote_opts[df_lote_opts['Manzana'] == st.session_state.sel_manzana]
+        if st.session_state.sel_concepto: df_lote_opts = df_lote_opts[df_lote_opts['Concepto_Limpio'].isin(st.session_state.sel_concepto)]
+        if st.session_state.sel_dest != "Todos": df_lote_opts = df_lote_opts[df_lote_opts['Destajista'] == st.session_state.sel_dest]
+        if st.session_state.sel_estado != "Todos":
+            if st.session_state.sel_estado == "Pagado": df_lote_opts = df_lote_opts[df_lote_opts['Fecha pago'] != '']
+            else: df_lote_opts = df_lote_opts[df_lote_opts['Fecha pago'] == '']
+        list_lotes = sorted([str(x) for x in df_lote_opts['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+
+        # 4. Opciones de Concepto / Partida (dependen de Prototipo, Manzana, Lotes, Destajista y Estado)
+        df_concepto_opts = df_p.copy()
+        if st.session_state.sel_proto != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Prototipo'] == st.session_state.sel_proto]
+        if st.session_state.sel_manzana != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Manzana'] == st.session_state.sel_manzana]
+        if st.session_state.sel_lotes: df_concepto_opts = df_concepto_opts[df_concepto_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
+        if st.session_state.sel_dest != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Destajista'] == st.session_state.sel_dest]
+        if st.session_state.sel_estado != "Todos":
+            if st.session_state.sel_estado == "Pagado": df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] != '']
+            else: df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] == '']
+        list_conceptos = sorted([c for c in df_concepto_opts['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
+
+        # 5. Opciones de Destajista (dependen de Prototipo, Manzana, Lotes, Concepto y Estado)
+        df_dest_opts = df_p.copy()
+        if st.session_state.sel_proto != "Todos": df_dest_opts = df_dest_opts[df_dest_opts['Prototipo'] == st.session_state.sel_proto]
+        if st.session_state.sel_manzana != "Todos": df_dest_opts = df_dest_opts[df_dest_opts['Manzana'] == st.session_state.sel_manzana]
+        if st.session_state.sel_lotes: df_dest_opts = df_dest_opts[df_dest_opts['Lote'].astype(str).isin(st.session_state.sel_lotes)]
+        if st.session_state.sel_concepto: df_dest_opts = df_dest_opts[df_dest_opts['Concepto_Limpio'].isin(st.session_state.sel_concepto)]
+        if st.session_state.sel_estado != "Todos":
+            if st.session_state.sel_estado == "Pagado": df_dest_opts = df_dest_opts[df_dest_opts['Fecha pago'] != '']
+            else: df_dest_opts = df_dest_opts[df_dest_opts['Fecha pago'] == '']
+        list_destajistas_filtro = ["Todos"] + sorted([str(d) for d in df_dest_opts['Destajista'].unique() if str(d).strip()], key=natural_sort_key)
+        # -----------------------------------------------------
         
         df_temporal_filtros = df_actual.copy()
         df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
@@ -1603,11 +1662,9 @@ elif menu == "Mapa Interactivo":
         
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
-    partidas_ordenadas = []
-    for p in df_map_base['Partida'].dropna().unique():
-        if str(p).strip() and str(p) not in partidas_ordenadas:
-            partidas_ordenadas.append(str(p))
-            
+    # Cambia el bucle antiguo por esta línea optimizada que usa tu orden personalizado:
+    partidas_ordenadas = sorted(list(df_map_base['Partida'].dropna().unique()), key=sort_conceptos)
+                
     partidas_display = [f"{i}.- {p}" for i, p in enumerate(partidas_ordenadas, start=1)]
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
     
