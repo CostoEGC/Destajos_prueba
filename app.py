@@ -146,6 +146,144 @@ LISTA_DESTAJISTAS_BASE = [
 ]
 LISTA_DESTAJISTAS = [" "] + sorted(LISTA_DESTAJISTAS_BASE)
 
+# =========================================================================
+# LISTA MAESTRA EXTRAÍDA DEL EXCEL (Sin números, orden exacto)
+# =========================================================================
+ORDEN_PARTIDAS_MAESTRO = [
+    "Trazo de cimentacion, muros e instalaciones",
+    "Cisterna",
+    "Excavaciones drenaje y cimentacion",
+    "Cimbra losa de cimentacion",
+    "Nivelacion de plataformas",
+    "Acero losa de cimentacion",
+    "Concreto en cimentacion",
+    "Instalaciones losa de cimentacion",
+    "Muros planta baja",
+    "Muros bajo escalera",
+    "Castillos, dalas y cerramientos pb",
+    "Muros de concreto en pb",
+    "Muros reforzados pb",
+    "Instalaciones en muros p.b.",
+    "Muro lateral cochera",
+    "Muros y castillos en patio de servicio",
+    "Instalacion hidraulica y electrica en patio",
+    "Cimbra en losa de entrepiso 1",
+    "Acero en losa de entrepiso 1",
+    "Concreto en losa de entrepiso 1",
+    "Instalaciones losa de entrepiso 1",
+    "Escalera de pb-n1",
+    "Muros nivel 1",
+    "Castillos, dalas y cerramientos nivel1",
+    "Muros de reforzados en nivel 1",
+    "Muros de concreto en nivel 1",
+    "Instalaciones en muros n1",
+    "Cimbra en losa de entrepiso 2",
+    "Acero en losa de entrepiso 2",
+    "Concreto en losa de entrepiso 2",
+    "Hormigon en losa de entrepiso 2",
+    "Veneciano en terraza",
+    "Instalaciones en losa de entrepiso 2",
+    "Escalera de n1-n2",
+    "Muros nivel 2",
+    "Castillos, dalas y cerramientos nivel2",
+    "Muros de concreto en nivel 2",
+    "Instalaciones en muros n2",
+    "Cimbra en losa de entrepiso 3",
+    "Acero en losa de entrepiso 3 inc. pretiles",
+    "Concreto en losa de entrepiso 3",
+    "Instalaciones en losa entrepiso 3",
+    "Albañilerias en azotea y terraza",
+    "Subcontrato por impermeabilizacion de azotea",
+    "Apalillado en azotea",
+    "Estructura tinaco",
+    "Instalaciones de gas y calentador solar",
+    "Subcontrato por aplanados de yeso y pasta",
+    "Base para cocina",
+    "Aplanados en baños",
+    "Zarpeos en losas y castillos",
+    "Recibir instalaciones de luz, agua",
+    "Guiado de ductos",
+    "Resane en balcon de nivel 1",
+    "Sardinel en balcon de nivel 1",
+    "Colocacion de monomandos en regaderas",
+    "Repison medio baño planta baja",
+    "Forjado de nicho en escalera",
+    "Albañilerias de patio y muro medianero",
+    "Aplanado de patio",
+    "Albañilerias en cochera",
+    "Base para cuadro de medicion hidraulico",
+    "Huellas vehiculares en cochera",
+    "Limpieza en patio",
+    "Instalacion de base medidor electrico",
+    "Instalacion de cuadro de medicion hidraulico",
+    "Encofrado de tuberia en patio",
+    "Forjado de registro pluvial en cochera",
+    "Resane de llave de chorro en cochera",
+    "Abultado en ventanas",
+    "Aplanados fachadas ppal",
+    "Junta fachada ppal",
+    "Aplanados fachada posterior",
+    "Junta fachada posterior",
+    "Pisos y azulejos",
+    "Recubrimientos en fachada ppal",
+    "Terminacion de zoclo",
+    "Elaboracion de sardinel en baños",
+    "Forjado de jaboneras en area de regaderas",
+    "Nivelacion de charolas de baños",
+    "Subcontrato por aplicacion de fondo en fachada principal",
+    "Subcontrato por aplicacion de pintura 1° mano en fachada principal",
+    "Subcontrato por aplicacion de pintura 2° mano en fachada principal",
+    "Subcontrato por aplicacion de fondo en fachada posterior",
+    "Subcontrato por aplicacion de pintura 1° mano en fachada posterior",
+    "Subcontrato por aplicacion de pintura 2° mano en fachada posterior",
+    "Subcontrato por aplicacion de fondo en interiores",
+    "Subcontrato por aplicacion de pintura 1° mano en interiores",
+    "Subcontrato por aplicacion de pintura 2° mano en interiores",
+    "Subcontrato de tablaroca y durock en muros y plafones",
+    "Subcontrato de ventaneria de aluminio y vidrio iva cero",
+    "Barandales de herreria en escalera",
+    "Fabricacion de escalera marina",
+    "Herreria para rejillas en cocheras y patios",
+    "Subcontrato por fabricacion y colocacion de barra desayunadora a base de herreria",
+    "Subcontrato de barandal de herreria entre escalera entre sala",
+    "Subcontrato de canceles de baño iva cero",
+    "Subcontrato por topes de aluminio iva cero",
+    "Subcontrato por numeros de aluminio iva cero",
+    "Subcontrato por barandales de cristal en balcones iva cero",
+    "Subcontrato por barandales de cristal en terraza iva cero",
+    "Subcontrato domos iva cero",
+    "Colocacion de escalera marina",
+    "Subcontrato por suministro e instalacion de cocina integral, closets, muebles de baño. cocina con granito gris, madera en melamina deacuerdo a plano, incluye: tarja, contracanasta, estufa, campana",
+    "Pata granito itaunas",
+    "Splash granito itaunas",
+    "Subcontrato de carpinteria para puertas madera",
+    "Suministro de tierra vegetal",
+    "Suministro y colocacion de pasto en rollo cochera y patio",
+    "Colocacion de accesorios para baño",
+    "Amueblado hidraulico y sanitario",
+    "Amueblado electrico",
+    "Limpieza gruesa 1 y retiro de escombro fuera de obra",
+    "Limpieza gruesa de cisterna",
+    "Subcontrato de laboratorio de control de calidad",
+    "Detallado de vivienda y garantias",
+    "Limpieza gruesa 2 y retiro de escombro fuera de obra",
+    "Prueba general sanitaria, hidraulica y pluvial",
+    "Instalacion de bomba, boyler, tanque y toma de gas",
+    "Instalacion para aire acondicionado",
+    "Cableado aire acondicionado",
+    "Base para boiler",
+    "Limpieza fina de cisterna",
+    "Guiado telmex de registro a casa",
+    "Retiro medidor hidráulico",
+    "Colocacion de medidor hidraulico",
+    "Colocacion de tinaco y ramaleo de tuberias",
+    "Colocacion de tanque y control press con alimentacion electrica",
+    "Conexión de toma de gas a tanque estacionario",
+    "Alimentacion electrica para bomba sumergible y tanque presurizado 5 hilos",
+    "Alimentacion de registro a vivienda (ponchado)"
+]
+
+
 
 ANCHO_LOGIN_ENTRADAS = "200px"    
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
@@ -826,6 +964,7 @@ if menu == "Registro de Destajos":
         list_lotes = sorted([str(x) for x in df_lote_opts['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
 
         # 4. Opciones de Concepto / Partida (MÁGIA DE ORDENAMIENTO OCULTO)
+        # 4. Opciones de Concepto / Partida (ORDEN ESTRICTO DEL EXCEL)
         df_concepto_opts = df_p.copy()
         if st.session_state.sel_proto != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Prototipo'] == st.session_state.sel_proto]
         if st.session_state.sel_manzana != "Todos": df_concepto_opts = df_concepto_opts[df_concepto_opts['Manzana'] == st.session_state.sel_manzana]
@@ -835,7 +974,12 @@ if menu == "Registro de Destajos":
             if st.session_state.sel_estado == "Pagado": df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] != '']
             else: df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] == '']
         
-        list_conceptos = obtener_conceptos_ordenados_limpios(df_concepto_opts)
+        # Filtramos, limpiamos y obligamos a que se ordenen usando la Lista Maestra
+        conceptos_presentes = [str(c).strip() for c in df_concepto_opts['Concepto_Limpio'].unique() if str(c).strip()]
+        list_conceptos = sorted(
+            conceptos_presentes, 
+            key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+        )
 
         # 5. Opciones de Destajista
         df_dest_opts = df_p.copy()
@@ -972,15 +1116,18 @@ if menu == "Registro de Destajos":
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
-    # 1. Obtenemos el número oculto
     df_filtrado_grid['Lote_Num'] = pd.to_numeric(df_filtrado_grid['Lote'], errors='coerce').fillna(9999)
-    df_filtrado_grid['Partida_Num'] = df_filtrado_grid['Partida'].apply(extraer_numero_partida)
+    # TRUCO VISUAL: Limpiamos la partida en pantalla para quitar el número 
+    df_filtrado_grid['Partida'] = df_filtrado_grid['Partida'].apply(limpiar_texto_partida)
     
-    # 2. ORDENAMOS usando el número de Lote y el número oculto de Partida
-    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Partida_Num', '_original_index'])
+    # Creamos columna de orden guiada ESTRICTAMENTE por tu Excel
+    df_filtrado_grid['Orden_Excel'] = df_filtrado_grid['Partida'].apply(
+        lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+    )
     
-        
-    df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Partida_Num'])
+    # ORDENAMOS LA TABLA respetando lotes y luego la lista maestra
+    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', '_original_index'])
+    df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Orden_Excel'])
     # -------------------------------------------------------------
 
     
@@ -1026,7 +1173,7 @@ if menu == "Registro de Destajos":
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
-    gb.configure_column("Partida", editable=False, width=300, valueFormatter="x ? x.replace(/^\\d+[\\s\\.\\-]*/, '').trim() : ''") 
+    gb.configure_column("Partida", editable=False, width=300) 
     gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
     
     gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, singleClickEdit=True, width=200)
@@ -1675,9 +1822,13 @@ elif menu == "Mapa Interactivo":
     
     # Generamos las columnas necesarias
     df_map_base['Partida_Num'] = df_map_base['Partida'].apply(extraer_numero_partida)
+    # Usamos la Lista Maestra para ordenar los filtros del mapa
     df_map_base['Concepto_Limpio'] = df_map_base['Partida'].apply(limpiar_texto_partida)
-
-    partidas_ordenadas_limpias = obtener_conceptos_ordenados_limpios(df_map_base)
+    conceptos_mapa = [str(p) for p in df_map_base['Concepto_Limpio'].dropna().unique() if str(p).strip()]
+    partidas_ordenadas_limpias = sorted(
+        conceptos_mapa,
+        key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+    )
     
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
     
@@ -1815,12 +1966,22 @@ elif menu == "Mapa Interactivo":
             
             if filtros_activos:
                 st.markdown(f"**Desglose Filtrado (Lote {lote_puro_num}):**")
-                df_desglose_lote = df_filtered[df_filtered['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
+                df_desglose_lote = df_filtered[df_filtered['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo', 'Concepto_Limpio']].copy()
             else:
                 st.markdown(f"**Desglose General (Lote {lote_puro_num}):**")
-                df_desglose_lote = df_map_base[df_map_base['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo']].copy()
+                df_desglose_lote = df_map_base[df_map_base['Lote'].astype(str).str.strip() == lote_puro_num][['Partida', 'Estado', 'Costo', 'Concepto_Limpio']].copy()
             
+            # ORDENAMOS desglose del lote usando la lista maestra y ocultamos el número
             if not df_desglose_lote.empty:
+                df_desglose_lote['Orden_Excel'] = df_desglose_lote['Concepto_Limpio'].apply(
+                    lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+                )
+                df_desglose_lote = df_desglose_lote.sort_values('Orden_Excel')
+                df_desglose_lote['Partida'] = df_desglose_lote['Concepto_Limpio'] # Desaparece número
+
+
+
+
                 def formatear_estado_icono(val):
                     if val == "Pagado": return "🟢 100% PAGADO"
                     return "🔴 PENDIENTE"
