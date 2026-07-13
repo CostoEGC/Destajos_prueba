@@ -1733,6 +1733,10 @@ elif menu == "Mapa Interactivo":
                 
                 df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
                 df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
+
+                # --- CORRECCIÓN DE ORDENAMIENTO NUMÉRICO (NATURAL) ---
+                df_resumen_global_grp['sort_key'] = df_resumen_global_grp['Lote'].apply(natural_sort_key)
+                df_resumen_global_grp = df_resumen_global_grp.sort_values(by='sort_key').drop(columns=['sort_key'])
                 
                 styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
                 st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
