@@ -29,9 +29,6 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     .stAppDeployButton {display: none;}
-    /* Inyección de escala visual para toda la app */
-    html, body, [data-testid="stApp"] {
-        zoom: 75%; /* Amplía los elementos un 75% más (Total 175%) */
     </style>
     """,
     unsafe_allow_html=True
