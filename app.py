@@ -15,6 +15,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 from fpdf import FPDF
 import tempfile
 from supabase import create_client, Client
+import unicodedata
 
 # =========================================================================
 # CONFIGURACIÓN INICIAL DE LA PÁGINA Y CONEXIÓN A SUPABASE
@@ -184,17 +185,26 @@ def sort_prototipos(p):
         return (num, letra, plus)
     return (999, p_str, 0)
 
+def normalizar_texto(texto):
+    """Pasa a minúsculas, quita espacios extra y elimina acentos para cruzar datos perfectos"""
+    if pd.isna(texto): return ""
+    texto = str(texto).strip().lower()
+    return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')    
+
 # Cargar orden desde el CSV automáticamente
 try:
     df_orden = pd.read_csv('orden_partidas.csv')
-    ORDEN_PARTIDAS = {str(row['PARTIDA']).strip().lower(): int(row['Numero']) for _, row in df_orden.iterrows()}
+    ORDEN_PARTIDAS = {normalizar_texto(row['PARTIDA']): int(row['Numero']) for _, row in df_orden.iterrows()}
 except Exception:
     ORDEN_PARTIDAS = {}
 
 def sort_conceptos(concepto_limpio):
-    # Remueve números iniciales o prefijos del estilo "1.- " o "1 " antes de buscar en el CSV
-    c_clean = re.sub(r'^\d+\.-s*|^\d+\s*', '', str(concepto_limpio)).strip().lower()
-    return ORDEN_PARTIDAS.get(c_clean, 9999)
+    # 1. Eliminar CUALQUIER número, punto, guion o espacio inicial (ej. "1.- Cimentación" -> "Cimentación")
+    c_clean = re.sub(r'^\d+[\s\.\-]*', '', str(concepto_limpio))
+    # 2. Normalizar para igualarlo exactamente al formato seguro del CSV
+    c_norm = normalizar_texto(c_clean)
+    # 3. Retornar el número del CSV, o 9999 si no existe
+    return ORDEN_PARTIDAS.get(c_norm, 9999)
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -379,7 +389,7 @@ def dialogo_reportes():
     list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
     list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
     
-    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
     
     list_conceptos = sorted([c for c in df_base_rep['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
 
@@ -792,7 +802,7 @@ if menu == "Registro de Destajos":
 
         # --- CÓDIGO PARA FILTROS EN CASCADA / DEPENDIENTES ---
         df_p = df_actual.copy()
-        df_p['Concepto_Limpio'] = df_p['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+        df_p['Concepto_Limpio'] = df_p['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
 
         # 1. Opciones de Prototipo (dependen de Manzana, Lotes, Concepto, Destajista y Estado)
         df_proto_opts = df_p.copy()
@@ -851,7 +861,7 @@ if menu == "Registro de Destajos":
         # -----------------------------------------------------
         
         df_temporal_filtros = df_actual.copy()
-        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+        df_temporal_filtros['Concepto_Limpio'] = df_temporal_filtros['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
         
         list_conceptos = sorted([c for c in df_temporal_filtros['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
 
@@ -869,7 +879,7 @@ if menu == "Registro de Destajos":
             st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
     df_filtrado = df_actual.copy()
-    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+\.-s*|^\d+\s*', '', str(x)).strip())
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
