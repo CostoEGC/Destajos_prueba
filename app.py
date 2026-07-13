@@ -55,7 +55,6 @@ def obtener_datos_gsheet():
             'partida': 'Partida',
             'costo': 'Costo',
             'destajista': 'Destajista',
-            'cc': 'C.C',
             'pct_adicional': '% Adicional',
             'pct_retencion': '% Retención',
             'monto_retenido': 'Monto Retenido',
@@ -96,7 +95,6 @@ def actualizar_datos_gsheet(df_envio):
             'Partida': 'partida',
             'Costo': 'costo',
             'Destajista': 'destajista',
-            'C.C': 'cc',
             '% Adicional': 'pct_adicional',
             '% Retención': 'pct_retencion',
             'Monto Retenido': 'monto_retenido',
@@ -148,14 +146,6 @@ LISTA_DESTAJISTAS_BASE = [
 ]
 LISTA_DESTAJISTAS = [" "] + sorted(LISTA_DESTAJISTAS_BASE)
 
-LISTA_CC = [
-    " ",
-    "N62",
-    "N75",
-    "F13",
-    "S03",
-    "R01"
-]
 
 ANCHO_LOGIN_ENTRADAS = "200px"    
 COLOR_FONDO_PROTOTIPO = "#1E3A8A"
@@ -200,6 +190,14 @@ def extraer_numero_partida(partida_str):
 def limpiar_texto_partida(partida_str):
     """Elimina el número y guiones para que en pantalla solo aparezcan las palabras."""
     return re.sub(r'^\d+[\s\.\-]*', '', str(partida_str)).strip()
+
+def obtener_conceptos_ordenados_limpios(df_fuente):
+    """Extrae las partidas, las ordena por su número oculto y devuelve solo el texto limpio sin duplicados."""
+    df_temp = df_fuente[['Partida']].drop_duplicates().copy()
+    df_temp['Num'] = df_temp['Partida'].apply(extraer_numero_partida)
+    df_temp = df_temp.sort_values('Num')
+    limpios = df_temp['Partida'].apply(limpiar_texto_partida).unique().tolist()
+    return [c for c in limpios if str(c).strip()]
 
 # =========================================================================
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
@@ -292,10 +290,9 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
         filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
-        filas_invalidas = filas_a_pagar[(filas_a_pagar['Destajista'].astype(str).str.strip() == '') | (filas_a_pagar['C.C'].astype(str).str.strip() == '')]
-        
+        filas_invalidas = filas_a_pagar[filas_a_pagar['Destajista'].astype(str).str.strip() == '']
         if not filas_invalidas.empty:
-            st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' o 'C.C' asignado. Completa los datos antes de guardar.")
+            st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' asignado. Completa los datos antes de guardar.")
         else:
             with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
@@ -312,7 +309,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                     for _, row in filas_a_pagar.iterrows():
                         idx_original = int(row['_original_index'])
                         st.session_state.df.at[idx_original, 'Destajista'] = str(row['Destajista']).strip()
-                        st.session_state.df.at[idx_original, 'C.C'] = str(row['C.C']).strip()
                         st.session_state.df.at[idx_original, 'Pagar'] = True
                         st.session_state.df.at[idx_original, 'Fecha pago'] = ahora
                         st.session_state.df.at[idx_original, 'Usuario'] = usuario_actual
@@ -324,7 +320,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 for _, row in df_actual_pantalla.iterrows():
                     idx_original = int(row['_original_index'])
                     st.session_state.df.loc[idx_original, 'Destajista'] = str(row['Destajista']).strip() if pd.notna(row['Destajista']) else ""
-                    st.session_state.df.loc[idx_original, 'C.C'] = str(row['C.C']).strip() if pd.notna(row['C.C']) else ""
                     
                     pct_ad = float(row['% Adicional']) if pd.notna(row['% Adicional']) else 0.0
                     pct_ret = float(row['% Retención']) if pd.notna(row['% Retención']) else 0.0
@@ -386,7 +381,7 @@ def dialogo_reportes():
     
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
     
-    list_conceptos = sorted([c for c in df_base_rep['Concepto_Limpio'].unique() if str(c).strip()], key=sort_conceptos)
+    list_conceptos = obtener_conceptos_ordenados_limpios(df_base_rep)
 
     r_col1, r_col2 = st.columns(2)
     with r_col1:
@@ -642,7 +637,6 @@ def dialogo_nueva_partida():
     with c1:
         lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
         dest_sel = st.selectbox("Destajista", options=[""] + [d for d in LISTA_DESTAJISTAS if d.strip()])
-        cc_sel = st.multiselect("C.C", options=[c for c in LISTA_CC if c.strip()])
     with c2:
         partida_txt = st.text_input("Concepto / Partida *", help="Obligatorio.")
         costo_txt = st.text_input("Costo unitario ($) *", placeholder="Ej. 1,500.00", help="Obligatorio. Puedes usar comas.")
@@ -683,7 +677,6 @@ def dialogo_nueva_partida():
             ahora = ""
             usr = ""
             
-        cc_str = ", ".join(cc_sel) if cc_sel else ""
         
         df_temp = st.session_state.df.copy()
         
@@ -710,7 +703,6 @@ def dialogo_nueva_partida():
                 'Partida': partida_final,
                 'Costo': costo_float,
                 'Destajista': dest_sel,
-                'C.C': cc_str,
                 '% Adicional': 0.0,  
                 '% Retención': 0.0,  
                 'Pagar': pagar_bool,
@@ -843,9 +835,7 @@ if menu == "Registro de Destajos":
             if st.session_state.sel_estado == "Pagado": df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] != '']
             else: df_concepto_opts = df_concepto_opts[df_concepto_opts['Fecha pago'] == '']
         
-        # Agrupamos por nombre limpio y ordenamos en base al número
-        conceptos_unicos = df_concepto_opts[['Concepto_Limpio', 'Partida_Num']].drop_duplicates().sort_values('Partida_Num')
-        list_conceptos = [c for c in conceptos_unicos['Concepto_Limpio'].tolist() if str(c).strip()]
+        list_conceptos = obtener_conceptos_ordenados_limpios(df_concepto_opts)
 
         # 5. Opciones de Destajista
         df_dest_opts = df_p.copy()
@@ -930,34 +920,45 @@ if menu == "Registro de Destajos":
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
         st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-        #st.session_state.grid_key += 1
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-        #st.session_state.grid_key += 1
         st.session_state.reload_trigger = True
         st.rerun()
 
+    # --- 1. Asignación Destajista ---
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
             st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
-            #st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
             st.success("Destajista asignado masivamente.")
             st.rerun()
 
-    cc_masivo = b_col4.selectbox("C.C M.", ["Seleccionar..."] + LISTA_CC, label_visibility="collapsed")
-    if b_col4.button("Asignar C.C Masivo", use_container_width=True):
-        if cc_masivo != "Seleccionar...":
-            st.session_state.df.loc[df_filtrado.index, 'C.C'] = cc_masivo
-            #st.session_state.grid_key += 1
+    # --- 2. Asignación % Adicional ---
+    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
+    if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
+        if pct_adicional_masivo != "Seleccionar...":
+            val = 0.10 if pct_adicional_masivo == "10%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
             st.session_state.reload_trigger = True
-            st.success("C.C asignado masivamente.")
+            st.success("% Adicional asignado masivamente.")
             st.rerun()
+
+    # --- 3. Asignación % Retención ---
+    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
+    if b_col5.button("Asignación masiva % Retención", use_container_width=True):
+        if pct_retencion_masiva != "Seleccionar...":
+            val = 0.05 if pct_retencion_masiva == "5%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
+            st.session_state.reload_trigger = True
+            st.success("% Retención asignado masivamente.")
+            st.rerun()
+
+    ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
@@ -978,9 +979,7 @@ if menu == "Registro de Destajos":
     # 2. ORDENAMOS usando el número de Lote y el número oculto de Partida
     df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Partida_Num', '_original_index'])
     
-    # 3. TRUCO VISUAL: Sobrescribimos el texto de la columna para que la tabla solo muestre palabras
-    df_filtrado_grid['Partida'] = df_filtrado_grid['Partida'].apply(limpiar_texto_partida)
-    
+        
     df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Partida_Num'])
     # -------------------------------------------------------------
 
@@ -1007,7 +1006,7 @@ if menu == "Registro de Destajos":
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
     
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
     gb.configure_column("ID_DB", hide=True) # SE OCULTA LA CLAVE DE SUPABASE PERO VIAJA EN MEMORIA
@@ -1027,11 +1026,10 @@ if menu == "Registro de Destajos":
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
-    gb.configure_column("Partida", editable=False, width=300) 
+    gb.configure_column("Partida", editable=False, width=300, valueFormatter="x ? x.replace(/^\\d+[\\s\\.\\-]*/, '').trim() : ''") 
     gb.configure_column("Costo", editable=False, filter=False, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=120)
     
     gb.configure_column("Destajista", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_DESTAJISTAS}, singleClickEdit=True, width=200)
-    gb.configure_column("C.C", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': LISTA_CC}, cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=180)
     gb.configure_column("% Adicional", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.10]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=110)
     gb.configure_column("% Retención", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={'values': [0, 0.05]}, valueFormatter="x ? (x*100)+'%' : '0%'", cellClass='centrar-valor', headerClass='ag-center-header', singleClickEdit=True, width=110)
     
@@ -1052,8 +1050,7 @@ if menu == "Registro de Destajos":
         let check_pagar = params.data['Pagar'];
         if (check_pagar === true || check_pagar === 'true' || check_pagar === 1) {
             let dest = params.data['Destajista'];
-            let cc = params.data['C.C'];
-            if (!dest || dest.trim() === '' || !cc || cc.trim() === '') { style['backgroundColor'] = '#4a0000'; }
+            if (!dest || dest.trim() === '') { style['backgroundColor'] = '#4a0000'; }
         }
         return style;
     }
@@ -1107,7 +1104,7 @@ if menu == "Registro de Destajos":
         st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
         response = AgGrid(
-            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', 'C.C', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
             gridOptions=grid_options,
             key=f"grid_destajos_{st.session_state.grid_key}",
             reload_data=st.session_state.reload_trigger,
@@ -1142,10 +1139,10 @@ if menu == "Registro de Destajos":
         costo_seleccionado = df_pagar_actual['Monto_Neto_Real'].sum()
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
-        b_col5.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
 
 # =========================================================================
 # NUEVA PESTAÑA: FONDO DE GARANTÍA (RETENCIONES)
@@ -1680,9 +1677,7 @@ elif menu == "Mapa Interactivo":
     df_map_base['Partida_Num'] = df_map_base['Partida'].apply(extraer_numero_partida)
     df_map_base['Concepto_Limpio'] = df_map_base['Partida'].apply(limpiar_texto_partida)
 
-    # Ordenamos y obtenemos nombres totalmente limpios
-    partidas_unicas = df_map_base[['Concepto_Limpio', 'Partida_Num']].drop_duplicates().sort_values('Partida_Num')
-    partidas_ordenadas_limpias = [str(p) for p in partidas_unicas['Concepto_Limpio'].tolist() if str(p).strip()]
+    partidas_ordenadas_limpias = obtener_conceptos_ordenados_limpios(df_map_base)
     
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
     
