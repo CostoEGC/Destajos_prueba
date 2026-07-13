@@ -2,8 +2,4 @@
 dataFrameSerialization = "legacy"
 
 [theme]
-primaryColor = "#3B82F6"
-backgroundColor = "#0D0D0D"
-secondaryBackgroundColor = "#1E293B"
-textColor = "#00FFFF"
 base = "dark"
