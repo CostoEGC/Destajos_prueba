@@ -355,7 +355,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                #st.session_state.grid_key += 1 
+                st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
                 st.success("¡Datos guardados!")
                 st.rerun()
@@ -587,7 +587,7 @@ def dialogo_reportes():
             pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
             pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
         
-        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        pdf_bytes = bytes(pdf.output())
 
         st.markdown(
             """
@@ -1294,7 +1294,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         pdf.cell(w_col1, 8, txt="GRAN TOTAL LIBERADO HOY ", border=1, align='R', fill=True)
                         pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
                         
-                        st.session_state.ultimo_recibo_pdf = pdf.output(dest='S').encode('latin-1')
+                        st.session_state.ultimo_recibo_pdf = bytes(pdf.output())
 
                         df_envio_ret = st.session_state.df.copy()
                         if 'Concepto_Limpio' in df_envio_ret.columns:
