@@ -1302,6 +1302,11 @@ elif menu == "Fondo de Garantía (Retenciones)":
     
     df_ret['Monto Retenido'] = pd.to_numeric(df_ret['Monto Retenido'], errors='coerce').fillna(0)
     df_ret_filtrado = df_ret[df_ret['Monto Retenido'] > 0].copy()
+
+    # --- NUEVO: ORDENAR DE FORMA NATURAL POR LOTE (1, 2, 3... 10, 11...) ---
+    if not df_ret_filtrado.empty:
+        df_ret_filtrado['Lote_Sort'] = df_ret_filtrado['Lote'].apply(natural_sort_key)
+        df_ret_filtrado = df_ret_filtrado.sort_values(by='Lote_Sort').drop(columns=['Lote_Sort'])
     
     if df_ret_filtrado.empty:
         st.info("🎉 ¡Excelente! No existen fondos de garantía ni retenciones acumuladas en el sistema actualmente.")
