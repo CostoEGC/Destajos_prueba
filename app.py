@@ -528,7 +528,16 @@ def dialogo_reportes():
         st.multiselect("Concepto / Partida:", options=list_conceptos, placeholder="Todos", key="rep_sel_concepto")
     with r_col2:
         st.multiselect("Manzana(s):", options=list_manzanas, placeholder="Todas", key="rep_sel_manzana")
-        st.selectbox("Estado de Pago:", ["Todos", "Pendiente", "Pagado"], key="rep_sel_estado")
+        
+        # --- NUEVO: Checkboxes para Estado de Pago ---
+        st.markdown("<span style='font-size: 14px;'>Estado de Pago:</span>", unsafe_allow_html=True)
+        c_chk1, c_chk2 = st.columns(2)
+        with c_chk1:
+            chk_pagado = st.checkbox("Pagado", value=True, key="rep_chk_pagado")
+        with c_chk2:
+            chk_por_pagar = st.checkbox("Por pagar", value=True, key="rep_chk_por_pagar")
+        # ---------------------------------------------
+        
         st.multiselect("Destajista(s):", options=list_destajistas_filtro, placeholder="Todos", key="rep_sel_dest")
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
@@ -564,11 +573,19 @@ def dialogo_reportes():
     if st.session_state.rep_sel_dest: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
     
-    if st.session_state.rep_sel_estado != "Todos":
-        if st.session_state.rep_sel_estado == "Pagado": 
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
-        else: 
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
+    # --- NUEVO: Lógica de filtrado con checkboxes ---
+    if chk_pagado and not chk_por_pagar:
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
+        estado_filtro_str = "Pagado"
+    elif chk_por_pagar and not chk_pagado:
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
+        estado_filtro_str = "Pendiente (Por Pagar)"
+    elif not chk_pagado and not chk_por_pagar:
+        df_rep_filtrado = df_rep_filtrado.iloc[0:0] # Tabla vacía si el usuario desmarca ambos
+        estado_filtro_str = "Ninguno"
+    else:
+        estado_filtro_str = "Todos"
+    # ------------------------------------------------
             
     if rango and len(rango) == 2:
         meses_regex = {
@@ -612,7 +629,7 @@ def dialogo_reportes():
         txt_dest = ", ".join(st.session_state.rep_sel_dest) if st.session_state.rep_sel_dest else "Todos"
 
         tipo_reporte_txt = f" | MODO: RESUMEN POR {str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}" if chk_resumen else ""
-        criterios = f"Proto: {txt_proto} | Mz: {txt_mz} | Dest: {txt_dest} | Est: {st.session_state.rep_sel_estado}{tipo_reporte_txt}"
+        criterios = f"Proto: {txt_proto} | Mz: {txt_mz} | Dest: {txt_dest} | Est: {estado_filtro_str}{tipo_reporte_txt}"
         
         if rango and len(rango) == 2:
             criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
@@ -775,9 +792,11 @@ def dialogo_nueva_partida():
     with c1:
         lotes_sel = st.multiselect("Lote(s) *", options=list_lotes, help="Obligatorio. Se creará una fila por cada lote elegido.")
         dest_sel = st.selectbox("Destajista", options=[""] + [d for d in LISTA_DESTAJISTAS if d.strip()])
+        pct_adicional_sel = st.selectbox("% Adicional", options=["0%", "10%"])
     with c2:
         partida_txt = st.text_input("Concepto / Partida *", help="Obligatorio.")
         costo_txt = st.text_input("Costo unitario ($) *", placeholder="Ej. 1,500.00", help="Obligatorio. Puedes usar comas.")
+        pct_retencion_sel = st.selectbox("% Retención", options=["0%", "5%"])
         
     st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
     pagar_ahora = st.radio("💳 ¿Deseas marcar y pagar estas partidas en este momento?", 
@@ -800,6 +819,21 @@ def dialogo_nueva_partida():
         except ValueError:
             st.error("⚠️ El costo introducido no es un número válido. Verifica el formato.")
             return
+            
+        partida_final = f"{partida_txt.strip()} (*)"
+
+        # --- NUEVO: Procesar porcentajes matemáticamente ---
+        pct_ad_float = 0.10 if pct_adicional_sel == "10%" else 0.0
+        pct_ret_float = 0.05 if pct_retencion_sel == "5%" else 0.0
+
+        monto_ret_float = 0.0
+        estatus_ret_str = ""
+
+        # Si el usuario selecciona retención, preparamos la partida para la pestaña de "Fondo de Garantía"
+        if pct_ret_float > 0:
+            monto_ret_float = costo_float * pct_ret_float
+            estatus_ret_str = "Retenido"
+        # ---------------------------------------------------
             
         partida_final = f"{partida_txt.strip()} (*)"
         
@@ -841,8 +875,12 @@ def dialogo_nueva_partida():
                 'Partida': partida_final,
                 'Costo': costo_float,
                 'Destajista': dest_sel,
-                '% Adicional': 0.0,  
-                '% Retención': 0.0,  
+                '% Adicional': pct_ad_float,
+                '% Retención': pct_ret_float,
+                'Monto Retenido': monto_ret_float,
+                'Estatus Retención': estatus_ret_str,
+                'Fecha Liberación': "",
+                'Usuario Liberó': "",
                 'Pagar': pagar_bool,
                 'Fecha pago': ahora,
                 'Usuario': usr
@@ -2264,7 +2302,7 @@ elif menu == "Mapa Interactivo":
                 hover_text = f"<b>Partida:</b> {row.Partida}<br><b>Costo Total:</b> ${costo:,.2f}<br><b>Pagado:</b> ${pago_real:,.2f}<br><b>Destajista:</b> {destajista}<br><b>Estado:</b> {estado}"
                 textos_hover.append(hover_text)
 
-            diametro_esfera_px = 60
+            diametro_esfera_px = 40
             padding_px = 25 
             altura_grafico = max(350, filas * (diametro_esfera_px + padding_px))
 
