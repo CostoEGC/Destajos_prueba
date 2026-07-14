@@ -419,6 +419,7 @@ if st.session_state.usuario is None:
     st.stop()
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
+st.sidebar.markdown("<h3 style='margin-bottom: -15px; color: #3B82F6; font-weight: bold;'>🏢 Ravello- N76</h3>", unsafe_allow_html=True)
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
@@ -642,6 +643,11 @@ def dialogo_reportes():
         pdf.set_font("Arial", 'B', 14)
         pdf.set_text_color(30, 58, 138) 
         pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
+        
+        # Inyección superior del nombre de la obra en el PDF
+        pdf.set_font("Arial", 'B', 10)
+        pdf.set_text_color(75, 85, 99)
+        pdf.cell(195, 5, txt="OBRA: RAVELLO- N76", ln=True, align='C')
         
         pdf.set_font("Arial", 'I', 9)
         pdf.set_text_color(108, 117, 125)
@@ -1562,6 +1568,11 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         pdf.set_text_color(30, 58, 138)
                         pdf.cell(195, 8, txt="REPORTE DE LIBERACIÓN DE FONDOS DE GARANTÍA", ln=True, align='C')
                         
+                        # Inyección superior del nombre de la obra en el recibo
+                        pdf.set_font("Arial", 'B', 10)
+                        pdf.set_text_color(75, 85, 99)
+                        pdf.cell(195, 5, txt="OBRA: RAVELLO- N76", ln=True, align='C')
+                        
                         pdf.set_font("Arial", 'I', 9)
                         pdf.set_text_color(108, 117, 125)
                         pdf.cell(195, 5, txt=f"Generado el: {ahora_lib} (Zona Horaria México)", ln=True, align='C')
@@ -2043,14 +2054,34 @@ elif menu == "Mapa Interactivo":
                     Pagado_Acum=('Total_Pagado_Real', 'sum')
                 ).reset_index()
                 
-                df_resumen_global_grp['% Avance'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total']) * 100
-                df_resumen_global_grp['% Avance'] = df_resumen_global_grp['% Avance'].apply(lambda x: f"{x:.1f}%")
+                # 1. Calculamos el porcentaje numérico crudo primero para el mapeo
+                df_resumen_global_grp['Pct_Numerico'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total'] * 100).fillna(0)
+                
+                # 2. Función interna que replica la paleta de colores del mapa de manera visual
+                def obtener_circulo_avance(pct):
+                    if pct == 0: return "🔴"
+                    elif 0 < pct <= 50: return "⚫"
+                    elif 50 < pct <= 60: return "⚪"
+                    elif 60 < pct <= 70: return "🟡"
+                    elif 70 < pct <= 80: return "🟠"
+                    elif 80 < pct <= 95: return "🔵"
+                    else: return "🟢"
+                
+                # 3. Inyectamos la columna de la esfera y formateamos el texto del porcentaje
+                df_resumen_global_grp['Fase'] = df_resumen_global_grp['Pct_Numerico'].apply(obtener_circulo_avance)
+                df_resumen_global_grp['% Avance'] = df_resumen_global_grp['Pct_Numerico'].apply(lambda x: f"{x:.1f}%")
 
                 # --- CORRECCIÓN DE ORDENAMIENTO NUMÉRICO (NATURAL) ---
                 df_resumen_global_grp['sort_key'] = df_resumen_global_grp['Lote'].apply(natural_sort_key)
                 df_resumen_global_grp = df_resumen_global_grp.sort_values(by='sort_key').drop(columns=['sort_key'])
                 
-                styled_global = df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance']].style.format({'Costo_Total': '${:,.2f}'}).set_properties(**{'text-align': 'center'})
+                # 4. Estilizamos obligando a centrar celdas de datos Y celdas de encabezados (th)
+                styled_global = (
+                    df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance', 'Fase']]
+                    .style.format({'Costo_Total': '${:,.2f}'})
+                    .set_properties(**{'text-align': 'center'})
+                    .set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+                )
                 st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
         else:
             lote_puro_num = str(st.session_state.lote_actual)
