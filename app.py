@@ -1379,10 +1379,23 @@ elif menu == "Fondo de Garantía (Retenciones)":
     df_ret['Monto Retenido'] = pd.to_numeric(df_ret['Monto Retenido'], errors='coerce').fillna(0)
     df_ret_filtrado = df_ret[df_ret['Monto Retenido'] > 0].copy()
 
-    # --- NUEVO: ORDENAR DE FORMA NATURAL POR LOTE (1, 2, 3... 10, 11...) ---
+    # --- NUEVO: ORDENAMIENTO ESTRICTO CON DESEMPATE POR ID_DB PARA APILAR LAS NUEVAS AL FINAL ---
     if not df_ret_filtrado.empty:
-        df_ret_filtrado['Lote_Sort'] = df_ret_filtrado['Lote'].apply(natural_sort_key)
-        df_ret_filtrado = df_ret_filtrado.sort_values(by='Lote_Sort').drop(columns=['Lote_Sort'])
+        # 1. Preparamos las columnas numéricas para un orden perfecto
+        df_ret_filtrado['Lote_Num'] = pd.to_numeric(df_ret_filtrado['Lote'], errors='coerce').fillna(9999)
+        df_ret_filtrado['ID_DB_Num'] = pd.to_numeric(df_ret_filtrado['ID_DB'], errors='coerce')
+        
+        # 2. Limpiamos la partida para cruzarla con el índice del Excel Maestro
+        df_ret_filtrado['Partida_Limpia'] = df_ret_filtrado['Partida'].apply(limpiar_texto_partida)
+        df_ret_filtrado['Orden_Excel'] = df_ret_filtrado['Partida_Limpia'].apply(
+            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+        )
+        
+        # 3. Aplicamos el ordenamiento multi-nivel exacto que usamos en la tabla principal
+        df_ret_filtrado = df_ret_filtrado.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', 'ID_DB_Num', '_original_index'], na_position='last')
+        
+        # 4. Eliminamos la "basura" temporal para no ensuciar el DataFrame
+        df_ret_filtrado = df_ret_filtrado.drop(columns=['Lote_Num', 'ID_DB_Num', 'Partida_Limpia', 'Orden_Excel'])
     
     if df_ret_filtrado.empty:
         st.info("🎉 ¡Excelente! No existen fondos de garantía ni retenciones acumuladas en el sistema actualmente.")
