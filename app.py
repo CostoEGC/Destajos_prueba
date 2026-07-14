@@ -821,21 +821,12 @@ def dialogo_nueva_partida():
             return
             
         partida_final = f"{partida_txt.strip()} (*)"
-
-        # --- NUEVO: Procesar porcentajes matemáticamente ---
+        
+        # Procesar porcentajes y fondo de garantía
         pct_ad_float = 0.10 if pct_adicional_sel == "10%" else 0.0
         pct_ret_float = 0.05 if pct_retencion_sel == "5%" else 0.0
-
-        monto_ret_float = 0.0
-        estatus_ret_str = ""
-
-        # Si el usuario selecciona retención, preparamos la partida para la pestaña de "Fondo de Garantía"
-        if pct_ret_float > 0:
-            monto_ret_float = costo_float * pct_ret_float
-            estatus_ret_str = "Retenido"
-        # ---------------------------------------------------
-            
-        partida_final = f"{partida_txt.strip()} (*)"
+        monto_ret_float = costo_float * pct_ret_float if pct_ret_float > 0 else 0.0
+        estatus_ret_str = "Retenido" if pct_ret_float > 0 else ""
         
         if pagar_ahora == "Sí, pagarlas ahora mismo":
             pagar_bool = True
@@ -849,8 +840,18 @@ def dialogo_nueva_partida():
             ahora = ""
             usr = ""
             
-        
         df_temp = st.session_state.df.copy()
+        
+        # --- NUEVO: Alineación y ordenamiento estricto previo ---
+        # Ordenamos df_temp igual que la cuadrícula visual para garantizar que index.max() sea el final real del lote
+        df_temp['Lote_Num'] = pd.to_numeric(df_temp['Lote'], errors='coerce').fillna(9999)
+        df_temp['Partida_Limpia'] = df_temp['Partida'].apply(limpiar_texto_partida)
+        df_temp['Orden_Excel'] = df_temp['Partida_Limpia'].apply(
+            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+        )
+        df_temp = df_temp.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel']).reset_index(drop=True)
+        df_temp = df_temp.drop(columns=['Lote_Num', 'Partida_Limpia', 'Orden_Excel'])
+        # -------------------------------------------------------
         
         for lote in lotes_sel:
             datos_lote_existente = df_temp[df_temp['Lote'].astype(str).str.strip() == str(lote).strip()]
@@ -866,7 +867,6 @@ def dialogo_nueva_partida():
                 pr_original = ""
                 idx_insert = len(df_temp)
 
-            # Inyectamos ID_DB como nulo para que Supabase lo detecte como nueva inserción
             nueva_fila = {
                 'ID_DB': None,
                 'Lote': lote_original,
@@ -875,8 +875,8 @@ def dialogo_nueva_partida():
                 'Partida': partida_final,
                 'Costo': costo_float,
                 'Destajista': dest_sel,
-                '% Adicional': pct_ad_float,
-                '% Retención': pct_ret_float,
+                '% Adicional': pct_ad_float,  
+                '% Retención': pct_ret_float,  
                 'Monto Retenido': monto_ret_float,
                 'Estatus Retención': estatus_ret_str,
                 'Fecha Liberación': "",
@@ -898,12 +898,11 @@ def dialogo_nueva_partida():
         
         with st.spinner("Inyectando partida en el lote correspondiente y sincronizando con Supabase..."):
             actualizar_datos_gsheet(df_envio)
-            # Refrescamos desde la BD para obtener el nuevo ID asignado
             st.session_state.df = obtener_datos_gsheet()
             
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
-        st.success("¡Partida(s) inyectada(s) exactamente en su grupo!")
+        st.success("¡Partida(s) inyectada(s) exactamente al final de cada grupo!")
         st.rerun()
 
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
