@@ -43,7 +43,7 @@ supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
     try:
-        response = supabase.table('destajos').select('*').limit(50000).execute()
+        response = supabase.table('destajos').select('*').order('id', ascending=True).limit(50000).execute()
         datos = response.data
         
         # Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
@@ -112,26 +112,60 @@ def actualizar_datos_gsheet(df_envio):
         df_db = df_db[cols_validas]
         df_db = df_db.rename(columns=mapeo_inverso)
         
-        df_db['fecha_pago'] = df_db['fecha_pago'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
-        df_db['fecha_liberacion'] = df_db['fecha_liberacion'].astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '')
-        
-        df_db = df_db.replace({float('nan'): None, pd.NA: None})
+        # Formatear adecuadamente strings en campos de fecha y texto
+        for col_str in ['fecha_pago', 'fecha_liberacion', 'usuario', 'usuario_libero', 'estatus_retencion', 'manzana', 'destajista']:
+            if col_str in df_db.columns:
+                df_db[col_str] = df_db[col_str].fillna('').astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '').str.strip()
         
         # Inyección Inteligente: Separamos nuevas vs existentes para Supabase
         if 'id' in df_db.columns:
-            nuevas = df_db[df_db['id'].isna()].drop(columns=['id']).to_dict(orient='records')
-            existentes = df_db[df_db['id'].notna()].to_dict(orient='records')
+            # Filtramos filas con ID nulo o NaN (Nuevas)
+            df_nuevas = df_db[df_db['id'].isna()].drop(columns=['id'])
+            # Filtramos filas con ID válido (Existentes)
+            df_existentes = df_db[df_db['id'].notna()]
             
-            if nuevas:
-                supabase.table('destajos').insert(nuevas).execute()
-            if existentes:
-                supabase.table('destajos').upsert(existentes).execute()
+            nuevas = df_nuevas.to_dict(orient='records')
+            existentes = df_existentes.to_dict(orient='records')
+            
+            # --- LIMPIEZA ABSOLUTA DE DICCIONARIOS PARA EVITAR ERRORES DE SERIALIZACIÓN JSON (float('nan')) ---
+            nuevas_limpias = []
+            for r in nuevas:
+                r_limpio = {}
+                for k, v in r.items():
+                    r_limpio[k] = None if pd.isna(v) else v
+                nuevas_limpias.append(r_limpio)
+                
+            existentes_limpias = []
+            for r in existentes:
+                r_limpio = {}
+                for k, v in r.items():
+                    if k == 'id':
+                        # Forzamos conversión a entero para evitar que se envíen como floats (ej: 12.0)
+                        r_limpio[k] = int(v) if pd.notna(v) else None
+                    else:
+                        r_limpio[k] = None if pd.isna(v) else v
+                existentes_limpias.append(r_limpio)
+            
+            # Guardado seguro en Supabase
+            if nuevas_limpias:
+                supabase.table('destajos').insert(nuevas_limpias).execute()
+            if existentes_limpias:
+                supabase.table('destajos').upsert(existentes_limpias).execute()
         else:
             registros = df_db.to_dict(orient='records')
-            supabase.table('destajos').insert(registros).execute()
+            registros_limpios = []
+            for r in registros:
+                r_limpio = {}
+                for k, v in r.items():
+                    r_limpio[k] = None if pd.isna(v) else v
+                registros_limpios.append(r_limpio)
+                
+            if registros_limpios:
+                supabase.table('destajos').insert(registros_limpios).execute()
             
     except Exception as e:
         st.error(f"Error al enviar datos a la base de datos: {e}")
+
 
 # =========================================================================
 # ⚙️ CONFIGURACIÓN DE DISEÑO Y VARIABLES GLOBALES
@@ -842,15 +876,17 @@ def dialogo_nueva_partida():
             
         df_temp = st.session_state.df.copy()
         
-        # --- NUEVO: Alineación y ordenamiento estricto previo ---
-        # Ordenamos df_temp igual que la cuadrícula visual para garantizar que index.max() sea el final real del lote
+        # --- NUEVO: Alineación y ordenamiento estricto previo con ID_DB ---
+        df_temp['ID_DB_Num'] = pd.to_numeric(df_temp['ID_DB'], errors='coerce')
         df_temp['Lote_Num'] = pd.to_numeric(df_temp['Lote'], errors='coerce').fillna(9999)
         df_temp['Partida_Limpia'] = df_temp['Partida'].apply(limpiar_texto_partida)
         df_temp['Orden_Excel'] = df_temp['Partida_Limpia'].apply(
             lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
         )
-        df_temp = df_temp.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel']).reset_index(drop=True)
-        df_temp = df_temp.drop(columns=['Lote_Num', 'Partida_Limpia', 'Orden_Excel'])
+        
+        # Ordenamos usando el ID_DB_Num como desempate (las más antiguas arriba, las nuevas al final)
+        df_temp = df_temp.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', 'ID_DB_Num'], na_position='last').reset_index(drop=True)
+        df_temp = df_temp.drop(columns=['Lote_Num', 'Partida_Limpia', 'Orden_Excel', 'ID_DB_Num'])
         # -------------------------------------------------------
         
         for lote in lotes_sel:
@@ -1162,9 +1198,12 @@ if menu == "Registro de Destajos":
         lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
     )
     
-    # ORDENAMOS LA TABLA respetando lotes y luego la lista maestra
-    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', '_original_index'])
-    df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Orden_Excel'])
+    # Convertimos ID_DB a numérico para desempate estable
+    df_filtrado_grid['ID_DB_Num'] = pd.to_numeric(df_filtrado_grid['ID_DB'], errors='coerce')
+    
+    # ORDENAMOS LA TABLA respetando lotes, la lista maestra y finalmente el ID de creación
+    df_filtrado_grid = df_filtrado_grid.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', 'ID_DB_Num', '_original_index'], na_position='last')
+    df_filtrado_grid = df_filtrado_grid.drop(columns=['Lote_Num', 'Orden_Excel', 'ID_DB_Num'])
     # -------------------------------------------------------------
 
     
