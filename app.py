@@ -1261,7 +1261,7 @@ if menu == "Registro de Destajos":
             data_return_mode=DataReturnMode.AS_INPUT,  
             fit_columns_on_grid_load=False,
             theme='balham',
-            height=600,
+            height=800,
             custom_css=mis_estilos
         )
     st.session_state.reload_trigger = False
