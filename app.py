@@ -2054,35 +2054,60 @@ elif menu == "Mapa Interactivo":
                     Pagado_Acum=('Total_Pagado_Real', 'sum')
                 ).reset_index()
                 
-                # 1. Calculamos el porcentaje numérico crudo primero para el mapeo
+                # 1. Calculamos el porcentaje
                 df_resumen_global_grp['Pct_Numerico'] = (df_resumen_global_grp['Pagado_Acum'] / df_resumen_global_grp['Costo_Total'] * 100).fillna(0)
                 
-                # 2. Función interna que replica la paleta de colores del mapa de manera visual
-                def obtener_circulo_avance(pct):
-                    if pct == 0: return "🔴"
-                    elif 0 < pct <= 50: return "⚫"
-                    elif 50 < pct <= 60: return "⚪"
-                    elif 60 < pct <= 70: return "🟡"
-                    elif 70 < pct <= 80: return "🟠"
-                    elif 80 < pct <= 95: return "🔵"
-                    else: return "🟢"
+                # 2. Función para asignar colores Hexadecimales puros (¡AQUÍ PUEDES CAMBIAR TUS COLORES!)
+                def obtener_color_hex(pct):
+                    if pct == 0: return "#EF4444"        # Rojo (No iniciado)
+                    elif 0 < pct <= 50: return "#57534E" # Gris Oscuro (Obra negra)
+                    elif 50 < pct <= 60: return "#752BA7" # Morado (Obra gris)
+                    elif 60 < pct <= 70: return "#FADE50" # Amarillo (Obra blanca)
+                    elif 70 < pct <= 80: return "#F97316" # Naranja (Pisos)
+                    elif 80 < pct <= 95: return "#3B82F6" # Azul (Equipamientos)
+                    else: return "#10B981"                # Verde (Detallado y entrega)
                 
-                # 3. Inyectamos la columna de la esfera y formateamos el texto del porcentaje
-                df_resumen_global_grp['Fase'] = df_resumen_global_grp['Pct_Numerico'].apply(obtener_circulo_avance)
+                df_resumen_global_grp['Color_Hex'] = df_resumen_global_grp['Pct_Numerico'].apply(obtener_color_hex)
                 df_resumen_global_grp['% Avance'] = df_resumen_global_grp['Pct_Numerico'].apply(lambda x: f"{x:.1f}%")
 
                 # --- CORRECCIÓN DE ORDENAMIENTO NUMÉRICO (NATURAL) ---
                 df_resumen_global_grp['sort_key'] = df_resumen_global_grp['Lote'].apply(natural_sort_key)
                 df_resumen_global_grp = df_resumen_global_grp.sort_values(by='sort_key').drop(columns=['sort_key'])
                 
-                # 4. Estilizamos obligando a centrar celdas de datos Y celdas de encabezados (th)
-                styled_global = (
-                    df_resumen_global_grp[['Lote', 'Total_Partidas', 'Pagadas', 'Costo_Total', '% Avance', 'Fase']]
-                    .style.format({'Costo_Total': '${:,.2f}'})
-                    .set_properties(**{'text-align': 'center'})
-                    .set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+                # 3. Construimos la tabla en HTML puro para forzar el centrado y los círculos perfectos
+                html_table = (
+                    "<div style='height: 480px; overflow-y: auto; font-family: sans-serif; font-size: 14px; width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;'>"
+                    "<table style='width: 100%; border-collapse: collapse; text-align: center; color: #d1d1d1;'>"
+                    "<thead style='position: sticky; top: 0; background-color: #262626; z-index: 10;'>"
+                    "<tr>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>Lote</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>Total Partidas</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>Pagadas</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>Costo Total</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>% Avance</th>"
+                    "<th style='padding: 10px; border-bottom: 2px solid #444; text-align: center;'>Fase</th>"
+                    "</tr></thead><tbody>"
                 )
-                st.dataframe(styled_global, use_container_width=True, hide_index=True, height=480)
+                
+                for _, row_res in df_resumen_global_grp.iterrows():
+                    c_hex = row_res['Color_Hex']
+                    
+                    html_table += (
+                        "<tr style='border-bottom: 1px solid #333;'>"
+                        f"<td style='padding: 10px; text-align: center;'>{row_res['Lote']}</td>"
+                        f"<td style='padding: 10px; text-align: center;'>{row_res['Total_Partidas']}</td>"
+                        f"<td style='padding: 10px; text-align: center;'>{row_res['Pagadas']}</td>"
+                        f"<td style='padding: 10px; text-align: center;'>${row_res['Costo_Total']:,.2f}</td>"
+                        f"<td style='padding: 10px; text-align: center;'>{row_res['% Avance']}</td>"
+                        f"<td style='padding: 10px; vertical-align: middle;'>"
+                        f"<div style='width: 18px; height: 18px; border-radius: 50%; background-color: {c_hex}; margin: 0 auto; border: 1px solid rgba(255,255,255,0.2);'></div>"
+                        f"</td>"
+                        "</tr>"
+                    )
+                html_table += "</tbody></table></div>"
+                
+                # Renderizamos la tabla
+                st.markdown(html_table, unsafe_allow_html=True)
         else:
             lote_puro_num = str(st.session_state.lote_actual)
             
