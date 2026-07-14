@@ -112,59 +112,56 @@ def actualizar_datos_gsheet(df_envio):
         df_db = df_db[cols_validas]
         df_db = df_db.rename(columns=mapeo_inverso)
         
-        # Formatear adecuadamente strings en campos de fecha y texto
+        # Limpieza de textos y fechas
         for col_str in ['fecha_pago', 'fecha_liberacion', 'usuario', 'usuario_libero', 'estatus_retencion', 'manzana', 'destajista']:
             if col_str in df_db.columns:
                 df_db[col_str] = df_db[col_str].fillna('').astype(str).str.replace("'", "").replace(['nan', 'None', '<NA>'], '').str.strip()
         
-        # Inyección Inteligente: Separamos nuevas vs existentes para Supabase
         if 'id' in df_db.columns:
-            # Filtramos filas con ID nulo o NaN (Nuevas)
-            df_nuevas = df_db[df_db['id'].isna()].drop(columns=['id'])
-            # Filtramos filas con ID válido (Existentes)
-            df_existentes = df_db[df_db['id'].notna()]
+            # FILTRO A PRUEBA DE BALAS: Forzamos el ID a número. Si es nulo, NaN o texto, será considerado "nueva partida"
+            es_nueva = pd.to_numeric(df_db['id'], errors='coerce').isna()
+            
+            df_nuevas = df_db[es_nueva].drop(columns=['id'])
+            df_existentes = df_db[~es_nueva]
             
             nuevas = df_nuevas.to_dict(orient='records')
             existentes = df_existentes.to_dict(orient='records')
             
-            # --- LIMPIEZA ABSOLUTA DE DICCIONARIOS PARA EVITAR ERRORES DE SERIALIZACIÓN JSON (float('nan')) ---
-            nuevas_limpias = []
-            for r in nuevas:
+            # Función auxiliar para purificar los datos (Supabase rechaza tipos de dato de Numpy)
+            def purificar_registro(registro):
                 r_limpio = {}
-                for k, v in r.items():
-                    r_limpio[k] = None if pd.isna(v) else v
-                nuevas_limpias.append(r_limpio)
-                
+                for k, v in registro.items():
+                    if pd.isna(v):
+                        r_limpio[k] = None
+                    # Si es un tipo de dato de Numpy, lo forzamos a tipo nativo de Python usando .item()
+                    elif hasattr(v, 'item'):
+                        r_limpio[k] = v.item()
+                    else:
+                        r_limpio[k] = v
+                return r_limpio
+
+            nuevas_limpias = [purificar_registro(r) for r in nuevas]
+            
             existentes_limpias = []
             for r in existentes:
-                r_limpio = {}
-                for k, v in r.items():
-                    if k == 'id':
-                        # Forzamos conversión a entero para evitar que se envíen como floats (ej: 12.0)
-                        r_limpio[k] = int(v) if pd.notna(v) else None
-                    else:
-                        r_limpio[k] = None if pd.isna(v) else v
-                existentes_limpias.append(r_limpio)
+                r_l = purificar_registro(r)
+                if r_l.get('id') is not None:
+                    r_l['id'] = int(r_l['id'])  # Obligamos a que el ID sea entero
+                existentes_limpias.append(r_l)
             
-            # Guardado seguro en Supabase
+            # Inyección a Supabase
             if nuevas_limpias:
                 supabase.table('destajos').insert(nuevas_limpias).execute()
             if existentes_limpias:
                 supabase.table('destajos').upsert(existentes_limpias).execute()
         else:
             registros = df_db.to_dict(orient='records')
-            registros_limpios = []
-            for r in registros:
-                r_limpio = {}
-                for k, v in r.items():
-                    r_limpio[k] = None if pd.isna(v) else v
-                registros_limpios.append(r_limpio)
-                
+            registros_limpios = [purificar_registro(r) for r in registros]
             if registros_limpios:
                 supabase.table('destajos').insert(registros_limpios).execute()
             
     except Exception as e:
-        st.error(f"Error al enviar datos a la base de datos: {e}")
+        st.error(f"Error técnico al sincronizar con Supabase: {e}")
 
 
 # =========================================================================
