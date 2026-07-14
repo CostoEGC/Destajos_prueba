@@ -2323,7 +2323,7 @@ elif menu == "Mapa Interactivo":
             x_coords, y_coords, colores_relleno, textos_hover = [], [], [], []
 
             ancho_celda = 15
-            alto_celda = 5
+            alto_celda = 8
             
             for i, row in enumerate(df_lote_diag.itertuples()):
                 col_actual = i % cols
