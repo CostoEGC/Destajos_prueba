@@ -42,35 +42,37 @@ key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
-    # Evita que intente descargar datos antes de que el usuario elija la obra
+    # 1. Definimos las columnas SIEMPRE al inicio
+    mapeo_columnas = {
+        'id': 'ID_DB', 
+        'lote': 'Lote',
+        'manzana': 'Manzana',
+        'prototipo': 'Prototipo',
+        'partida': 'Partida',
+        'costo': 'Costo',
+        'destajista': 'Destajista',
+        'pct_adicional': '% Adicional',
+        'pct_retencion': '% Retención',
+        'monto_retenido': 'Monto Retenido',
+        'estatus_retencion': 'Estatus Retención',
+        'fecha_liberacion': 'Fecha Liberación',
+        'usuario_libero': 'Usuario Liberó',
+        'pagar': 'Pagar',
+        'fecha_pago': 'Fecha pago',
+        'usuario': 'Usuario'
+    }
+
+    # 2. Si aún no hay obra seleccionada (al cargar la página por primera vez), devolvemos la estructura vacía pero con los nombres de columnas
     if 'obra_actual' not in st.session_state or not st.session_state.obra_actual:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=list(mapeo_columnas.values()))
+        
     try:
-        tabla_dinamica = f"destajos_{st.session_state.obra_actual.lower()}"
-        # Se conecta a destajos_ravello, destajos_valle, etc.
+        # 3. Conexión dinámica a la obra seleccionada
+        tabla_dinamica = f"destajos_{str(st.session_state.obra_actual).lower()}"
         response = supabase.table(tabla_dinamica).select('*').order('id', desc=False).limit(50000).execute()
         datos = response.data
         
-        # Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
-        mapeo_columnas = {
-            'id': 'ID_DB', 
-            'lote': 'Lote',
-            'manzana': 'Manzana',
-            'prototipo': 'Prototipo',
-            'partida': 'Partida',
-            'costo': 'Costo',
-            'destajista': 'Destajista',
-            'pct_adicional': '% Adicional',
-            'pct_retencion': '% Retención',
-            'monto_retenido': 'Monto Retenido',
-            'estatus_retencion': 'Estatus Retención',
-            'fecha_liberacion': 'Fecha Liberación',
-            'usuario_libero': 'Usuario Liberó',
-            'pagar': 'Pagar',
-            'fecha_pago': 'Fecha pago',
-            'usuario': 'Usuario'
-        }
-        
+        # 4. Si la tabla de Supabase está vacía, igual devolvemos los encabezados
         if not datos:
             return pd.DataFrame(columns=list(mapeo_columnas.values()))
             
@@ -87,8 +89,9 @@ def obtener_datos_gsheet():
         
         return df
     except Exception as e:
-        st.error(f"Error al conectar con la base de datos: {e}")
-        return pd.DataFrame()
+        st.error(f"Error al conectar con la base de datos de la obra: {e}")
+        # Si falla, devolvemos la estructura de columnas para que no colapse la app
+        return pd.DataFrame(columns=list(mapeo_columnas.values()))
 
 def actualizar_datos_gsheet(df_envio):
     try:
