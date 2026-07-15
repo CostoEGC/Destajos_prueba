@@ -417,7 +417,7 @@ def login():
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
         # --- LISTA DESPLEGABLE DE OBRAS DISPONIBLES ---
-        lista_obras = ["N64-Portofino", "N76-Ravello", "Etapa_8"] # Añade aquí tus futuras obras
+        lista_obras = ["Portofino(N64)", "Ravello(N76)", "Etapa8(NX)"] # Añade aquí tus futuras obras
         obra_seleccionada = st.selectbox("Selecciona la Obra:", options=lista_obras)
         
         if st.button("Ingresar", use_container_width=True, type="primary"):
