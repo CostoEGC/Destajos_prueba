@@ -442,7 +442,7 @@ if st.session_state.usuario is None or st.session_state.get('obra_actual') is No
     st.stop()
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
-st.sidebar.markdown("<h3 style='margin-bottom: -15px; color: #3B82F6; font-weight: bold;'>🏢 Obra: {st.session_state.obra_actual}</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='margin-bottom: -15px; color: #3B82F6; font-weight: bold;'>🏢 f"Obra: {st.session_state.obra_actual}</h3>", unsafe_allow_html=True)
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
