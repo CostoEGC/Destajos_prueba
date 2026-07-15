@@ -158,7 +158,7 @@ def actualizar_datos_gsheet(df_envio):
                     r_l['id'] = int(r_l['id'])  # Obligamos a que el ID sea entero
                 existentes_limpias.append(r_l)
             
-            tabla_dinamica = f"destajos_{st.session_state.obra_actual.lower()}"
+            tabla_dinamica = f"destajos_{st.session_state.obra_actual}"
             # Inyección a Supabase
             if nuevas_limpias:
                 supabase.table(tabla_dinamica).insert(nuevas_limpias).execute()
