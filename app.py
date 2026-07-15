@@ -42,8 +42,13 @@ key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 def obtener_datos_gsheet():
+    # Evita que intente descargar datos antes de que el usuario elija la obra
+    if 'obra_actual' not in st.session_state or not st.session_state.obra_actual:
+        return pd.DataFrame()
     try:
-        response = supabase.table('destajos').select('*').order('id', desc=False).limit(50000).execute()
+        tabla_dinamica = f"destajos_{st.session_state.obra_actual.lower()}"
+        # Se conecta a destajos_ravello, destajos_valle, etc.
+        response = supabase.table(tabla_dinamica).select('*').order('id', desc=False).limit(50000).execute()
         datos = response.data
         
         # Mapeo: Traducimos los nombres de la BD estricta a los de tu aplicación visual
@@ -149,16 +154,17 @@ def actualizar_datos_gsheet(df_envio):
                     r_l['id'] = int(r_l['id'])  # Obligamos a que el ID sea entero
                 existentes_limpias.append(r_l)
             
+            tabla_dinamica = f"destajos_{st.session_state.obra_actual.lower()}"
             # Inyección a Supabase
             if nuevas_limpias:
-                supabase.table('destajos').insert(nuevas_limpias).execute()
+                supabase.table(tabla_dinamica).insert(nuevas_limpias).execute()
             if existentes_limpias:
-                supabase.table('destajos').upsert(existentes_limpias).execute()
+                supabase.table(tabla_dinamica).upsert(existentes_limpias).execute()
         else:
             registros = df_db.to_dict(orient='records')
             registros_limpios = [purificar_registro(r) for r in registros]
             if registros_limpios:
-                supabase.table('destajos').insert(registros_limpios).execute()
+                supabase.table(tabla_dinamica).insert(registros_limpios).execute()
             
     except Exception as e:
         st.error(f"Error técnico al sincronizar con Supabase: {e}")
@@ -372,6 +378,7 @@ def obtener_conceptos_ordenados_limpios(df_fuente):
 # INICIALIZACIÓN DE ESTADOS (MEMORIA ABSOLUTA DEL SISTEMA)
 # =========================================================================
 if 'usuario' not in st.session_state: st.session_state.usuario = None
+if 'obra_actual' not in st.session_state: st.session_state.obra_actual = None
 if 'df' not in st.session_state:
     st.session_state.df = obtener_datos_gsheet()
     st.session_state.df_original = st.session_state.df.copy()
@@ -406,20 +413,32 @@ def login():
         usuario = st.text_input("Usuario", key="input_user")
         contrasena = st.text_input("Contraseña", type="password", key="input_pass")
         
+        # --- LISTA DESPLEGABLE DE OBRAS DISPONIBLES ---
+        lista_obras = ["N64-Portofino", "N76-Ravello", "Etapa_8"] # Añade aquí tus futuras obras
+        obra_seleccionada = st.selectbox("Selecciona la Obra:", options=lista_obras)
+        
         if st.button("Ingresar", use_container_width=True, type="primary"):
             usuarios_validos = st.secrets["usuarios"] if "usuarios" in st.secrets else {}
             if usuario in usuarios_validos and usuarios_validos[usuario] == contrasena:
                 st.session_state.usuario = usuario
+                st.session_state.obra_actual = obra_seleccionada # Guardamos la obra elegida
+                
+                # Cargamos los datos de esa obra específica antes de entrar
+                with st.spinner(f"Conectando a base de datos de {obra_seleccionada}..."):
+                    st.session_state.df = obtener_datos_gsheet()
+                    st.session_state.df_original = st.session_state.df.copy()
+                    
                 st.rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos")
 
-if st.session_state.usuario is None:
+# Detenemos la app si falta el usuario O si falta la obra
+if st.session_state.usuario is None or st.session_state.get('obra_actual') is None:
     login()
     st.stop()
 
 # --- MENÚ DE NAVEGACIÓN LATERAL ---
-st.sidebar.markdown("<h3 style='margin-bottom: -15px; color: #3B82F6; font-weight: bold;'>🏢 Ravello- N76</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='margin-bottom: -15px; color: #3B82F6; font-weight: bold;'>🏢 Obra: {st.session_state.obra_actual}</h3>", unsafe_allow_html=True)
 st.sidebar.title(f"👷 {st.session_state.usuario}")
 menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
@@ -647,7 +666,7 @@ def dialogo_reportes():
         # Inyección superior del nombre de la obra en el PDF
         pdf.set_font("Arial", 'B', 10)
         pdf.set_text_color(75, 85, 99)
-        pdf.cell(195, 5, txt="OBRA: RAVELLO- N76", ln=True, align='C')
+        pdf.cell(195, 5, txt=f"OBRA: {str(st.session_state.obra_actual).upper()}", ln=True, align='C')
         
         pdf.set_font("Arial", 'I', 9)
         pdf.set_text_color(108, 117, 125)
@@ -1571,7 +1590,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                         # Inyección superior del nombre de la obra en el recibo
                         pdf.set_font("Arial", 'B', 10)
                         pdf.set_text_color(75, 85, 99)
-                        pdf.cell(195, 5, txt="OBRA: RAVELLO- N76", ln=True, align='C')
+                        pdf.cell(195, 5, txt=f"OBRA: {str(st.session_state.obra_actual).upper()}", ln=True, align='C')
                         
                         pdf.set_font("Arial", 'I', 9)
                         pdf.set_text_color(108, 117, 125)
@@ -1795,48 +1814,11 @@ elif menu == "Mapa Interactivo":
             return f"rgba({int(hex_val[0:2], 16)}, {int(hex_val[2:4], 16)}, {int(hex_val[4:6], 16)}, {opacity})"
         return "rgba(0,0,0,0)"
 
-    COORDENADAS_LOTES = {
-        "1": {"x": 794, "y": 379}, "2": {"x": 799, "y": 346}, "3": {"x": 804, "y": 310}, "4": {"x": 807, "y": 285},
-        "5": {"x": 811, "y": 254}, "6": {"x": 818, "y": 225}, "7": {"x": 828, "y": 195}, "8": {"x": 825, "y": 169},
-        "9": {"x": 827, "y": 138}, "10": {"x": 713, "y": 151}, "11": {"x": 676, "y": 143}, "12": {"x": 646, "y": 139},
-        "13": {"x": 617, "y": 141}, "14": {"x": 589, "y": 132}, "15": {"x": 560, "y": 126}, "16": {"x": 532, "y": 127},
-        "17": {"x": 503, "y": 118}, "18": {"x": 469, "y": 123}, "19": {"x": 443, "y": 115}, "20": {"x": 416, "y": 109},
-        "21": {"x": 386, "y": 108}, "22": {"x": 358, "y": 103}, "23": {"x": 327, "y": 99}, "24": {"x": 300, "y": 96},
-        "25": {"x": 270, "y": 95}, "26": {"x": 240, "y": 89}, "27": {"x": 212, "y": 87}, "28": {"x": 182, "y": 82},
-        "29": {"x": 152, "y": 73}, "30": {"x": 122, "y": 70}, "31": {"x": 282, "y": 239}, "32": {"x": 320, "y": 245},
-        "33": {"x": 358, "y": 250}, "34": {"x": 393, "y": 256}, "35": {"x": 425, "y": 260}, "36": {"x": 459, "y": 264},
-        "37": {"x": 498, "y": 272}, "38": {"x": 532, "y": 278}, "39": {"x": 568, "y": 279}, "40": {"x": 603, "y": 285},
-        "41": {"x": 634, "y": 293}, "42": {"x": 675, "y": 295}, "43": {"x": 656, "y": 379}, "44": {"x": 612, "y": 379},
-        "45": {"x": 579, "y": 373}, "46": {"x": 546, "y": 367}, "47": {"x": 510, "y": 364}, "48": {"x": 475, "y": 358},
-        "49": {"x": 437, "y": 355}, "50": {"x": 407, "y": 351}, "51": {"x": 381, "y": 348}, "52": {"x": 349, "y": 343},
-        "53": {"x": 311, "y": 337}, "54": {"x": 268, "y": 336}, "55": {"x": 151, "y": 185}, "56": {"x": 146, "y": 217},
-        "57": {"x": 144, "y": 245}, "58": {"x": 142, "y": 275}, "59": {"x": 133, "y": 302}, "60": {"x": 135, "y": 336},
-        "61": {"x": 129, "y": 364}, "62": {"x": 126, "y": 395}, "63": {"x": 126, "y": 421}, "64": {"x": 121, "y": 449},
-        "65": {"x": 115, "y": 479}, "66": {"x": 112, "y": 511}, "67": {"x": 108, "y": 536}, "68": {"x": 108, "y": 568},
-        "69": {"x": 105, "y": 598}, "70": {"x": 99, "y": 623}, "71": {"x": 94, "y": 654}, "72": {"x": 96, "y": 683},
-        "73": {"x": 92, "y": 713}, "74": {"x": 88, "y": 743}, "75": {"x": 87, "y": 772}, "76": {"x": 81, "y": 803},
-        "77": {"x": 254, "y": 587}, "78": {"x": 262, "y": 560}, "79": {"x": 264, "y": 527}, "80": {"x": 268, "y": 500},
-        "81": {"x": 273, "y": 470}, "82": {"x": 277, "y": 443}, "83": {"x": 365, "y": 458}, "84": {"x": 362, "y": 489},
-        "85": {"x": 358, "y": 526}, "86": {"x": 359, "y": 560}, "87": {"x": 349, "y": 593}, "88": {"x": 224, "y": 688},
-        "89": {"x": 267, "y": 697}, "90": {"x": 301, "y": 699}, "91": {"x": 330, "y": 708}, "92": {"x": 360, "y": 711},
-        "93": {"x": 393, "y": 718}, "94": {"x": 427, "y": 717}, "95": {"x": 462, "y": 728}, "96": {"x": 496, "y": 734},
-        "97": {"x": 531, "y": 738}, "98": {"x": 566, "y": 739}, "99": {"x": 604, "y": 744}, "100": {"x": 636, "y": 751},
-        "101": {"x": 679, "y": 757}, "102": {"x": 704, "y": 848}, "103": {"x": 663, "y": 843}, "104": {"x": 625, "y": 835},
-        "105": {"x": 590, "y": 831}, "106": {"x": 555, "y": 826}, "107": {"x": 520, "y": 825}, "108": {"x": 484, "y": 819},
-        "109": {"x": 453, "y": 813}, "110": {"x": 416, "y": 809}, "111": {"x": 383, "y": 804}, "112": {"x": 346, "y": 798}, "113": {"x": 310, "y": 794}, "114": {"x": 274, "y": 789}, "115": {"x": 241, "y": 789}, "116": {"x": 207, "y": 782},
-        "117": {"x": 29, "y": 902}, "118": {"x": 58, "y": 910}, "119": {"x": 85, "y": 913}, "120": {"x": 115, "y": 920},
-        "121": {"x": 145, "y": 924}, "122": {"x": 174, "y": 927}, "123": {"x": 203, "y": 929}, "124": {"x": 233, "y": 933},
-        "125": {"x": 260, "y": 937}, "126": {"x": 288, "y": 944}, "127": {"x": 319, "y": 940}, "128": {"x": 348, "y": 952},
-        "129": {"x": 379, "y": 951}, "130": {"x": 406, "y": 958}, "131": {"x": 435, "y": 962}, "132": {"x": 463, "y": 962},
-        "133": {"x": 495, "y": 966}, "134": {"x": 524, "y": 971}, "135": {"x": 551, "y": 975}, "136": {"x": 581, "y": 980},
-        "137": {"x": 610, "y": 985}, "138": {"x": 638, "y": 988}, "139": {"x": 667, "y": 993}, "140": {"x": 696, "y": 996},
-        "141": {"x": 725, "y": 999}, "142": {"x": 768, "y": 1006}, "143": {"x": 901, "y": 1015}, "144": {"x": 893, "y": 985},
-        "145": {"x": 885, "y": 959}, "146": {"x": 874, "y": 930}, "147": {"x": 864, "y": 904}, "148": {"x": 859, "y": 875},
-        "149": {"x": 848, "y": 846}, "150": {"x": 837, "y": 813}, "151": {"x": 822, "y": 765},
-    }
+    # EXTRAEMOS LOS LOTES DINÁMICAMENTE DESDE LA BASE DE DATOS (Adiós a las coordenadas fijas)
+    lotes_unicos_bd = sorted([str(x).strip() for x in df_map_base['Lote'].unique() if str(x).strip()], key=natural_sort_key)
 
     lotes_datos_mapa = []
-    for lote_num, coords in COORDENADAS_LOTES.items():
+    for lote_num in lotes_unicos_bd:
         df_lote_mapa = df_map_base[df_map_base['Lote'].astype(str).str.strip() == str(lote_num)].copy()
         
         if not df_lote_mapa.empty:
@@ -1873,8 +1855,6 @@ elif menu == "Mapa Interactivo":
             lotes_datos_mapa.append({
                 "Lote": f"Lote {lote_num}",
                 "Lote_Id": str(lote_num),
-                "x": coords["x"],
-                "y": coords["y"],
                 "Avance": f"{porcentaje:.1f}%",
                 "Estado": color_lote,
                 "Hex": hex_color,
@@ -1979,7 +1959,7 @@ elif menu == "Mapa Interactivo":
                 lotes_validos_filtro = sorted([str(x) for x in df_filtered['Lote'].unique()], key=lambda x: int(x) if str(x).isdigit() else x)
                 opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in lotes_validos_filtro]
             else:
-                opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in COORDENADAS_LOTES.keys()]
+                opciones_selector = ["Mostrar Todos"] + [f"Lote {k}" for k in lotes_unicos_bd]
                 
             if st.session_state.mostrar_todos_mapa:
                 valor_defecto_mapa = "Mostrar Todos"
@@ -2066,7 +2046,8 @@ elif menu == "Mapa Interactivo":
                     elif 70 < pct <= 80: return "#F97316" # Naranja (Pisos)
                     elif 80 < pct <= 95: return "#3B82F6" # Azul (Equipamientos)
                     else: return "#10B981"                # Verde (Detallado y entrega)
-                
+
+                                    
                 df_resumen_global_grp['Color_Hex'] = df_resumen_global_grp['Pct_Numerico'].apply(obtener_color_hex)
                 df_resumen_global_grp['% Avance'] = df_resumen_global_grp['Pct_Numerico'].apply(lambda x: f"{x:.1f}%")
 
@@ -2166,7 +2147,8 @@ elif menu == "Mapa Interactivo":
                 st.info(msg)
 
     with col_mapa:
-        nombres_posibles = ["SVGsembrado.txt"]
+        nombre_dinamico = f"SVG_{st.session_state.obra_actual}.txt"
+        nombres_posibles = [nombre_dinamico, "SVGsembrado.txt"] # Busca el de la obra, si no lo halla busca el genérico
         archivo_encontrado = None
         
         for nombre in nombres_posibles:
