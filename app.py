@@ -448,8 +448,8 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
     "Fondo de Garantía (Retenciones)", 
     "Dashboard (Gráficos y Visor)", 
-    "Mapa Interactivo",
-    "Dashboard Móvil"
+    "Mapa Interactivo"
+    "Visor Móvil"
 ])
 
 if 'menu_actual' not in st.session_state:
@@ -474,7 +474,7 @@ if st.session_state.menu_actual != menu:
     st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
-if st.sidebar.button("💾 GUARDAR CAMBIOS"):    
+if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     df_actual_pantalla = st.session_state.current_grid_state
     
     if df_actual_pantalla.empty:
@@ -487,7 +487,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         filas_invalidas = filas_a_pagar[filas_a_pagar['Destajista'].astype(str).str.strip() == '']
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' asignado. Completa los datos antes de guardar.")
-            
         else:
             with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
@@ -555,7 +554,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.reload_trigger = True
                 st.success("¡Datos guardados!")
                 st.rerun()
-alerta_cambios_ui = st.sidebar.empty()
 
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
@@ -805,7 +803,7 @@ def dialogo_reportes():
                 pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
                 pdf.ln(7)
                 
-                total_acumulado += c_neto
+                total_acumulado += c_neto   # Actualizamos para que sume el negativo
                 fondo_cebra = not fondo_cebra
             
             pdf.set_font("Arial", 'B', 10)
@@ -1381,7 +1379,7 @@ if menu == "Registro de Destajos":
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
-     
+        
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
@@ -1399,13 +1397,6 @@ if menu == "Registro de Destajos":
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
-
-        # --- NUEVA LÓGICA DE ALERTA DE CAMBIOS ---
-        if total_checked > 0:
-            alerta_cambios_ui.warning("⚠️ Tienes cambios pendientes por guardar.")
-        else:
-            alerta_cambios_ui.empty()
-
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
         ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
@@ -2460,8 +2451,9 @@ elif menu == "Mapa Interactivo":
         else:
             st.warning("⚠️ No hay partidas registradas para este lote.")
 
+
 # =========================================================================
-# NUEVA PESTAÑA: VISOR MÓVIL (KPIs RESPONSIVOS)
+# PESTAÑA #5: VISOR MÓVIL (KPIs RESPONSIVOS)
 # =========================================================================
 elif menu == "Dashboard Móvil":
     mostrar_cabecera_con_logo(f"📱 Resumen de Obra: {st.session_state.obra_actual}")
