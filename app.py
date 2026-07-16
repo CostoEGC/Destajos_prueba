@@ -69,7 +69,7 @@ def obtener_datos_gsheet():
     try:
         # 3. Conexión dinámica a la obra seleccionada
         tabla_dinamica = f"destajos_{str(st.session_state.obra_actual)}"
-        st.toast(f"🔍 El sistema está leyendo la tabla: {tabla_dinamica}")
+        #st.toast(f"🔍 El sistema está leyendo la tabla: {tabla_dinamica}")
         response = supabase.table(tabla_dinamica).select('*').order('id', desc=False).limit(50000).execute()
         datos = response.data
         
