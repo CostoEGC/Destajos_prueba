@@ -448,7 +448,8 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
     "Fondo de Garantía (Retenciones)", 
     "Dashboard (Gráficos y Visor)", 
-    "Mapa Interactivo"
+    "Mapa Interactivo",
+    "Dashboard Móvil"
 ])
 
 if 'menu_actual' not in st.session_state:
@@ -474,6 +475,7 @@ if st.session_state.menu_actual != menu:
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
+    alerta_cambios_ui = st.sidebar.empty()
     df_actual_pantalla = st.session_state.current_grid_state
     
     if df_actual_pantalla.empty:
@@ -486,6 +488,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         filas_invalidas = filas_a_pagar[filas_a_pagar['Destajista'].astype(str).str.strip() == '']
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' asignado. Completa los datos antes de guardar.")
+            st.stop()# <-- ESTA LÍNEA CONGELA LA APP. No borra filtros ni recarga.
         else:
             with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
@@ -746,6 +749,10 @@ def dialogo_reportes():
                     
                 costo_fila = float(row['Costo'])
 
+                # --- NUEVO: Convertir a negativo si solo está activo "Por Pagar" ---
+                if chk_por_pagar and not chk_pagado:
+                    costo_fila = -abs(costo_fila)
+
                 pdf.cell(w_col1, 7, txt=valor_txt[:80], border=1, align='L', fill=True)
                 pdf.cell(w_col2, 7, txt=f"${costo_fila:,.2f}", border=1, align='R', fill=True)
                 pdf.ln(7)
@@ -791,11 +798,14 @@ def dialogo_reportes():
                 pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
                 pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
                 c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
+                # --- NUEVO: Convertir a negativo si solo está activo "Por Pagar" ---
+                if chk_por_pagar and not chk_pagado:
+                    c_neto = -abs(c_neto)
                 pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
                 pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
                 pdf.ln(7)
                 
-                total_acumulado += float(row['Costo'])
+                total_acumulado += c_neto
                 fondo_cebra = not fondo_cebra
             
             pdf.set_font("Arial", 'B', 10)
@@ -1371,6 +1381,18 @@ if menu == "Registro de Destajos":
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
+
+        # --- NUEVO: Detección de cambios para lanzar la alerta ---
+        # Comparamos si hay filas marcadas para pagar hoy o si el usuario editó la tabla
+        df_comparacion = df_grid[['Pagar', 'Destajista', '% Adicional', '% Retención']].astype(str)
+        df_original_comp = df_filtrado_grid[['Pagar', 'Destajista', '% Adicional', '% Retención']].astype(str)
+        
+        if not df_comparacion.equals(df_original_comp):
+            alerta_cambios_ui.warning("⚠️ Tienes cambios pendientes por guardar.")
+        else:
+            alerta_cambios_ui.empty() # Borra la alerta si no hay cambios
+        # ---------------------------------------------------------
+
         
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
@@ -2442,3 +2464,62 @@ elif menu == "Mapa Interactivo":
             
         else:
             st.warning("⚠️ No hay partidas registradas para este lote.")
+
+# =========================================================================
+# NUEVA PESTAÑA: VISOR MÓVIL (KPIs RESPONSIVOS)
+# =========================================================================
+elif menu == "Dashboard Móvil":
+    mostrar_cabecera_con_logo(f"📱 Resumen de Obra: {st.session_state.obra_actual}")
+    st.write("Visor optimizado para lectura rápida en dispositivos móviles.")
+
+    df_movil = st.session_state.df.copy()
+    
+    if df_movil.empty:
+        st.info("No hay datos registrados en esta obra aún.")
+    else:
+        # Cálculos generales
+        df_movil['Costo_Num'] = pd.to_numeric(df_movil['Costo'], errors='coerce').fillna(0)
+        df_movil['Total_Pagado'] = df_movil.apply(lambda r: r['Costo_Num'] if str(r['Fecha pago']).strip() != '' else 0, axis=1)
+        
+        gran_total = df_movil['Costo_Num'].sum()
+        pagado_total = df_movil['Total_Pagado'].sum()
+        por_pagar = gran_total - pagado_total
+        pct_avance = (pagado_total / gran_total * 100) if gran_total > 0 else 0
+
+        # Tarjetas principales (Streamlit las apila verticalmente en celulares)
+        st.markdown("### 💰 Estatus Financiero General")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Presupuesto Total", f"${gran_total:,.2f}")
+        c2.metric("Total Pagado", f"${pagado_total:,.2f}", f"{pct_avance:.1f}% Avance")
+        c3.metric("Deuda Pendiente", f"${por_pagar:,.2f}", delta="-", delta_color="inverse")
+        
+        st.progress(pct_avance / 100)
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        # Filtro simplificado nativo (amigable para el dedo en pantallas táctiles)
+        st.markdown("### 🏠 Desglose Rápido por Lote")
+        lotes_disp = sorted([str(x) for x in df_movil['Lote'].unique() if str(x).strip()], key=natural_sort_key)
+        lote_sel = st.selectbox("Selecciona un lote para ver su avance:", ["Resumen de todos"] + lotes_disp)
+
+        if lote_sel != "Resumen de todos":
+            df_lote = df_movil[df_movil['Lote'].astype(str) == lote_sel]
+            costo_l = df_lote['Costo_Num'].sum()
+            pago_l = df_lote['Total_Pagado'].sum()
+            pend_l = costo_l - pago_l
+            
+            st.info(f"**Prototipo:** {df_lote['Prototipo'].iloc[0]}")
+            
+            cl1, cl2 = st.columns(2)
+            cl1.metric("Costo del Lote", f"${costo_l:,.2f}")
+            cl2.metric("Pagado", f"${pago_l:,.2f}")
+            st.error(f"Falta por pagar: **${pend_l:,.2f}**")
+        else:
+            # Lista simple top 5 deudores para no saturar la pantalla
+            st.markdown("##### 👷 Top 5 Contratistas con saldo pendiente")
+            df_deudores = df_movil[df_movil['Total_Pagado'] < df_movil['Costo_Num']].copy()
+            df_deudores['Deuda'] = df_deudores['Costo_Num'] - df_deudores['Total_Pagado']
+            deuda_por_dest = df_deudores.groupby('Destajista')['Deuda'].sum().sort_values(ascending=False).head(5)
+            
+            for destajista, deuda in deuda_por_dest.items():
+                nombre = destajista if str(destajista).strip() else "Sin Asignar"
+                st.markdown(f"- **{nombre}:** ${deuda:,.2f}")
