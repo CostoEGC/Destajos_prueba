@@ -3,3 +3,6 @@ dataFrameSerialization = "legacy"
 
 [theme]
 base = "dark"
+
+# Aumenta el tiempo de espera antes de desconectar la sesión (en segundos)
+keepAliveTimeout = 3600 # 1 hora de inactividad permitida
