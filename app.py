@@ -474,8 +474,7 @@ if st.session_state.menu_actual != menu:
     st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
-if st.sidebar.button("💾 GUARDAR CAMBIOS"):
-    alerta_cambios_ui = st.sidebar.empty()
+if st.sidebar.button("💾 GUARDAR CAMBIOS"):    
     df_actual_pantalla = st.session_state.current_grid_state
     
     if df_actual_pantalla.empty:
@@ -488,7 +487,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
         filas_invalidas = filas_a_pagar[filas_a_pagar['Destajista'].astype(str).str.strip() == '']
         if not filas_invalidas.empty:
             st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' asignado. Completa los datos antes de guardar.")
-            st.stop()# <-- ESTA LÍNEA CONGELA LA APP. No borra filtros ni recarga.
+            
         else:
             with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
@@ -556,6 +555,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.reload_trigger = True
                 st.success("¡Datos guardados!")
                 st.rerun()
+alerta_cambios_ui = st.sidebar.empty()
 
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
@@ -1381,19 +1381,7 @@ if menu == "Registro de Destajos":
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
-
-        # --- NUEVO: Detección de cambios para lanzar la alerta ---
-        # Comparamos si hay filas marcadas para pagar hoy o si el usuario editó la tabla
-        df_comparacion = df_grid[['Pagar', 'Destajista', '% Adicional', '% Retención']].astype(str)
-        df_original_comp = df_filtrado_grid[['Pagar', 'Destajista', '% Adicional', '% Retención']].astype(str)
-        
-        if not df_comparacion.equals(df_original_comp):
-            alerta_cambios_ui.warning("⚠️ Tienes cambios pendientes por guardar.")
-        else:
-            alerta_cambios_ui.empty() # Borra la alerta si no hay cambios
-        # ---------------------------------------------------------
-
-        
+     
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
@@ -1411,6 +1399,13 @@ if menu == "Registro de Destajos":
         
         ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
         ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+
+        # --- NUEVA LÓGICA DE ALERTA DE CAMBIOS ---
+        if total_checked > 0:
+            alerta_cambios_ui.warning("⚠️ Tienes cambios pendientes por guardar.")
+        else:
+            alerta_cambios_ui.empty()
+
     else:
         ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
         ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
