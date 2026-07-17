@@ -585,20 +585,57 @@ def dialogo_reportes():
     
     df_base_rep = st.session_state.df.copy()
     
-    df_opciones = df_base_rep.copy()
-    if st.session_state.get('rep_sel_proto'):
-        df_opciones = df_opciones[df_opciones['Prototipo'].isin(st.session_state.rep_sel_proto)]
-    if st.session_state.get('rep_sel_manzana'):
-        df_opciones = df_opciones[df_opciones['Manzana'].isin(st.session_state.rep_sel_manzana)]
-        
-    list_prototipos = sorted(df_base_rep['Prototipo'].unique().tolist(), key=sort_prototipos)
-    list_manzanas = sorted([x for x in df_opciones['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_lotes = sorted([str(x) for x in df_opciones['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
-    list_destajistas_filtro = [d for d in LISTA_DESTAJISTAS if d != ""]
-    
-    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
-    
-    list_conceptos = obtener_conceptos_ordenados_limpios(df_base_rep)
+    # --- NUEVO: FILTROS EN CASCADA PARA REPORTES Y ORDEN MAESTRO ---
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_texto_partida)
+
+    # Obtenemos lo que el usuario ya seleccionó (si está vacío, no filtra)
+    curr_proto = st.session_state.get('rep_sel_proto', [])
+    curr_mz = st.session_state.get('rep_sel_manzana', [])
+    curr_lotes = st.session_state.get('rep_sel_lotes', [])
+    curr_concepto = st.session_state.get('rep_sel_concepto', [])
+    curr_dest = st.session_state.get('rep_sel_dest', [])
+
+    # 1. Prototipos
+    df_proto = df_base_rep.copy()
+    if curr_mz: df_proto = df_proto[df_proto['Manzana'].isin(curr_mz)]
+    if curr_lotes: df_proto = df_proto[df_proto['Lote'].astype(str).isin(curr_lotes)]
+    if curr_concepto: df_proto = df_proto[df_proto['Concepto_Limpio'].isin(curr_concepto)]
+    if curr_dest: df_proto = df_proto[df_proto['Destajista'].isin(curr_dest)]
+    list_prototipos = sorted(df_proto['Prototipo'].unique().tolist(), key=sort_prototipos)
+
+    # 2. Manzanas
+    df_mz = df_base_rep.copy()
+    if curr_proto: df_mz = df_mz[df_mz['Prototipo'].isin(curr_proto)]
+    if curr_lotes: df_mz = df_mz[df_mz['Lote'].astype(str).isin(curr_lotes)]
+    if curr_concepto: df_mz = df_mz[df_mz['Concepto_Limpio'].isin(curr_concepto)]
+    if curr_dest: df_mz = df_mz[df_mz['Destajista'].isin(curr_dest)]
+    list_manzanas = sorted([x for x in df_mz['Manzana'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+
+    # 3. Lotes
+    df_lote = df_base_rep.copy()
+    if curr_proto: df_lote = df_lote[df_lote['Prototipo'].isin(curr_proto)]
+    if curr_mz: df_lote = df_lote[df_lote['Manzana'].isin(curr_mz)]
+    if curr_concepto: df_lote = df_lote[df_lote['Concepto_Limpio'].isin(curr_concepto)]
+    if curr_dest: df_lote = df_lote[df_lote['Destajista'].isin(curr_dest)]
+    list_lotes = sorted([str(x) for x in df_lote['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
+
+    # 4. Concepto / Partida (Aplicando el ORDEN_PARTIDAS_MAESTRO)
+    df_conc = df_base_rep.copy()
+    if curr_proto: df_conc = df_conc[df_conc['Prototipo'].isin(curr_proto)]
+    if curr_mz: df_conc = df_conc[df_conc['Manzana'].isin(curr_mz)]
+    if curr_lotes: df_conc = df_conc[df_conc['Lote'].astype(str).isin(curr_lotes)]
+    if curr_dest: df_conc = df_conc[df_conc['Destajista'].isin(curr_dest)]
+    conceptos_presentes = [str(c).strip() for c in df_conc['Concepto_Limpio'].unique() if str(c).strip()]
+    list_conceptos = sorted(conceptos_presentes, key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999)
+
+    # 5. Destajistas
+    df_dest = df_base_rep.copy()
+    if curr_proto: df_dest = df_dest[df_dest['Prototipo'].isin(curr_proto)]
+    if curr_mz: df_dest = df_dest[df_dest['Manzana'].isin(curr_mz)]
+    if curr_lotes: df_dest = df_dest[df_dest['Lote'].astype(str).isin(curr_lotes)]
+    if curr_concepto: df_dest = df_dest[df_dest['Concepto_Limpio'].isin(curr_concepto)]
+    list_destajistas_filtro = sorted([str(d) for d in df_dest['Destajista'].unique() if str(d).strip()], key=natural_sort_key)
+    # -----------------------------------------------------------------
 
     r_col1, r_col2 = st.columns(2)
     with r_col1:
