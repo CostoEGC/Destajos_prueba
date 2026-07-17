@@ -1326,7 +1326,7 @@ if menu == "Registro de Destajos":
             st.rerun()
 
     # --- 2. Asignación % Adicional ---
-    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", " ", "0%", "10%"], label_visibility="collapsed")
+    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
     if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
             val_ad = 0.10 if pct_adicional_masivo == "10%" else 0.0
@@ -1338,7 +1338,7 @@ if menu == "Registro de Destajos":
             st.rerun()
 
     # --- 3. Asignación % Retención ---
-    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", " ", "0%", "5%"], label_visibility="collapsed")
+    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
     if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
             val_ret = 0.05 if pct_retencion_masiva == "5%" else 0.0
