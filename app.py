@@ -581,14 +581,18 @@ else:
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
     st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
-    st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
+    
+    # --- NUEVO: BOTÓN PARA LIMPIAR FILTROS (Punto 2) ---
+    if st.button("🧹 Limpiar todos los filtros", use_container_width=True):
+        for key in ['rep_sel_proto', 'rep_sel_manzana', 'rep_sel_lotes', 'rep_sel_concepto', 'rep_sel_dest']:
+            if key in st.session_state:
+                st.session_state[key] = []
+        st.rerun()
     
     df_base_rep = st.session_state.df.copy()
-    
-    # --- NUEVO: FILTROS EN CASCADA PARA REPORTES Y ORDEN MAESTRO ---
-    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_texto_partida)
+    df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
 
-    # Obtenemos lo que el usuario ya seleccionó (si está vacío, no filtra)
+    # Obtenemos las selecciones actuales de la memoria
     curr_proto = st.session_state.get('rep_sel_proto', [])
     curr_mz = st.session_state.get('rep_sel_manzana', [])
     curr_lotes = st.session_state.get('rep_sel_lotes', [])
@@ -619,7 +623,7 @@ def dialogo_reportes():
     if curr_dest: df_lote = df_lote[df_lote['Destajista'].isin(curr_dest)]
     list_lotes = sorted([str(x) for x in df_lote['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
 
-    # 4. Concepto / Partida (Aplicando el ORDEN_PARTIDAS_MAESTRO)
+    # 4. Concepto / Partida (Punto 5: Respetando el orden del Excel)
     df_conc = df_base_rep.copy()
     if curr_proto: df_conc = df_conc[df_conc['Prototipo'].isin(curr_proto)]
     if curr_mz: df_conc = df_conc[df_conc['Manzana'].isin(curr_mz)]
@@ -628,14 +632,23 @@ def dialogo_reportes():
     conceptos_presentes = [str(c).strip() for c in df_conc['Concepto_Limpio'].unique() if str(c).strip()]
     list_conceptos = sorted(conceptos_presentes, key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999)
 
-    # 5. Destajistas
+    # 5. Destajistas (Punto 1: Ya no muestra todos, respeta la cascada)
     df_dest = df_base_rep.copy()
     if curr_proto: df_dest = df_dest[df_dest['Prototipo'].isin(curr_proto)]
     if curr_mz: df_dest = df_dest[df_dest['Manzana'].isin(curr_mz)]
     if curr_lotes: df_dest = df_dest[df_dest['Lote'].astype(str).isin(curr_lotes)]
     if curr_concepto: df_dest = df_dest[df_dest['Concepto_Limpio'].isin(curr_concepto)]
     list_destajistas_filtro = sorted([str(d) for d in df_dest['Destajista'].unique() if str(d).strip()], key=natural_sort_key)
-    # -----------------------------------------------------------------
+
+    # --- NUEVO: PREVENCIÓN DE BLOQUEO DE PANTALLA (Punto 1) ---
+    # Interceptamos las variables guardadas; si la lista nueva ya no contiene
+    # el valor seleccionado, lo eliminamos de la memoria para que no crashee.
+    st.session_state.rep_sel_proto = [x for x in curr_proto if x in list_prototipos]
+    st.session_state.rep_sel_manzana = [x for x in curr_mz if x in list_manzanas]
+    st.session_state.rep_sel_lotes = [x for x in curr_lotes if x in list_lotes]
+    st.session_state.rep_sel_concepto = [x for x in curr_concepto if x in list_conceptos]
+    st.session_state.rep_sel_dest = [x for x in curr_dest if x in list_destajistas_filtro]
+    # -------------------------------------------------------------
 
     r_col1, r_col2 = st.columns(2)
     with r_col1:
@@ -645,14 +658,12 @@ def dialogo_reportes():
     with r_col2:
         st.multiselect("Manzana(s):", options=list_manzanas, placeholder="Todas", key="rep_sel_manzana")
         
-        # --- NUEVO: Checkboxes para Estado de Pago ---
         st.markdown("<span style='font-size: 14px;'>Estado de Pago:</span>", unsafe_allow_html=True)
         c_chk1, c_chk2 = st.columns(2)
         with c_chk1:
             chk_pagado = st.checkbox("Pagado", value=True, key="rep_chk_pagado")
         with c_chk2:
             chk_por_pagar = st.checkbox("Por pagar", value=True, key="rep_chk_por_pagar")
-        # ---------------------------------------------
         
         st.multiselect("Destajista(s):", options=list_destajistas_filtro, placeholder="Todos", key="rep_sel_dest")
         
@@ -886,8 +897,9 @@ def dialogo_reportes():
             
             with col_cerrar:
                 if st.button("❌ Cerrar y cambiar filtros", type="secondary", use_container_width=True):
+                    # Al darle clic, Streamlit recargará el código automáticamente apagando el PDF, 
+                    # pero manteniendo la ventana abierta y recordando los filtros. 
                     st.session_state.mostrar_preview_pdf = False
-                    
                     
             with col_descargar:
                 st.download_button(
@@ -900,7 +912,10 @@ def dialogo_reportes():
             
             import base64
             base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-            pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf" style="border:none; border-radius:8px;">'
+            
+            # --- NUEVO: VISOR A PRUEBA DE CHROME (Punto 3) ---
+            # Reemplazamos iframe por <object> para evitar las estrictas políticas de Chrome
+            pdf_display = f'<object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="700" style="border:none; border-radius:8px;"><p style="color:white; text-align:center;">Tu navegador bloqueó la vista previa por seguridad. Por favor usa el botón de Descargar PDF.</p></object>'
             st.markdown(pdf_display, unsafe_allow_html=True)
         
 if st.sidebar.button("📄 Reportes"):
