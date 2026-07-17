@@ -360,15 +360,23 @@ def normalizar_texto(texto):
     texto = str(texto).strip().lower()
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')    
 
+# --- 🚀 OPTIMIZACIÓN 1: DICCIONARIO DE BÚSQUEDA ULTRARRÁPIDA ---
+# Esto convierte tu lista maestra en un diccionario. Buscar aquí es instantáneo.
+DICCIONARIO_ORDEN_MAESTRO = {partida: idx for idx, partida in enumerate(ORDEN_PARTIDAS_MAESTRO)}
+
+# --- 🚀 OPTIMIZACIÓN 2: PRE-COMPILAR LOS BUSCADORES DE TEXTO ---
+# Prepara las reglas de limpieza en la memoria una sola vez al cargar la app.
+PATRON_NUMERO = re.compile(r'^(\d+)')
+PATRON_LIMPIEZA = re.compile(r'^\d+[\s\.\-]*')
 
 def extraer_numero_partida(partida_str):
     """Extrae el número inicial de la partida (solo se usa en secreto para ordenar)."""
-    match = re.search(r'^(\d+)', str(partida_str).strip())
+    match = PATRON_NUMERO.search(str(partida_str).strip())
     return int(match.group(1)) if match else 99999
 
 def limpiar_texto_partida(partida_str):
     """Elimina el número y guiones para que en pantalla solo aparezcan las palabras."""
-    return re.sub(r'^\d+[\s\.\-]*', '', str(partida_str)).strip()
+    return PATRON_LIMPIEZA.sub('', str(partida_str)).strip()
 
 def obtener_conceptos_ordenados_limpios(df_fuente):
     """Extrae las partidas, las ordena por su número oculto y devuelve solo el texto limpio sin duplicados."""
@@ -626,7 +634,7 @@ def dialogo_reportes():
     if curr_lotes: df_conc = df_conc[df_conc['Lote'].astype(str).isin(curr_lotes)]
     if curr_dest: df_conc = df_conc[df_conc['Destajista'].isin(curr_dest)]
     conceptos_presentes = [str(c).strip() for c in df_conc['Concepto_Limpio'].unique() if str(c).strip()]
-    list_conceptos = sorted(conceptos_presentes, key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999)
+    list_conceptos = sorted(conceptos_presentes, key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999))
 
     # 5. Destajistas
     df_dest = df_base_rep.copy()
@@ -982,7 +990,7 @@ def dialogo_nueva_partida():
         df_temp['Lote_Num'] = pd.to_numeric(df_temp['Lote'], errors='coerce').fillna(9999)
         df_temp['Partida_Limpia'] = df_temp['Partida'].apply(limpiar_texto_partida)
         df_temp['Orden_Excel'] = df_temp['Partida_Limpia'].apply(
-            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+            lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
         )
         
         # Ordenamos usando el ID_DB_Num como desempate (las más antiguas arriba, las nuevas al final)
@@ -1152,7 +1160,7 @@ if menu == "Registro de Destajos":
         conceptos_presentes = [str(c).strip() for c in df_concepto_opts['Concepto_Limpio'].unique() if str(c).strip()]
         list_conceptos = sorted(
             conceptos_presentes, 
-            key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+            key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
         )
 
         # 5. Opciones de Destajista
@@ -1184,7 +1192,7 @@ if menu == "Registro de Destajos":
             st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
     df_filtrado = df_actual.copy()
-    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(limpiar_texto_partida)
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -1296,7 +1304,7 @@ if menu == "Registro de Destajos":
     
     # Creamos columna de orden guiada ESTRICTAMENTE por tu Excel
     df_filtrado_grid['Orden_Excel'] = df_filtrado_grid['Partida'].apply(
-        lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+        lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
     )
     
     # Convertimos ID_DB a numérico para desempate estable
@@ -1513,7 +1521,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         # 2. Limpiamos la partida para cruzarla con el índice del Excel Maestro
         df_ret_filtrado['Partida_Limpia'] = df_ret_filtrado['Partida'].apply(limpiar_texto_partida)
         df_ret_filtrado['Orden_Excel'] = df_ret_filtrado['Partida_Limpia'].apply(
-            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+            lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
         )
         
         # 3. Aplicamos el ordenamiento multi-nivel exacto que usamos en la tabla principal
@@ -2012,7 +2020,7 @@ elif menu == "Mapa Interactivo":
     conceptos_mapa = [str(p) for p in df_map_base['Concepto_Limpio'].dropna().unique() if str(p).strip()]
     partidas_ordenadas_limpias = sorted(
         conceptos_mapa,
-        key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+        key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
     )
     
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
@@ -2205,7 +2213,7 @@ elif menu == "Mapa Interactivo":
             # ORDENAMOS desglose del lote usando la lista maestra y ocultamos el número
             if not df_desglose_lote.empty:
                 df_desglose_lote['Orden_Excel'] = df_desglose_lote['Concepto_Limpio'].apply(
-                    lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
+                    lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
                 )
                 df_desglose_lote = df_desglose_lote.sort_values('Orden_Excel')
                 df_desglose_lote['Partida'] = df_desglose_lote['Concepto_Limpio'] # Desaparece número
