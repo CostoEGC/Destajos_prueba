@@ -2020,7 +2020,7 @@ elif menu == "Mapa Interactivo":
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas)")
+    st.markdown("### 🔍 Filtros (Partidas y Destajistas)")
         
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
