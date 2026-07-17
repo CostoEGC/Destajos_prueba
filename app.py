@@ -1418,11 +1418,33 @@ if menu == "Registro de Destajos":
         
         costo_seleccionado = df_pagar_actual['Monto_Neto_Real'].sum()
         
-        ph_label_azul.markdown(f"<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: {total_filas} / Checkbox seleccionados: {total_checked}</div>", unsafe_allow_html=True)
-        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+        # --- NUEVO: CÁLCULO DE PAGADO Y POR PAGAR EN PANTALLA ---
+        df_grid['C_Temp_All'] = pd.to_numeric(df_grid['Costo'], errors='coerce').fillna(0)
+        df_grid['Ad_Temp_All'] = pd.to_numeric(df_grid['% Adicional'], errors='coerce').fillna(0)
+        df_grid['Ret_Temp_All'] = pd.to_numeric(df_grid['% Retención'], errors='coerce').fillna(0)
+        df_grid['Monto_Neto_All'] = df_grid['C_Temp_All'] + (df_grid['C_Temp_All'] * df_grid['Ad_Temp_All']) - (df_grid['C_Temp_All'] * df_grid['Ret_Temp_All'])
+        
+        monto_pagado_pantalla = df_grid[df_grid['Fecha_Pago_Limpia'] != '']['Monto_Neto_All'].sum()
+        monto_por_pagar_pantalla = df_grid[df_grid['Fecha_Pago_Limpia'] == '']['Monto_Neto_All'].sum()
+
+        # --- CAJA AMARILLA CENTRADA ---
+        ph_indicador_suma.markdown(f"<div style='display: flex; justify-content: center; margin-bottom: 10px;'><div style='background-color:#F59E0B; color:black; padding:10px 30px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div></div>", unsafe_allow_html=True)
+        
+        # --- LABELS AZULES INFERIORES A LA MISMA ALTURA ---
+        ph_label_azul.markdown(f"""
+        <div style='display: flex; justify-content: space-between; color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px; padding: 0 15px;'>
+            <div>Partidas en pantalla: {total_filas} / Checkbox activados: {total_checked}</div>
+            <div>✅ Pagado: ${monto_pagado_pantalla:,.2f} &nbsp;&nbsp;|&nbsp;&nbsp; ⏳ Por Pagar: ${monto_por_pagar_pantalla:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        ph_label_azul.markdown("<div style='color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px;'>Partidas en pantalla: 0 / Checkbox activados: 0</div>", unsafe_allow_html=True)
-        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+        ph_indicador_suma.markdown(f"<div style='display: flex; justify-content: center; margin-bottom: 10px;'><div style='background-color:#F59E0B; color:black; padding:10px 30px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div></div>", unsafe_allow_html=True)
+        ph_label_azul.markdown(f"""
+        <div style='display: flex; justify-content: space-between; color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px; padding: 0 15px;'>
+            <div>Partidas en pantalla: 0 / Checkbox activados: 0</div>
+            <div>✅ Pagado: $0.00 &nbsp;&nbsp;|&nbsp;&nbsp; ⏳ Por Pagar: $0.00</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # =========================================================================
 # NUEVA PESTAÑA: FONDO DE GARANTÍA (RETENCIONES)
