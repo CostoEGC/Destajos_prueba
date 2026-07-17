@@ -1426,22 +1426,24 @@ if menu == "Registro de Destajos":
         
         monto_pagado_pantalla = df_grid[df_grid['Fecha_Pago_Limpia'] != '']['Monto_Neto_All'].sum()
         monto_por_pagar_pantalla = df_grid[df_grid['Fecha_Pago_Limpia'] == '']['Monto_Neto_All'].sum()
+
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
         
         ph_label_azul.markdown(f"""
         <div style='display: flex; justify-content: space-between; color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px; padding: 0 15px;'>
             <div>Partidas en pantalla: {total_filas} / Checkbox activados: {total_checked}</div>
             <div>✅ Pagado: ${monto_pagado_pantalla:,.2f} &nbsp;&nbsp;|&nbsp;&nbsp; ⏳ Por Pagar: ${monto_por_pagar_pantalla:,.2f}</div>
         </div>
-        """, unsafe_allow_html=True)
-        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${costo_seleccionado:,.2f}</div>", unsafe_allow_html=True)
+        """, unsafe_allow_html=True)        
     else:
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
         ph_label_azul.markdown(f"""
         <div style='display: flex; justify-content: space-between; color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px; padding: 0 15px;'>
             <div>Partidas en pantalla: 0 / Checkbox activados: 0</div>
             <div>✅ Pagado: $0.00 &nbsp;&nbsp;|&nbsp;&nbsp; ⏳ Por Pagar: $0.00</div>
         </div>
         """, unsafe_allow_html=True)
-        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+        
 
 # =========================================================================
 # NUEVA PESTAÑA: FONDO DE GARANTÍA (RETENCIONES)
