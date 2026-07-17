@@ -737,16 +737,23 @@ def dialogo_reportes():
             
     # --- FILTRADO DE FECHAS SEGÚN EL MODO ---
     if rango and len(rango) == 2:
-        meses_regex = {
-            r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
-            r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
-            r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
-        }
-        col_fecha_usar = 'Fecha Liberación' if is_fondo else 'Fecha pago'
-        df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado[col_fecha_usar].replace(meses_regex, regex=True)
-        df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-        df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
-        df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
+        if chk_por_pagar:
+            # Si hay fechas seleccionadas Y la casilla de pendientes está activa, lanzamos tu alerta:
+            st.error(f"⚠️ **Alerta de Validación:** No puedes filtrar por un rango de fechas si estás incluyendo partidas con estado '{lbl_pendiente}'. Por favor, borra las fechas o desmarca la casilla para continuar.")
+            
+            # Vaciamos la tabla internamente para que el sistema bloquee la generación del PDF
+            df_rep_filtrado = df_rep_filtrado.iloc[0:0] 
+        else:
+            meses_regex = {
+                r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
+                r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
+                r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
+            }
+            col_fecha_usar = 'Fecha Liberación' if is_fondo else 'Fecha pago'
+            df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado[col_fecha_usar].replace(meses_regex, regex=True)
+            df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+            df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
+            df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
         
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
@@ -756,9 +763,9 @@ def dialogo_reportes():
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
+        #st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
-        if st.button("⚙️ Construir documento PDF con estos filtros", type="primary", use_container_width=True):
+        if st.button("⚙️ Generar PDF", type="primary", use_container_width=True):
             
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
