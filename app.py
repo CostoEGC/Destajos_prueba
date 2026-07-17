@@ -1359,9 +1359,12 @@ if menu == "Registro de Destajos":
                 padding: 0 !important; 
             }
             div[data-testid="stFormSubmitButton"] {
-                position: absolute !important;
-                top: -105px !important;  
-                right: -1105px !important;   
+                display: flex !important;
+                justify-content: flex-end !important;
+                width: 100% !important;
+                margin-top: -105px !important;
+                margin-bottom: 15px !important;
+                position: relative !important;
                 z-index: 9999 !important;
             }
             div[data-testid="stFormSubmitButton"] button {
