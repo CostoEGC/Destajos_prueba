@@ -721,13 +721,12 @@ def dialogo_reportes():
     if df_rep_filtrado.empty:
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
-        # --- NUEVA LÓGICA DE RENDIMIENTO ---
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente arriba. El contador de partidas se actualizará en tiempo real. Cuando estés listo para imprimir, activa la casilla de abajo.")
+        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
-        generar_pdf = st.toggle("⚙️ Construir documento PDF con estos filtros")
-        
-        if generar_pdf:
+        # --- CAMBIO A BOTÓN: Desaparece automáticamente si cambias un filtro ---
+        if st.button("⚙️ Construir documento PDF con estos filtros", type="primary", use_container_width=True):
+            
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
                 pdf.add_page()
@@ -898,6 +897,7 @@ def dialogo_reportes():
                     unsafe_allow_html=True
                 )
 
+                st.success("✅ ¡PDF generado con éxito!")
                 c_vacia1, c_vacia2, c_boton = st.columns([3, 1, 1.2])
                 with c_boton:
                     st.download_button(
