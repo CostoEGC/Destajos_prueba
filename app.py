@@ -566,7 +566,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                st.session_state.grid_key += 1 
+                #st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
                 
                 # --- NUEVO: GUARDAR FECHA DE ÉXITO EN MEMORIA ---
@@ -1291,13 +1291,19 @@ if menu == "Registro de Destajos":
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
+        # Seleccionamos solo las partidas pendientes para no tocar las pagadas
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
+        st.session_state.current_grid_state = pd.DataFrame() # Limpiamos memoria terca de la tabla
+        st.session_state.grid_key += 1 # Forzamos el refresco visual masivo
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
+        st.session_state.current_grid_state = pd.DataFrame()
+        st.session_state.grid_key += 1
         st.session_state.reload_trigger = True
         st.rerun()
 
@@ -1306,30 +1312,37 @@ if menu == "Registro de Destajos":
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
             st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
+            st.session_state.current_grid_state = pd.DataFrame()
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
             st.success("Destajista asignado masivamente.")
             st.rerun()
 
     # --- 2. Asignación % Adicional ---
-    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
+    # Añadimos la opción vacía " " para poder borrar valores
+    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", " ", "0%", "10%"], label_visibility="collapsed")
     if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
             val = 0.10 if pct_adicional_masivo == "10%" else 0.0
             st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
+            st.session_state.current_grid_state = pd.DataFrame()
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
             st.success("% Adicional asignado masivamente.")
             st.rerun()
 
     # --- 3. Asignación % Retención ---
-    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
+    # Añadimos la opción vacía " " para poder borrar valores
+    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", " ", "0%", "5%"], label_visibility="collapsed")
     if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
             val = 0.05 if pct_retencion_masiva == "5%" else 0.0
             st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
+            st.session_state.current_grid_state = pd.DataFrame()
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
             st.success("% Retención asignado masivamente.")
             st.rerun()
-
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
     ph_label_azul = st.empty()
