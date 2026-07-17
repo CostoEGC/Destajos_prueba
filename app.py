@@ -1092,7 +1092,7 @@ def dialogo_nueva_partida():
             st.session_state.df = obtener_datos_gsheet()
             
         st.session_state.df_original = st.session_state.df.copy()
-        st.session_state.grid_key += 1
+        #st.session_state.grid_key += 1
         st.success("¡Partida(s) inyectada(s) exactamente al final de cada grupo!")
         st.rerun()
 
@@ -1149,7 +1149,7 @@ if menu == "Registro de Destajos":
             st.session_state.sel_dest = "Todos"
             st.session_state.sel_estado = "Todos"
             st.session_state.sel_fecha = ()
-            st.session_state.grid_key += 1 
+            #st.session_state.grid_key += 1 
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
@@ -1457,56 +1457,47 @@ if menu == "Registro de Destajos":
     # FORMULARIO ENCAPSULADOR (LA MAGIA CONTRA EL PARPADEO ESTÁ AQUÍ)
     # ====================================================
     with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stForm"] { 
-                border: none !important; 
-                padding: 0 !important; 
-            }
-            div[data-testid="stFormSubmitButton"] {
-                display: flex !important;
-                justify-content: flex-end !important;
-                width: 100% !important;
-                margin-top: -105px !important;
-                margin-bottom: 15px !important;
-                position: relative !important;
-                z-index: 9999 !important;
-            }
-            div[data-testid="stFormSubmitButton"] button {
-                width: 220px !important;
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                height: 42px !important;
-                font-weight: bold !important;
-            }
-            div[data-testid="stFormSubmitButton"] button:hover { 
-                background-color: #2563EB !important; 
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        st.form_submit_button("🔄 Actualizar Totales", type="primary")
+       st.markdown(
+        """
+        <style>
+        /* Estilo para integrar el botón suavemente y que siga viéndose genial */
+        div.stButton > button[kind="primary"] {
+            background-color: #3B82F6 !important;
+            color: white !important;
+            border-radius: 8px !important;
+            border: none !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+            height: 42px !important;
+            font-weight: bold !important;
+        }
+        div.stButton > button[kind="primary"]:hover { 
+            background-color: #2563EB !important; 
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Acomodamos el botón a la derecha antes de la tabla (igual que antes)
+    col_vacia, col_btn = st.columns([8, 2])
+    with col_btn:
+        st.button("🔄 Actualizar Totales", type="primary", use_container_width=True)
         
-        response = AgGrid(
-            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
-            gridOptions=grid_options,
-            key=f"grid_destajos_{st.session_state.grid_key}",
-            reload_data=st.session_state.reload_trigger,
-            enable_enterprise_modules=False,
-            allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,  
-            data_return_mode=DataReturnMode.AS_INPUT,  
-            fit_columns_on_grid_load=False,
-            theme='balham',
-            height=800,
-            custom_css=mis_estilos
-        )
-    st.session_state.reload_trigger = False
+    response = AgGrid(
+        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+        gridOptions=grid_options,
+        key=f"grid_destajos_{st.session_state.grid_key}",
+        reload_data=st.session_state.reload_trigger,
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        update_mode=GridUpdateMode.MANUAL,  # <--- EL SECRETO: MANUAL EVITA EL PARPADEO SIN CONGELAR LA TABLA
+        data_return_mode=DataReturnMode.AS_INPUT,  
+        fit_columns_on_grid_load=False,
+        theme='balham',
+        height=800,
+        custom_css=mis_estilos
+    )
+    st.session_state.reload_trigger = False 
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
@@ -1816,7 +1807,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                             st.session_state.df = obtener_datos_gsheet()
                             
                         st.session_state.df_original = st.session_state.df.copy()
-                        st.session_state.grid_key += 1 
+                        #st.session_state.grid_key += 1 
                         st.rerun() 
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
