@@ -480,13 +480,22 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
     if df_actual_pantalla.empty:
         st.sidebar.warning("No hay cambios en pantalla para guardar.")
     else:
+        # 1. Limpiamos y preparamos los datos
         df_actual_pantalla['Pagar_Bool'] = df_actual_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
         df_actual_pantalla['Fecha_Pago_Limpia'] = df_actual_pantalla['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+        df_actual_pantalla['Destajista_Limpio'] = df_actual_pantalla['Destajista'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
-        filas_a_pagar = df_actual_pantalla[(df_actual_pantalla['Pagar_Bool'] == True) & (df_actual_pantalla['Fecha_Pago_Limpia'] == '')]
-        filas_invalidas = filas_a_pagar[filas_a_pagar['Destajista'].astype(str).str.strip() == '']
-        if not filas_invalidas.empty:
-            st.sidebar.error("❌ ¡ALTO! Hay partidas marcadas para pagar sin 'Destajista' asignado. Completa los datos antes de guardar.")
+        # Filtramos solo las filas que aún no están pagadas (pendientes)
+        pendientes = df_actual_pantalla[df_actual_pantalla['Fecha_Pago_Limpia'] == '']
+        
+        # 2. LÓGICA DE BLOQUEO (Las dos reglas obligatorias)
+        error_1 = pendientes[(pendientes['Pagar_Bool'] == True) & (pendientes['Destajista_Limpio'] == '')]
+        error_2 = pendientes[(pendientes['Pagar_Bool'] == False) & (pendientes['Destajista_Limpio'] != '')]
+        
+        if not error_1.empty:
+            st.sidebar.error("❌ ¡ALTO! Hay filas con la casilla de Pagar activada pero SIN destajista. Completa el dato y haz clic en 'Actualizar Totales' antes de guardar.")
+        elif not error_2.empty:
+            st.sidebar.error("❌ ¡ALTO! Asignaste un destajista a una fila pero NO activaste su casilla de Pagar. Activa la casilla y haz clic en 'Actualizar Totales' antes de guardar.")
         else:
             with st.spinner("Sincronizando con Supabase..."):
                 tz_mx = ZoneInfo("America/Mexico_City")
@@ -498,6 +507,8 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 hora = tiempo_actual.strftime("%H:%M:%S")
                 ahora = f"{dia}/{mes}/{anio} {hora}"
                 usuario_actual = st.session_state.usuario
+                
+                filas_a_pagar = pendientes[pendientes['Pagar_Bool'] == True]
                 
                 if not filas_a_pagar.empty:
                     for _, row in filas_a_pagar.iterrows():
@@ -543,17 +554,29 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
 
                 df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
                 
-                # Actualizar hacia Supabase (Solo envía las filas modificadas/nuevas gracias a upsert)
                 actualizar_datos_gsheet(df_envio)
                 
-                # Recargar memoria de base de datos fresca (Con IDs asignados por la BD)
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
                 st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
-                st.success("¡Datos guardados!")
+                
+                # --- NUEVO: GUARDAR FECHA DE ÉXITO EN MEMORIA ---
+                st.session_state.ultima_vez_guardado = f"{dia}/{mes}/{anio} {hora}"
+                
+                st.sidebar.success("✅ ¡Cambios guardados con éxito!")
                 st.rerun()
+
+# --- NUEVO: MOSTRAR LA FECHA DEL ÚLTIMO GUARDADO Y LA ALERTA DE CAMBIOS ---
+if st.session_state.get('ultima_vez_guardado'):
+    st.sidebar.markdown(f"<div style='text-align: center; color: #10B981; font-size: 14px; margin-top: -10px; margin-bottom: 15px;'>Último guardado:<br><b>✅ {st.session_state.ultima_vez_guardado}</b></div>", unsafe_allow_html=True)
+    
+# Este es el contenedor vacío donde aparece la advertencia amarilla al tocar la tabla
+if 'alerta_cambios_ui' not in st.session_state:
+    alerta_cambios_ui = st.sidebar.empty()
+else:
+    alerta_cambios_ui = st.sidebar.empty()
 
 @st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
