@@ -360,23 +360,15 @@ def normalizar_texto(texto):
     texto = str(texto).strip().lower()
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')    
 
-# --- 🚀 OPTIMIZACIÓN 1: DICCIONARIO DE BÚSQUEDA ULTRARRÁPIDA ---
-# Esto convierte tu lista maestra en un diccionario. Buscar aquí es instantáneo.
-DICCIONARIO_ORDEN_MAESTRO = {partida: idx for idx, partida in enumerate(ORDEN_PARTIDAS_MAESTRO)}
-
-# --- 🚀 OPTIMIZACIÓN 2: PRE-COMPILAR LOS BUSCADORES DE TEXTO ---
-# Prepara las reglas de limpieza en la memoria una sola vez al cargar la app.
-PATRON_NUMERO = re.compile(r'^(\d+)')
-PATRON_LIMPIEZA = re.compile(r'^\d+[\s\.\-]*')
 
 def extraer_numero_partida(partida_str):
     """Extrae el número inicial de la partida (solo se usa en secreto para ordenar)."""
-    match = PATRON_NUMERO.search(str(partida_str).strip())
+    match = re.search(r'^(\d+)', str(partida_str).strip())
     return int(match.group(1)) if match else 99999
 
 def limpiar_texto_partida(partida_str):
     """Elimina el número y guiones para que en pantalla solo aparezcan las palabras."""
-    return PATRON_LIMPIEZA.sub('', str(partida_str)).strip()
+    return re.sub(r'^\d+[\s\.\-]*', '', str(partida_str)).strip()
 
 def obtener_conceptos_ordenados_limpios(df_fuente):
     """Extrae las partidas, las ordena por su número oculto y devuelve solo el texto limpio sin duplicados."""
@@ -464,7 +456,6 @@ if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
 if st.session_state.menu_actual != menu:
-    # 1. Rescatamos los datos que no se hayan guardado en la tabla antes de irnos
     if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
         df_vivo = st.session_state.current_grid_state
         for _, row in df_vivo.iterrows():
@@ -473,12 +464,14 @@ if st.session_state.menu_actual != menu:
                 if col in st.session_state.df.columns and col != '_original_index':
                     st.session_state.df.at[idx_orig, col] = row[col]
                     
-    # 2. Configurar vista del mapa si vamos a esa pestaña específica
+    for key in list(st.session_state.keys()):
+        if key.startswith('sel_') or key.startswith('rep_'):
+            st.session_state[key] = st.session_state[key]
+            
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
-        
-    # 3. Actualizar la memoria del menú (¡Dejamos que Streamlit fluya naturalmente sin st.rerun!)
     st.session_state.menu_actual = menu
+    st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
@@ -633,7 +626,7 @@ def dialogo_reportes():
     if curr_lotes: df_conc = df_conc[df_conc['Lote'].astype(str).isin(curr_lotes)]
     if curr_dest: df_conc = df_conc[df_conc['Destajista'].isin(curr_dest)]
     conceptos_presentes = [str(c).strip() for c in df_conc['Concepto_Limpio'].unique() if str(c).strip()]
-    list_conceptos = sorted(conceptos_presentes, key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999))
+    list_conceptos = sorted(conceptos_presentes, key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999)
 
     # 5. Destajistas
     df_dest = df_base_rep.copy()
@@ -729,10 +722,10 @@ def dialogo_reportes():
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-        #st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
+        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
         # --- CAMBIO A BOTÓN: Desaparece automáticamente si cambias un filtro ---
-        if st.button("⚙️ Crear PDF", type="primary", use_container_width=True):
+        if st.button("⚙️ Construir documento PDF con estos filtros", type="primary", use_container_width=True):
             
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
@@ -989,7 +982,7 @@ def dialogo_nueva_partida():
         df_temp['Lote_Num'] = pd.to_numeric(df_temp['Lote'], errors='coerce').fillna(9999)
         df_temp['Partida_Limpia'] = df_temp['Partida'].apply(limpiar_texto_partida)
         df_temp['Orden_Excel'] = df_temp['Partida_Limpia'].apply(
-            lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
         )
         
         # Ordenamos usando el ID_DB_Num como desempate (las más antiguas arriba, las nuevas al final)
@@ -1159,7 +1152,7 @@ if menu == "Registro de Destajos":
         conceptos_presentes = [str(c).strip() for c in df_concepto_opts['Concepto_Limpio'].unique() if str(c).strip()]
         list_conceptos = sorted(
             conceptos_presentes, 
-            key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+            key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
         )
 
         # 5. Opciones de Destajista
@@ -1191,7 +1184,7 @@ if menu == "Registro de Destajos":
             st.date_input("Fecha de Pago (Rango):", format="DD/MM/YYYY", key="sel_fecha")
 
     df_filtrado = df_actual.copy()
-    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(limpiar_texto_partida)
+    df_filtrado['Concepto_Limpio'] = df_filtrado['Partida'].apply(lambda x: re.sub(r'^\d+[\s\.\-]*', '', str(x)).strip())
     if st.session_state.sel_proto != "Todos": df_filtrado = df_filtrado[df_filtrado['Prototipo'] == st.session_state.sel_proto]
     if st.session_state.sel_manzana != "Todos": df_filtrado = df_filtrado[df_filtrado['Manzana'] == st.session_state.sel_manzana]
     if st.session_state.sel_lotes: df_filtrado = df_filtrado[df_filtrado['Lote'].astype(str).isin(st.session_state.sel_lotes)]
@@ -1303,7 +1296,7 @@ if menu == "Registro de Destajos":
     
     # Creamos columna de orden guiada ESTRICTAMENTE por tu Excel
     df_filtrado_grid['Orden_Excel'] = df_filtrado_grid['Partida'].apply(
-        lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+        lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
     )
     
     # Convertimos ID_DB a numérico para desempate estable
@@ -1520,7 +1513,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         # 2. Limpiamos la partida para cruzarla con el índice del Excel Maestro
         df_ret_filtrado['Partida_Limpia'] = df_ret_filtrado['Partida'].apply(limpiar_texto_partida)
         df_ret_filtrado['Orden_Excel'] = df_ret_filtrado['Partida_Limpia'].apply(
-            lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
         )
         
         # 3. Aplicamos el ordenamiento multi-nivel exacto que usamos en la tabla principal
@@ -1583,7 +1576,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
             df_ret_filtrado = df_ret_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
 
             total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
-            ph_label_azul.markdown(f"<div style='background-color:#3B82F6; color:white; padding:8px; border-radius:5px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px;'>Total Monto Liberado: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
+            ph_label_azul.markdown(f"<div style='background-color:#3B82F6; color:white; padding:8px; border-radius:5px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px;'>Total Monto Retenido: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
 
         gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']])
         gb_ret.configure_default_column(sortable=False, filter=True, resizable=True)
@@ -1648,15 +1641,15 @@ elif menu == "Fondo de Garantía (Retenciones)":
             
             suma_activados = df_ret_pantalla[(df_ret_pantalla['Check_Bool'] == True) & (df_ret_pantalla['Estatus Retención'] != 'Liberado')]['Monto Retenido'].sum()
 
-            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:bold;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>${suma_activados:,.2f}</span></div>", unsafe_allow_html=True)
+            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>${suma_activados:,.2f}</span></div>", unsafe_allow_html=True)
         else:
-            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:bold;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>$0.00</span></div>", unsafe_allow_html=True)
+            ph_suma_naranja.markdown(f"<div style='background-color:#F59E0B; color:black; padding:15px; border-radius:8px; text-align:center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-top:28px;'><span style='font-size:16px; font-weight:normal;'>Suma a liberar ahora:</span><br><span style='font-size:26px; font-weight:bold;'>$0.00</span></div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         c_sav_r1, c_sav_r2, c_sav_r3 = st.columns([3, 4, 3])
         
         with c_sav_r2:
-            if st.button("🔓 Guardadar y Generar PDF", type="primary", use_container_width=True):
+            if st.button("🔓 Procesar Guardado y Generar Recibo", type="primary", use_container_width=True):
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
@@ -1767,7 +1760,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
             c_desc1, c_desc2, c_desc3 = st.columns([3, 4, 3])
             with c_desc2:
                 st.download_button(
-                    label="📥 Descarga recibo PDF",
+                    label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
                     data=st.session_state.ultimo_recibo_pdf,
                     file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
                     mime="application/pdf",
@@ -1786,15 +1779,8 @@ elif menu == "Dashboard (Gráficos y Visor)":
     
     df_dash_base = df.copy()
     df_dash_base['Precio'] = df_dash_base['Costo']
-    
-    # --- 🚀 OPTIMIZACIÓN 1: VECTORIZACIÓN DASHBOARD ---
-    masc_pagado = df_dash_base['Fecha pago'] != ''
-    df_dash_base['Total_Pagado_Real'] = 0.0
-    df_dash_base.loc[masc_pagado, 'Total_Pagado_Real'] = df_dash_base.loc[masc_pagado, 'Costo']
-    
-    df_dash_base['Estado'] = 'Pendiente'
-    df_dash_base.loc[masc_pagado, 'Estado'] = 'Pagado'
-    # --------------------------------------------------
+    df_dash_base['Total_Pagado_Real'] = df_dash_base.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
+    df_dash_base['Estado'] = df_dash_base.apply(lambda r: 'Pagado' if r['Fecha pago'] != '' else 'Pendiente', axis=1)
 
     def ordenar_prototipos(val):
         match = re.search(r"(\d+)(.*)", str(val))
@@ -1923,12 +1909,7 @@ elif menu == "Mapa Interactivo":
 
     df_map_base = df.copy()
     df_map_base['Costo'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
-    
-    # --- 🚀 OPTIMIZACIÓN 2: VECTORIZACIÓN MAPA ---
-    masc_mapa = df_map_base['Fecha pago'].astype(str).str.strip() != ''
-    df_map_base['Estado'] = 'Pendiente'
-    df_map_base.loc[masc_mapa, 'Estado'] = 'Pagado'
-    # ---------------------------------------------
+    df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
 
     def hex_to_rgba(hex_val, opacity):
         hex_val = hex_val.lstrip('#')
@@ -1945,7 +1926,7 @@ elif menu == "Mapa Interactivo":
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa['Costo'].where(df_lote_mapa['Estado'] == 'Pagado', 0.0)
+            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
             total_precio_lote = df_lote_mapa['Costo'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
             
@@ -1993,7 +1974,7 @@ elif menu == "Mapa Interactivo":
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
-    df_kpi['Total_Pagado_Real'] = df_kpi['Costo'].where(df_kpi['Estado'] == 'Pagado', 0.0)
+    df_kpi['Total_Pagado_Real'] = df_kpi.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
     costo_total_mapa = df_kpi['Costo'].sum()
     pagado_mapa = df_kpi['Total_Pagado_Real'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
@@ -2020,7 +2001,7 @@ elif menu == "Mapa Interactivo":
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("### 🔍 Filtros (Partidas y Destajistas)")
+    st.markdown("### 🔍 Filtros de Esferas (Partidas y Destajistas)")
         
     f_col_mapa1, f_col_mapa2 = st.columns(2)
     
@@ -2031,7 +2012,7 @@ elif menu == "Mapa Interactivo":
     conceptos_mapa = [str(p) for p in df_map_base['Concepto_Limpio'].dropna().unique() if str(p).strip()]
     partidas_ordenadas_limpias = sorted(
         conceptos_mapa,
-        key=lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+        key=lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
     )
     
     destajistas_unicos_filtro = sorted([str(d) for d in df_map_base['Destajista'].dropna().unique() if str(d).strip()], key=natural_sort_key)
@@ -2147,7 +2128,7 @@ elif menu == "Mapa Interactivo":
             else:
                 st.markdown("**Resumen General por Lote (Financiero):**")
                 df_resumen_global = df_map_base.copy()
-                df_resumen_global['Total_Pagado_Real'] = df_resumen_global['Costo'].where(df_resumen_global['Estado'] == 'Pagado', 0.0)
+                df_resumen_global['Total_Pagado_Real'] = df_resumen_global.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
                 
                 df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
                     Total_Partidas=('Partida', 'count'),
@@ -2224,7 +2205,7 @@ elif menu == "Mapa Interactivo":
             # ORDENAMOS desglose del lote usando la lista maestra y ocultamos el número
             if not df_desglose_lote.empty:
                 df_desglose_lote['Orden_Excel'] = df_desglose_lote['Concepto_Limpio'].apply(
-                    lambda x: DICCIONARIO_ORDEN_MAESTRO.get(x, 99999)
+                    lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
                 )
                 df_desglose_lote = df_desglose_lote.sort_values('Orden_Excel')
                 df_desglose_lote['Partida'] = df_desglose_lote['Concepto_Limpio'] # Desaparece número
@@ -2576,11 +2557,7 @@ elif menu == "Visor Móvil":
     else:
         # Cálculos generales
         df_movil['Costo_Num'] = pd.to_numeric(df_movil['Costo'], errors='coerce').fillna(0)
-        
-        # --- 🚀 OPTIMIZACIÓN 4: VECTORIZACIÓN MÓVIL ---
-        masc_movil = df_movil['Fecha pago'].astype(str).str.strip() != ''
-        df_movil['Total_Pagado'] = df_movil['Costo_Num'].where(masc_movil, 0.0)
-        # ----------------------------------------------
+        df_movil['Total_Pagado'] = df_movil.apply(lambda r: r['Costo_Num'] if str(r['Fecha pago']).strip() != '' else 0, axis=1)
         
         gran_total = df_movil['Costo_Num'].sum()
         pagado_total = df_movil['Total_Pagado'].sum()
