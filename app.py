@@ -2455,7 +2455,7 @@ elif menu == "Mapa Interactivo":
 # =========================================================================
 # PESTAÑA #5: VISOR MÓVIL (KPIs RESPONSIVOS)
 # =========================================================================
-elif menu == "Dashboard Móvil":
+elif menu == "Visor Móvil":
     mostrar_cabecera_con_logo(f"📱 Resumen de Obra: {st.session_state.obra_actual}")
     st.write("Visor optimizado para lectura rápida en dispositivos móviles.")
 
