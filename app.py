@@ -1786,8 +1786,15 @@ elif menu == "Dashboard (Gráficos y Visor)":
     
     df_dash_base = df.copy()
     df_dash_base['Precio'] = df_dash_base['Costo']
-    df_dash_base['Total_Pagado_Real'] = df_dash_base.apply(lambda r: r['Costo'] if r['Fecha pago'] != '' else 0, axis=1)
-    df_dash_base['Estado'] = df_dash_base.apply(lambda r: 'Pagado' if r['Fecha pago'] != '' else 'Pendiente', axis=1)
+    
+    # --- 🚀 OPTIMIZACIÓN 1: VECTORIZACIÓN DASHBOARD ---
+    masc_pagado = df_dash_base['Fecha pago'] != ''
+    df_dash_base['Total_Pagado_Real'] = 0.0
+    df_dash_base.loc[masc_pagado, 'Total_Pagado_Real'] = df_dash_base.loc[masc_pagado, 'Costo']
+    
+    df_dash_base['Estado'] = 'Pendiente'
+    df_dash_base.loc[masc_pagado, 'Estado'] = 'Pagado'
+    # --------------------------------------------------
 
     def ordenar_prototipos(val):
         match = re.search(r"(\d+)(.*)", str(val))
@@ -1916,7 +1923,12 @@ elif menu == "Mapa Interactivo":
 
     df_map_base = df.copy()
     df_map_base['Costo'] = pd.to_numeric(df_map_base['Costo'], errors='coerce').fillna(0)
-    df_map_base['Estado'] = df_map_base.apply(lambda r: 'Pagado' if str(r['Fecha pago']).strip() != '' else 'Pendiente', axis=1)
+    
+    # --- 🚀 OPTIMIZACIÓN 2: VECTORIZACIÓN MAPA ---
+    masc_mapa = df_map_base['Fecha pago'].astype(str).str.strip() != ''
+    df_map_base['Estado'] = 'Pendiente'
+    df_map_base.loc[masc_mapa, 'Estado'] = 'Pagado'
+    # ---------------------------------------------
 
     def hex_to_rgba(hex_val, opacity):
         hex_val = hex_val.lstrip('#')
@@ -1933,7 +1945,7 @@ elif menu == "Mapa Interactivo":
         
         if not df_lote_mapa.empty:
             total_partidas = len(df_lote_mapa)
-            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
+            df_lote_mapa['Total_Pagado_Real'] = df_lote_mapa['Costo'].where(df_lote_mapa['Estado'] == 'Pagado', 0.0)
             total_precio_lote = df_lote_mapa['Costo'].sum()
             total_pagado_lote = df_lote_mapa['Total_Pagado_Real'].sum()
             
@@ -1981,7 +1993,7 @@ elif menu == "Mapa Interactivo":
         prototipo_kpi = df_kpi['Prototipo'].iloc[0] if not df_kpi.empty else "N/A"
         titulo_kpi = f"🏠 Lote {lote_puro_kpi} - Prototipo {prototipo_kpi}"
         
-    df_kpi['Total_Pagado_Real'] = df_kpi.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
+    df_kpi['Total_Pagado_Real'] = df_kpi['Costo'].where(df_kpi['Estado'] == 'Pagado', 0.0)
     costo_total_mapa = df_kpi['Costo'].sum()
     pagado_mapa = df_kpi['Total_Pagado_Real'].sum()
     pendiente_mapa = costo_total_mapa - pagado_mapa
@@ -2135,7 +2147,7 @@ elif menu == "Mapa Interactivo":
             else:
                 st.markdown("**Resumen General por Lote (Financiero):**")
                 df_resumen_global = df_map_base.copy()
-                df_resumen_global['Total_Pagado_Real'] = df_resumen_global.apply(lambda r: r['Costo'] if r['Estado'] == 'Pagado' else 0, axis=1)
+                df_resumen_global['Total_Pagado_Real'] = df_resumen_global['Costo'].where(df_resumen_global['Estado'] == 'Pagado', 0.0)
                 
                 df_resumen_global_grp = df_resumen_global.groupby('Lote').agg(
                     Total_Partidas=('Partida', 'count'),
@@ -2564,7 +2576,11 @@ elif menu == "Visor Móvil":
     else:
         # Cálculos generales
         df_movil['Costo_Num'] = pd.to_numeric(df_movil['Costo'], errors='coerce').fillna(0)
-        df_movil['Total_Pagado'] = df_movil.apply(lambda r: r['Costo_Num'] if str(r['Fecha pago']).strip() != '' else 0, axis=1)
+        
+        # --- 🚀 OPTIMIZACIÓN 4: VECTORIZACIÓN MÓVIL ---
+        masc_movil = df_movil['Fecha pago'].astype(str).str.strip() != ''
+        df_movil['Total_Pagado'] = df_movil['Costo_Num'].where(masc_movil, 0.0)
+        # ----------------------------------------------
         
         gran_total = df_movil['Costo_Num'].sum()
         pagado_total = df_movil['Total_Pagado'].sum()
