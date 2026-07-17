@@ -1362,7 +1362,7 @@ if menu == "Registro de Destajos":
                 display: flex !important;
                 justify-content: flex-end !important;
                 width: 100% !important;
-                margin-top: -65px !important;
+                margin-top: -105px !important;
                 margin-bottom: 15px !important;
                 position: relative !important;
                 z-index: 9999 !important;
