@@ -1456,26 +1456,25 @@ if menu == "Registro de Destajos":
     # ====================================================
     # FORMULARIO ENCAPSULADOR (LA MAGIA CONTRA EL PARPADEO ESTÁ AQUÍ)
     # ====================================================
-    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
-       st.markdown(
-        """
-        <style>
-        /* Estilo para integrar el botón suavemente y que siga viéndose genial */
-        div.stButton > button[kind="primary"] {
-            background-color: #3B82F6 !important;
-            color: white !important;
-            border-radius: 8px !important;
-            border: none !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-            height: 42px !important;
-            font-weight: bold !important;
-        }
-        div.stButton > button[kind="primary"]:hover { 
-            background-color: #2563EB !important; 
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
+    st.markdown(
+    """
+    <style>
+    /* Estilo para integrar el botón suavemente y que siga viéndose genial */
+    div.stButton > button[kind="primary"] {
+        background-color: #3B82F6 !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        height: 42px !important;
+        font-weight: bold !important;
+    }
+    div.stButton > button[kind="primary"]:hover { 
+        background-color: #2563EB !important; 
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
     )
     
     # Acomodamos el botón a la derecha antes de la tabla (igual que antes)
