@@ -721,185 +721,192 @@ def dialogo_reportes():
     if df_rep_filtrado.empty:
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
-        pdf = FPDF(orientation='P', unit='mm', format='Letter')
-        pdf.add_page()
+        # --- NUEVA LÓGICA DE RENDIMIENTO ---
+        st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente arriba. El contador de partidas se actualizará en tiempo real. Cuando estés listo para imprimir, activa la casilla de abajo.")
+        
+        generar_pdf = st.toggle("⚙️ Construir documento PDF con estos filtros")
+        
+        if generar_pdf:
+            with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
+                pdf = FPDF(orientation='P', unit='mm', format='Letter')
+                pdf.add_page()
+                        
+                pdf.set_font("Arial", 'B', 14)
+                pdf.set_text_color(30, 58, 138) 
+                pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
                 
-        pdf.set_font("Arial", 'B', 14)
-        pdf.set_text_color(30, 58, 138) 
-        pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
-        
-        # Inyección superior del nombre de la obra en el PDF
-        pdf.set_font("Arial", 'B', 10)
-        pdf.set_text_color(75, 85, 99)
-        pdf.cell(195, 5, txt=f"OBRA: {str(st.session_state.obra_actual).upper()}", ln=True, align='C')
-        
-        pdf.set_font("Arial", 'I', 9)
-        pdf.set_text_color(108, 117, 125)
-        tz_mx = ZoneInfo("America/Mexico_City")
-        fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
-        pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
-        pdf.ln(5)
-        
-        pdf.set_font("Arial", 'B', 9)
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
-        pdf.set_font("Arial", '', 9)
-        
-        txt_proto = ", ".join(st.session_state.rep_sel_proto) if st.session_state.rep_sel_proto else "Todos"
-        txt_mz = ", ".join(st.session_state.rep_sel_manzana) if st.session_state.rep_sel_manzana else "Todas"
-        txt_dest = ", ".join(st.session_state.rep_sel_dest) if st.session_state.rep_sel_dest else "Todos"
-
-        tipo_reporte_txt = f" | MODO: RESUMEN POR {str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}" if chk_resumen else ""
-        criterios = f"Proto: {txt_proto} | Mz: {txt_mz} | Dest: {txt_dest} | Est: {estado_filtro_str}{tipo_reporte_txt}"
-        
-        if rango and len(rango) == 2:
-            criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
-            
-        pdf.cell(195, 5, txt=criterios[:115], ln=True)
-        pdf.ln(4)
-
-        if chk_resumen:
-            mapa_columnas = {
-                "Destajista": "Destajista",
-                "Estado de Pago": "Estado_Pago_Temp",
-                "Lote": "Lote",
-                "Manzana": "Manzana",
-                "Partida": "Partida",
-                "Prototipo": "Prototipo"
-            }
-            col_agrupar = mapa_columnas.get(st.session_state.get("sel_agrupacion", "Destajista"), "Destajista")
-
-            if col_agrupar == "Estado_Pago_Temp":
-                df_rep_filtrado["Estado_Pago_Temp"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
-
-            df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
-            df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
-            df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
-            
-            df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
-            
-            df_resumen = df_rep_filtrado.groupby(col_agrupar)['Monto_Neto_Reporte'].sum().reset_index()
-            df_resumen.columns = [col_agrupar, 'Costo'] 
-
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(30, 58, 138) 
-            pdf.set_text_color(255, 255, 255) 
-            
-            w_col1, w_col2 = 145, 50
-            pdf.cell(w_col1, 8, txt=st.session_state.get("sel_agrupacion", "Destajista"), border=1, align='C', fill=True)
-            pdf.cell(w_col2, 8, txt="Total Acumulado", border=1, align='C', fill=True)
-            pdf.ln(8)
-
-            pdf.set_font("Arial", '', 9)
-            pdf.set_text_color(0, 0, 0)
-            total_general = 0
-            fondo_cebra = False
-
-            for _, row in df_resumen.iterrows():
-                valor_txt = str(row[col_agrupar]).strip()
-                if valor_txt == "" or valor_txt.lower() in ['nan', 'none', '<na>']:
-                    continue
+                # Inyección superior del nombre de la obra en el PDF
+                pdf.set_font("Arial", 'B', 10)
+                pdf.set_text_color(75, 85, 99)
+                pdf.cell(195, 5, txt=f"OBRA: {str(st.session_state.obra_actual).upper()}", ln=True, align='C')
                 
-                if fondo_cebra:
-                    pdf.set_fill_color(245, 247, 250) 
-                else:
-                    pdf.set_fill_color(255, 255, 255)
+                pdf.set_font("Arial", 'I', 9)
+                pdf.set_text_color(108, 117, 125)
+                tz_mx = ZoneInfo("America/Mexico_City")
+                fecha_impresion = datetime.now(tz_mx).strftime("%d/%m/%Y %H:%M:%S")
+                pdf.cell(195, 5, txt=f"Generado el: {fecha_impresion} (Zona Horaria México)", ln=True, align='C')
+                pdf.ln(5)
+                
+                pdf.set_font("Arial", 'B', 9)
+                pdf.set_text_color(0, 0, 0)
+                pdf.cell(195, 5, txt="Filtros del Reporte:", ln=True)
+                pdf.set_font("Arial", '', 9)
+                
+                txt_proto = ", ".join(st.session_state.rep_sel_proto) if st.session_state.rep_sel_proto else "Todos"
+                txt_mz = ", ".join(st.session_state.rep_sel_manzana) if st.session_state.rep_sel_manzana else "Todas"
+                txt_dest = ", ".join(st.session_state.rep_sel_dest) if st.session_state.rep_sel_dest else "Todos"
+
+                tipo_reporte_txt = f" | MODO: RESUMEN POR {str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}" if chk_resumen else ""
+                criterios = f"Proto: {txt_proto} | Mz: {txt_mz} | Dest: {txt_dest} | Est: {estado_filtro_str}{tipo_reporte_txt}"
+                
+                if rango and len(rango) == 2:
+                    criterios += f" | Rango: {rango[0].strftime('%d/%m/%Y')} al {rango[1].strftime('%d/%m/%Y')}"
                     
-                costo_fila = float(row['Costo'])
+                pdf.cell(195, 5, txt=criterios[:115], ln=True)
+                pdf.ln(4)
 
-                # --- NUEVO: Convertir a negativo si solo está activo "Por Pagar" ---
-                if chk_por_pagar and not chk_pagado:
-                    costo_fila = -abs(costo_fila)
+                if chk_resumen:
+                    mapa_columnas = {
+                        "Destajista": "Destajista",
+                        "Estado de Pago": "Estado_Pago_Temp",
+                        "Lote": "Lote",
+                        "Manzana": "Manzana",
+                        "Partida": "Partida",
+                        "Prototipo": "Prototipo"
+                    }
+                    col_agrupar = mapa_columnas.get(st.session_state.get("sel_agrupacion", "Destajista"), "Destajista")
 
-                pdf.cell(w_col1, 7, txt=valor_txt[:80], border=1, align='L', fill=True)
-                pdf.cell(w_col2, 7, txt=f"${costo_fila:,.2f}", border=1, align='R', fill=True)
-                pdf.ln(7)
-                
-                total_general += costo_fila
-                fondo_cebra = not fondo_cebra
+                    if col_agrupar == "Estado_Pago_Temp":
+                        df_rep_filtrado["Estado_Pago_Temp"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
 
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(230, 235, 245)
-            pdf.cell(w_col1, 8, txt=f"GRAN TOTAL ({str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}) ", border=1, align='R', fill=True)
-            pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
-
-        else:
-            w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(30, 58, 138) 
-            pdf.set_text_color(255, 255, 255) 
-            
-            pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
-            pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
-            pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
-            pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
-            pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-            pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
-            pdf.ln(8)
-            
-            pdf.set_font("Arial", '', 9)
-            pdf.set_text_color(0, 0, 0)
-            total_acumulado = 0
-            fondo_cebra = False
-            
-            for _, row in df_rep_filtrado.iterrows():
-                if fondo_cebra:
-                    pdf.set_fill_color(245, 247, 250) 
-                else:
-                    pdf.set_fill_color(255, 255, 255)
+                    df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
+                    df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
+                    df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
                     
-                dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
-                proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
-                
-                pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
-                pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
-                pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
-                c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
-                # --- NUEVO: Convertir a negativo si solo está activo "Por Pagar" ---
-                if chk_por_pagar and not chk_pagado:
-                    c_neto = -abs(c_neto)
-                pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
-                pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
-                pdf.ln(7)
-                
-                total_acumulado += c_neto   # Actualizamos para que sume el negativo
-                fondo_cebra = not fondo_cebra
-            
-            pdf.set_font("Arial", 'B', 10)
-            pdf.set_fill_color(230, 235, 245)
-            pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
-            pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
-        
-        pdf_bytes = bytes(pdf.output())
+                    df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
+                    
+                    df_resumen = df_rep_filtrado.groupby(col_agrupar)['Monto_Neto_Reporte'].sum().reset_index()
+                    df_resumen.columns = [col_agrupar, 'Costo'] 
 
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stColumn"]:nth-of-type(3) button {
-                background-color: #dc3545 !important;
-                color: white !important;
-                border-radius: 5px;
-                border: none;
-            }
-            div[data-testid="stColumn"]:nth-of-type(3) button:hover {
-                background-color: #bd2130 !important;
-                color: white !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.set_fill_color(30, 58, 138) 
+                    pdf.set_text_color(255, 255, 255) 
+                    
+                    w_col1, w_col2 = 145, 50
+                    pdf.cell(w_col1, 8, txt=st.session_state.get("sel_agrupacion", "Destajista"), border=1, align='C', fill=True)
+                    pdf.cell(w_col2, 8, txt="Total Acumulado", border=1, align='C', fill=True)
+                    pdf.ln(8)
 
-        c_vacia1, c_vacia2, c_boton = st.columns([3, 1, 1.2])
-        with c_boton:
-            st.download_button(
-                label="📥 Descargar PDF",
-                data=pdf_bytes,
-                file_name=f"Reporte_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+                    pdf.set_font("Arial", '', 9)
+                    pdf.set_text_color(0, 0, 0)
+                    total_general = 0
+                    fondo_cebra = False
+
+                    for _, row in df_resumen.iterrows():
+                        valor_txt = str(row[col_agrupar]).strip()
+                        if valor_txt == "" or valor_txt.lower() in ['nan', 'none', '<na>']:
+                            continue
+                        
+                        if fondo_cebra:
+                            pdf.set_fill_color(245, 247, 250) 
+                        else:
+                            pdf.set_fill_color(255, 255, 255)
+                            
+                        costo_fila = float(row['Costo'])
+
+                        if chk_por_pagar and not chk_pagado:
+                            costo_fila = -abs(costo_fila)
+
+                        pdf.cell(w_col1, 7, txt=valor_txt[:80], border=1, align='L', fill=True)
+                        pdf.cell(w_col2, 7, txt=f"${costo_fila:,.2f}", border=1, align='R', fill=True)
+                        pdf.ln(7)
+                        
+                        total_general += costo_fila
+                        fondo_cebra = not fondo_cebra
+
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.set_fill_color(230, 235, 245)
+                    pdf.cell(w_col1, 8, txt=f"GRAN TOTAL ({str(st.session_state.get('sel_agrupacion', 'DESTAJISTA')).upper()}) ", border=1, align='R', fill=True)
+                    pdf.cell(w_col2, 8, txt=f"${total_general:,.2f}", border=1, align='R', fill=True)
+
+                else:
+                    w_lote, w_mz, w_proto, w_partida, w_dest, w_costo = 15, 15, 25, 60, 50, 30
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.set_fill_color(30, 58, 138) 
+                    pdf.set_text_color(255, 255, 255) 
+                    
+                    pdf.cell(w_lote, 8, txt="Lote", border=1, align='C', fill=True)
+                    pdf.cell(w_mz, 8, txt="Mz", border=1, align='C', fill=True)
+                    pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
+                    pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
+                    pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
+                    pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
+                    pdf.ln(8)
+                    
+                    pdf.set_font("Arial", '', 9)
+                    pdf.set_text_color(0, 0, 0)
+                    total_acumulado = 0
+                    fondo_cebra = False
+                    
+                    for _, row in df_rep_filtrado.iterrows():
+                        if fondo_cebra:
+                            pdf.set_fill_color(245, 247, 250) 
+                        else:
+                            pdf.set_fill_color(255, 255, 255)
+                            
+                        dest_txt = str(row['Destajista']).strip() if str(row['Destajista']).strip() else "Sin Asignar"
+                        proto_txt = str(row['Prototipo']).replace("Prototipo ", "")
+                        
+                        pdf.cell(w_lote, 7, txt=str(row['Lote'])[:6], border=1, align='C', fill=True)
+                        pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
+                        pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
+                        pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
+                        c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
+                        
+                        if chk_por_pagar and not chk_pagado:
+                            c_neto = -abs(c_neto)
+                        pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
+                        pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
+                        pdf.ln(7)
+                        
+                        total_acumulado += c_neto   
+                        fondo_cebra = not fondo_cebra
+                    
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.set_fill_color(230, 235, 245)
+                    pdf.cell(165, 8, txt="TOTAL GENERAL ESTIMADO FILTRADO  ", border=1, align='R', fill=True)
+                    pdf.cell(w_costo, 8, txt=f"${total_acumulado:,.2f}", border=1, align='R', fill=True)
+                
+                pdf_bytes = bytes(pdf.output())
+
+                st.markdown(
+                    """
+                    <style>
+                    div[data-testid="stColumn"]:nth-of-type(3) button {
+                        background-color: #dc3545 !important;
+                        color: white !important;
+                        border-radius: 5px;
+                        border: none;
+                    }
+                    div[data-testid="stColumn"]:nth-of-type(3) button:hover {
+                        background-color: #bd2130 !important;
+                        color: white !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                c_vacia1, c_vacia2, c_boton = st.columns([3, 1, 1.2])
+                with c_boton:
+                    st.download_button(
+                        label="📥 Descargar PDF",
+                        data=pdf_bytes,
+                        file_name=f"Reporte_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
         
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
