@@ -1247,13 +1247,17 @@ if menu == "Registro de Destajos":
         st.session_state.reload_trigger = True
         st.rerun()
 
+    # === NUEVA REGLA: Obtener SOLO las filas que NO tienen fecha de pago ===
+    indices_desbloqueados = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+
     # --- 1. Asignación Destajista ---
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
-            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
+            # Aplicamos el cambio SOLAMENTE a indices_desbloqueados
+            st.session_state.df.loc[indices_desbloqueados, 'Destajista'] = destajista_masivo
             st.session_state.reload_trigger = True
-            st.success("Destajista asignado masivamente.")
+            st.success("Destajista asignado masivamente (solo a filas no pagadas).")
             st.rerun()
 
     # --- 2. Asignación % Adicional ---
@@ -1261,9 +1265,9 @@ if menu == "Registro de Destajos":
     if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
             val = 0.10 if pct_adicional_masivo == "10%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
+            st.session_state.df.loc[indices_desbloqueados, '% Adicional'] = val
             st.session_state.reload_trigger = True
-            st.success("% Adicional asignado masivamente.")
+            st.success("% Adicional asignado masivamente (solo a filas no pagadas).")
             st.rerun()
 
     # --- 3. Asignación % Retención ---
@@ -1271,9 +1275,9 @@ if menu == "Registro de Destajos":
     if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
             val = 0.05 if pct_retencion_masiva == "5%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
+            st.session_state.df.loc[indices_desbloqueados, '% Retención'] = val
             st.session_state.reload_trigger = True
-            st.success("% Retención asignado masivamente.")
+            st.success("% Retención asignado masivamente (solo a filas no pagadas).")
             st.rerun()
 
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
