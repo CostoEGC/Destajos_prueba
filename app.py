@@ -566,10 +566,10 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                
-                # --- SOLO ACTIVAMOS EL GATILLO DE RECARGA DE DATOS, NO DE UI ---
+                st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
                 
+                # --- NUEVO: GUARDAR FECHA DE ÉXITO EN MEMORIA ---
                 st.session_state.ultima_vez_guardado = f"{dia}/{mes}/{anio} {hora}"
                 
                 st.sidebar.success("✅ ¡Cambios guardados con éxito!")
@@ -585,29 +585,17 @@ if 'alerta_cambios_ui' not in st.session_state:
 else:
     alerta_cambios_ui = st.sidebar.empty()
 
-@st.dialog("🖨️ Generar Reportes PDF", width="large")
+@st.dialog("🖨️ Generar Reporte de Pagos", width="large")
 def dialogo_reportes():
-    # --- NUEVO: RADIO BUTTON SELECTOR DE MODO ---
-    tipo_reporte = st.radio("📋 Selecciona el tipo de reporte a generar:", 
-                            ["Estimaciones y Destajos", "Fondo de Garantía (Retenciones)"], 
-                            horizontal=True)
-    st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-    
-    is_fondo = (tipo_reporte == "Fondo de Garantía (Retenciones)")
-    
-    st.markdown("### 📊 Configurar Filtros para el Reporte")
+    st.markdown("### 📊 Configurar Filtros para el Reporte PDF")
     st.write("Selecciona los criterios específicos que deseas plasmar en el documento impreso.")
     
     df_base_rep = st.session_state.df.copy()
     
-    # --- ADAPTAR DATOS BASE SI ES FONDO DE GARANTÍA ---
-    if is_fondo:
-        df_base_rep['Monto Retenido'] = pd.to_numeric(df_base_rep['Monto Retenido'], errors='coerce').fillna(0)
-        df_base_rep = df_base_rep[df_base_rep['Monto Retenido'] > 0]
-        
+    # --- NUEVO: FILTROS EN CASCADA PARA REPORTES Y ORDEN MAESTRO ---
     df_base_rep['Concepto_Limpio'] = df_base_rep['Partida'].apply(limpiar_texto_partida)
 
-    # Obtenemos lo que el usuario ya seleccionó 
+    # Obtenemos lo que el usuario ya seleccionó (si está vacío, no filtra)
     curr_proto = st.session_state.get('rep_sel_proto', [])
     curr_mz = st.session_state.get('rep_sel_manzana', [])
     curr_lotes = st.session_state.get('rep_sel_lotes', [])
@@ -638,7 +626,7 @@ def dialogo_reportes():
     if curr_dest: df_lote = df_lote[df_lote['Destajista'].isin(curr_dest)]
     list_lotes = sorted([str(x) for x in df_lote['Lote'].unique().tolist() if str(x).strip()], key=natural_sort_key)
 
-    # 4. Concepto / Partida 
+    # 4. Concepto / Partida (Aplicando el ORDEN_PARTIDAS_MAESTRO)
     df_conc = df_base_rep.copy()
     if curr_proto: df_conc = df_conc[df_conc['Prototipo'].isin(curr_proto)]
     if curr_mz: df_conc = df_conc[df_conc['Manzana'].isin(curr_mz)]
@@ -654,6 +642,7 @@ def dialogo_reportes():
     if curr_lotes: df_dest = df_dest[df_dest['Lote'].astype(str).isin(curr_lotes)]
     if curr_concepto: df_dest = df_dest[df_dest['Concepto_Limpio'].isin(curr_concepto)]
     list_destajistas_filtro = sorted([str(d) for d in df_dest['Destajista'].unique() if str(d).strip()], key=natural_sort_key)
+    # -----------------------------------------------------------------
 
     r_col1, r_col2 = st.columns(2)
     with r_col1:
@@ -663,16 +652,14 @@ def dialogo_reportes():
     with r_col2:
         st.multiselect("Manzana(s):", options=list_manzanas, placeholder="Todas", key="rep_sel_manzana")
         
-        # --- TEXTOS DINÁMICOS PARA ESTADO ---
-        lbl_pagado = "Fondo Liberado" if is_fondo else "Pagado"
-        lbl_pendiente = "Fondo Retenido" if is_fondo else "Por pagar"
-
-        st.markdown("<span style='font-size: 14px;'>Estado Actual:</span>", unsafe_allow_html=True)
+        # --- NUEVO: Checkboxes para Estado de Pago ---
+        st.markdown("<span style='font-size: 14px;'>Estado de Pago:</span>", unsafe_allow_html=True)
         c_chk1, c_chk2 = st.columns(2)
         with c_chk1:
-            chk_pagado = st.checkbox(lbl_pagado, value=True, key="rep_chk_pagado")
+            chk_pagado = st.checkbox("Pagado", value=True, key="rep_chk_pagado")
         with c_chk2:
-            chk_por_pagar = st.checkbox(lbl_pendiente, value=True, key="rep_chk_por_pagar")
+            chk_por_pagar = st.checkbox("Por pagar", value=True, key="rep_chk_por_pagar")
+        # ---------------------------------------------
         
         st.multiselect("Destajista(s):", options=list_destajistas_filtro, placeholder="Todos", key="rep_sel_dest")
         
@@ -692,7 +679,7 @@ def dialogo_reportes():
             chk_resumen = st.checkbox("Imprimir resumen (solo totales)", key="chk_resumen")
             
         with col_sel:
-            opciones_agrupacion = sorted(["Destajista", "Estado Actual", "Lote", "Manzana", "Partida", "Prototipo"])
+            opciones_agrupacion = sorted(["Destajista", "Estado de Pago", "Lote", "Manzana", "Partida", "Prototipo"])
             if chk_resumen:
                 st.selectbox("Agrupar totales por:", options=opciones_agrupacion, key="sel_agrupacion", label_visibility="collapsed")
  
@@ -709,51 +696,30 @@ def dialogo_reportes():
     if st.session_state.rep_sel_dest: 
         df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Destajista'].isin(st.session_state.rep_sel_dest)]
     
-    # --- LÓGICA CAMALEÓNICA DE FILTRADO DE ESTADO ---
-    if is_fondo:
-        if chk_pagado and not chk_por_pagar:
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Estatus Retención'] == 'Liberado']
-            estado_filtro_str = "Liberados"
-        elif chk_por_pagar and not chk_pagado:
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Estatus Retención'] == 'Retenido']
-            estado_filtro_str = "Retenidos"
-        elif not chk_pagado and not chk_por_pagar:
-            df_rep_filtrado = df_rep_filtrado.iloc[0:0] 
-            estado_filtro_str = "Ninguno"
-        else:
-            estado_filtro_str = "Todos"
+    # --- NUEVO: Lógica de filtrado con checkboxes ---
+    if chk_pagado and not chk_por_pagar:
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
+        estado_filtro_str = "Pagado"
+    elif chk_por_pagar and not chk_pagado:
+        df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
+        estado_filtro_str = "Pendiente (Por Pagar)"
+    elif not chk_pagado and not chk_por_pagar:
+        df_rep_filtrado = df_rep_filtrado.iloc[0:0] # Tabla vacía si el usuario desmarca ambos
+        estado_filtro_str = "Ninguno"
     else:
-        if chk_pagado and not chk_por_pagar:
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] != '']
-            estado_filtro_str = "Pagado"
-        elif chk_por_pagar and not chk_pagado:
-            df_rep_filtrado = df_rep_filtrado[df_rep_filtrado['Fecha pago'] == '']
-            estado_filtro_str = "Pendiente (Por Pagar)"
-        elif not chk_pagado and not chk_por_pagar:
-            df_rep_filtrado = df_rep_filtrado.iloc[0:0]
-            estado_filtro_str = "Ninguno"
-        else:
-            estado_filtro_str = "Todos"
+        estado_filtro_str = "Todos"
+    # ------------------------------------------------
             
-    # --- FILTRADO DE FECHAS SEGÚN EL MODO ---
     if rango and len(rango) == 2:
-        if chk_por_pagar:
-            # Si hay fechas seleccionadas Y la casilla de pendientes está activa, lanzamos tu alerta:
-            st.error(f"⚠️ **Alerta de Validación:** No puedes filtrar por un rango de fechas si estás incluyendo partidas con estado '{lbl_pendiente}'. Por favor, borra las fechas o desmarca la casilla para continuar.")
-            
-            # Vaciamos la tabla internamente para que el sistema bloquee la generación del PDF
-            df_rep_filtrado = df_rep_filtrado.iloc[0:0] 
-        else:
-            meses_regex = {
-                r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
-                r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
-                r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
-            }
-            col_fecha_usar = 'Fecha Liberación' if is_fondo else 'Fecha pago'
-            df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado[col_fecha_usar].replace(meses_regex, regex=True)
-            df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
-            df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
-            df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
+        meses_regex = {
+            r'/Ene/': '/01/', r'/Feb/': '/02/', r'/Mar/': '/03/', r'/Abr/': '/04/', 
+            r'/May/': '/05/', r'/Jun/': '/06/', r'/Jul/': '/07/', r'/Ago/': '/08/', 
+            r'/Sep/': '/09/', r'/Oct/': '/10/', r'/Nov/': '/11/', r'/Dic/': '/12/'
+        }
+        df_rep_filtrado['Fecha_Parse'] = df_rep_filtrado['Fecha pago'].replace(meses_regex, regex=True)
+        df_rep_filtrado['Fecha_Obj_Temp'] = pd.to_datetime(df_rep_filtrado['Fecha_Parse'], format='%d/%m/%Y %H:%M:%S', errors='coerce').dt.date
+        df_rep_filtrado = df_rep_filtrado[(df_rep_filtrado['Fecha_Obj_Temp'] >= rango[0]) & (df_rep_filtrado['Fecha_Obj_Temp'] <= rango[1])]
+        df_rep_filtrado = df_rep_filtrado.drop(columns=['Fecha_Obj_Temp', 'Fecha_Parse'])
         
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"Partidas que se incluirán en el documento: `{len(df_rep_filtrado)}` partidas.")
@@ -765,7 +731,8 @@ def dialogo_reportes():
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
         #st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
-        if st.button("⚙️ Generar PDF", type="primary", use_container_width=True):
+        # --- CAMBIO A BOTÓN: Desaparece automáticamente si cambias un filtro ---
+        if st.button("⚙️ Crear PDF", type="primary", use_container_width=True):
             
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
@@ -773,11 +740,9 @@ def dialogo_reportes():
                         
                 pdf.set_font("Arial", 'B', 14)
                 pdf.set_text_color(30, 58, 138) 
+                pdf.cell(195, 8, txt="REPORTES DE ESTIMACIONES Y DESTAJOS", ln=True, align='C')
                 
-                # --- TÍTULO DINÁMICO ---
-                titulo_pdf = "REPORTE DE FONDOS DE GARANTÍA (RETENCIONES)" if is_fondo else "REPORTES DE ESTIMACIONES Y DESTAJOS"
-                pdf.cell(195, 8, txt=titulo_pdf, ln=True, align='C')
-                
+                # Inyección superior del nombre de la obra en el PDF
                 pdf.set_font("Arial", 'B', 10)
                 pdf.set_text_color(75, 85, 99)
                 pdf.cell(195, 5, txt=f"OBRA: {str(st.session_state.obra_actual).upper()}", ln=True, align='C')
@@ -810,7 +775,7 @@ def dialogo_reportes():
                 if chk_resumen:
                     mapa_columnas = {
                         "Destajista": "Destajista",
-                        "Estado Actual": "Estado_Temp_Grouping",
+                        "Estado de Pago": "Estado_Pago_Temp",
                         "Lote": "Lote",
                         "Manzana": "Manzana",
                         "Partida": "Partida",
@@ -818,18 +783,14 @@ def dialogo_reportes():
                     }
                     col_agrupar = mapa_columnas.get(st.session_state.get("sel_agrupacion", "Destajista"), "Destajista")
 
-                    # --- AGRUPACIÓN DINÁMICA DE COSTOS/FONDOS ---
-                    if is_fondo:
-                        if col_agrupar == "Estado_Temp_Grouping":
-                            df_rep_filtrado["Estado_Temp_Grouping"] = df_rep_filtrado["Estatus Retención"]
-                        df_rep_filtrado['Monto_Neto_Reporte'] = pd.to_numeric(df_rep_filtrado['Monto Retenido'], errors='coerce').fillna(0)
-                    else:
-                        if col_agrupar == "Estado_Temp_Grouping":
-                            df_rep_filtrado["Estado_Temp_Grouping"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
-                        df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
-                        df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
-                        df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
-                        df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
+                    if col_agrupar == "Estado_Pago_Temp":
+                        df_rep_filtrado["Estado_Pago_Temp"] = df_rep_filtrado["Fecha pago"].apply(lambda x: "Pendiente" if str(x).strip() == "" else "Pagado")
+
+                    df_rep_filtrado['Costo_Num'] = pd.to_numeric(df_rep_filtrado['Costo'], errors='coerce').fillna(0)
+                    df_rep_filtrado['% Adicional_Num'] = pd.to_numeric(df_rep_filtrado['% Adicional'], errors='coerce').fillna(0)
+                    df_rep_filtrado['% Retención_Num'] = pd.to_numeric(df_rep_filtrado['% Retención'], errors='coerce').fillna(0)
+                    
+                    df_rep_filtrado['Monto_Neto_Reporte'] = df_rep_filtrado['Costo_Num'] + (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Adicional_Num']) - (df_rep_filtrado['Costo_Num'] * df_rep_filtrado['% Retención_Num'])
                     
                     df_resumen = df_rep_filtrado.groupby(col_agrupar)['Monto_Neto_Reporte'].sum().reset_index()
                     df_resumen.columns = [col_agrupar, 'Costo'] 
@@ -886,9 +847,7 @@ def dialogo_reportes():
                     pdf.cell(w_proto, 8, txt="Prototipo", border=1, align='C', fill=True)
                     pdf.cell(w_partida, 8, txt="Partida / Concepto", border=1, align='L', fill=True)
                     pdf.cell(w_dest, 8, txt="Destajista", border=1, align='L', fill=True)
-                    
-                    titulo_col_monto = "Fondo Ret." if is_fondo else "Costo"
-                    pdf.cell(w_costo, 8, txt=titulo_col_monto, border=1, align='R', fill=True)
+                    pdf.cell(w_costo, 8, txt="Costo", border=1, align='R', fill=True)
                     pdf.ln(8)
                     
                     pdf.set_font("Arial", '', 9)
@@ -909,16 +868,10 @@ def dialogo_reportes():
                         pdf.cell(w_mz, 7, txt=str(row['Manzana'])[:6], border=1, align='C', fill=True)
                         pdf.cell(w_proto, 7, txt=proto_txt[:12], border=1, align='C', fill=True)
                         pdf.cell(w_partida, 7, txt=str(row['Partida'])[:33], border=1, align='L', fill=True)
-                        
-                        # --- CÁLCULO DINÁMICO POR FILA ---
-                        if is_fondo:
-                            c_neto = float(row['Monto Retenido'])
-                        else:
-                            c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
+                        c_neto = float(row['Costo']) + (float(row['Costo']) * (float(row['% Adicional']) if row['% Adicional'] else 0)) - (float(row['Costo']) * (float(row['% Retención']) if row['% Retención'] else 0))
                         
                         if chk_por_pagar and not chk_pagado:
                             c_neto = -abs(c_neto)
-                            
                         pdf.cell(w_dest, 7, txt=dest_txt[:26], border=1, align='L', fill=True)
                         pdf.cell(w_costo, 7, txt=f"${c_neto:,.2f}", border=1, align='R', fill=True)
                         pdf.ln(7)
@@ -961,7 +914,7 @@ def dialogo_reportes():
                         mime="application/pdf",
                         use_container_width=True
                     )
-
+        
 if st.sidebar.button("📄 Reportes"):
     dialogo_reportes()
 
@@ -1092,7 +1045,7 @@ def dialogo_nueva_partida():
             st.session_state.df = obtener_datos_gsheet()
             
         st.session_state.df_original = st.session_state.df.copy()
-        #st.session_state.grid_key += 1
+        st.session_state.grid_key += 1
         st.success("¡Partida(s) inyectada(s) exactamente al final de cada grupo!")
         st.rerun()
 
@@ -1149,7 +1102,7 @@ if menu == "Registro de Destajos":
             st.session_state.sel_dest = "Todos"
             st.session_state.sel_estado = "Todos"
             st.session_state.sel_fecha = ()
-            #st.session_state.grid_key += 1 
+            st.session_state.grid_key += 1 
             
         st.button("🧹 Limpiar todos los filtros", on_click=limpiar_cb)
 
@@ -1290,18 +1243,14 @@ if menu == "Registro de Destajos":
 
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
-    # --- CANDADO DE SEGURIDAD: Solo atacamos a las filas que NO están pagadas ---
-    indices_modificables = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-    
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        st.session_state.df.loc[indices_modificables, 'Pagar'] = True
-        st.session_state.current_grid_state = pd.DataFrame() 
+        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        st.session_state.df.loc[indices_modificables, 'Pagar'] = False
-        st.session_state.current_grid_state = pd.DataFrame()
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
         st.session_state.reload_trigger = True
         st.rerun()
 
@@ -1309,9 +1258,7 @@ if menu == "Registro de Destajos":
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
-            val_dest = "" if destajista_masivo.strip() == "" else destajista_masivo
-            st.session_state.df.loc[indices_modificables, 'Destajista'] = val_dest
-            st.session_state.current_grid_state = pd.DataFrame()
+            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
             st.session_state.reload_trigger = True
             st.success("Destajista asignado masivamente.")
             st.rerun()
@@ -1320,9 +1267,8 @@ if menu == "Registro de Destajos":
     pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
     if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
-            val_ad = 0.10 if pct_adicional_masivo == "10%" else 0.0
-            st.session_state.df.loc[indices_modificables, '% Adicional'] = val_ad
-            st.session_state.current_grid_state = pd.DataFrame()
+            val = 0.10 if pct_adicional_masivo == "10%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
             st.session_state.reload_trigger = True
             st.success("% Adicional asignado masivamente.")
             st.rerun()
@@ -1331,12 +1277,12 @@ if menu == "Registro de Destajos":
     pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
     if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
-            val_ret = 0.05 if pct_retencion_masiva == "5%" else 0.0
-            st.session_state.df.loc[indices_modificables, '% Retención'] = val_ret
-            st.session_state.current_grid_state = pd.DataFrame()
+            val = 0.05 if pct_retencion_masiva == "5%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
             st.session_state.reload_trigger = True
             st.success("% Retención asignado masivamente.")
             st.rerun()
+
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
     ph_label_azul = st.empty()
@@ -1440,7 +1386,6 @@ if menu == "Registro de Destajos":
         return style;
     }
     """)
-   
     gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
     
     grid_options = gb.build()
@@ -1456,47 +1401,57 @@ if menu == "Registro de Destajos":
     # ====================================================
     # FORMULARIO ENCAPSULADOR (LA MAGIA CONTRA EL PARPADEO ESTÁ AQUÍ)
     # ====================================================
-    st.markdown(
-    """
-    <style>
-    /* Estilo para integrar el botón suavemente y que siga viéndose genial */
-    div.stButton > button[kind="primary"] {
-        background-color: #3B82F6 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        border: none !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-        height: 42px !important;
-        font-weight: bold !important;
-    }
-    div.stButton > button[kind="primary"]:hover { 
-        background-color: #2563EB !important; 
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-    )
-    
-    # Acomodamos el botón a la derecha antes de la tabla (igual que antes)
-    col_vacia, col_btn = st.columns([8, 2])
-    with col_btn:
-        st.button("🔄 Actualizar Totales", type="primary", use_container_width=True)
+    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stForm"] { 
+                border: none !important; 
+                padding: 0 !important; 
+            }
+            div[data-testid="stFormSubmitButton"] {
+                display: flex !important;
+                justify-content: flex-end !important;
+                width: 100% !important;
+                margin-top: -105px !important;
+                margin-bottom: 15px !important;
+                position: relative !important;
+                z-index: 9999 !important;
+            }
+            div[data-testid="stFormSubmitButton"] button {
+                width: 220px !important;
+                background-color: #3B82F6 !important;
+                color: white !important;
+                border-radius: 8px !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+                height: 42px !important;
+                font-weight: bold !important;
+            }
+            div[data-testid="stFormSubmitButton"] button:hover { 
+                background-color: #2563EB !important; 
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
-    response = AgGrid(
-        df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
-        gridOptions=grid_options,
-        key=f"grid_destajos_{st.session_state.grid_key}",
-        reload_data=st.session_state.reload_trigger,
-        enable_enterprise_modules=False,
-        allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.MANUAL,  # <--- EL SECRETO: MANUAL EVITA EL PARPADEO SIN CONGELAR LA TABLA
-        data_return_mode=DataReturnMode.AS_INPUT,  
-        fit_columns_on_grid_load=False,
-        theme='balham',
-        height=800,
-        custom_css=mis_estilos
-    )
-    st.session_state.reload_trigger = False 
+        response = AgGrid(
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            gridOptions=grid_options,
+            key=f"grid_destajos_{st.session_state.grid_key}",
+            reload_data=st.session_state.reload_trigger,
+            enable_enterprise_modules=False,
+            allow_unsafe_jscode=True,
+            update_mode=GridUpdateMode.VALUE_CHANGED,  
+            data_return_mode=DataReturnMode.AS_INPUT,  
+            fit_columns_on_grid_load=False,
+            theme='balham',
+            height=800,
+            custom_css=mis_estilos
+        )
+    st.session_state.reload_trigger = False
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
@@ -1630,8 +1585,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
             total_filtrado_fechas = df_ret_filtrado['Monto Retenido'].sum()
             ph_label_azul.markdown(f"<div style='background-color:#3B82F6; color:white; padding:8px; border-radius:5px; text-align:center; font-weight:bold; font-size:14px; margin-top:5px;'>Total Monto Liberado: ${total_filtrado_fechas:,.2f}</div>", unsafe_allow_html=True)
 
-        # --- AÑADIMOS 'Prototipo' EN LA LISTA DE COLUMNAS ---
-        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']])
+        gb_ret = GridOptionsBuilder.from_dataframe(df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']])
         gb_ret.configure_default_column(sortable=False, filter=True, resizable=True)
 
         gb_ret.configure_column("_original_index", hide=True)
@@ -1640,9 +1594,6 @@ elif menu == "Fondo de Garantía (Retenciones)":
         
         gb_ret.configure_column("Lote", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
         gb_ret.configure_column("Manzana", cellClass='centrar-valor', headerClass='ag-center-header', width=90)
-        # --- CONFIGURACIÓN DE LA NUEVA COLUMNA ---
-        gb_ret.configure_column("Prototipo", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
-        # -----------------------------------------
         gb_ret.configure_column("Costo", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
         gb_ret.configure_column("% Retención", valueFormatter="(x*100)+'%'", cellClass='centrar-valor', headerClass='ag-center-header', width=110)
         gb_ret.configure_column("Monto Retenido", valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
@@ -1678,8 +1629,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         }
         
         response_ret = AgGrid(
-            # --- TAMBIÉN AÑADIMOS PROTOTIPO AQUÍ ---
-            df_ret_filtrado[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']].copy(),
+            df_ret_filtrado[['Lote', 'Manzana', 'Partida', 'Destajista', 'Costo', '% Retención', 'Monto Retenido', 'Liberar_Check', 'Estatus Retención', 'Fecha Liberación', 'Usuario Liberó', '_original_index', 'ID_DB']].copy(),
             gridOptions=gb_ret.build(),
             key=f"grid_fondos_garantia_{st.session_state.grid_key}",
             reload_data=False,
@@ -1806,7 +1756,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
                             st.session_state.df = obtener_datos_gsheet()
                             
                         st.session_state.df_original = st.session_state.df.copy()
-                        #st.session_state.grid_key += 1 
+                        st.session_state.grid_key += 1 
                         st.rerun() 
                     else:
                         st.warning("No seleccionaste ninguna partida nueva para liberar.")
