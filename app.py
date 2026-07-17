@@ -464,6 +464,7 @@ if 'menu_actual' not in st.session_state:
     st.session_state.menu_actual = menu
 
 if st.session_state.menu_actual != menu:
+    # 1. Rescatamos los datos que no se hayan guardado en la tabla antes de irnos
     if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
         df_vivo = st.session_state.current_grid_state
         for _, row in df_vivo.iterrows():
@@ -472,14 +473,12 @@ if st.session_state.menu_actual != menu:
                 if col in st.session_state.df.columns and col != '_original_index':
                     st.session_state.df.at[idx_orig, col] = row[col]
                     
-    for key in list(st.session_state.keys()):
-        if key.startswith('sel_') or key.startswith('rep_'):
-            st.session_state[key] = st.session_state[key]
-            
+    # 2. Configurar vista del mapa si vamos a esa pestaña específica
     if menu == "Mapa Interactivo":
         st.session_state.mostrar_todos_mapa = True
+        
+    # 3. Actualizar la memoria del menú (¡Dejamos que Streamlit fluya naturalmente sin st.rerun!)
     st.session_state.menu_actual = menu
-    st.rerun()
 
 # --- BOTONES DE LA BARRA LATERAL ---
 if st.sidebar.button("💾 GUARDAR CAMBIOS"):
