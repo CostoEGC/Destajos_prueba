@@ -448,7 +448,7 @@ menu = st.sidebar.radio("Menú Principal:", [
     "Registro de Destajos", 
     "Fondo de Garantía (Retenciones)", 
     "Dashboard (Gráficos y Visor)", 
-    "Mapa Interactivo"
+    "Mapa Interactivo",
     "Visor Móvil"
 ])
 
