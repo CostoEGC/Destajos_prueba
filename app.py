@@ -1254,10 +1254,11 @@ if menu == "Registro de Destajos":
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
-            # Aplicamos el cambio SOLAMENTE a indices_desbloqueados
             st.session_state.df.loc[indices_desbloqueados, 'Destajista'] = destajista_masivo
+            st.session_state.current_grid_state = pd.DataFrame()  # <--- MAGIA: PURGAMOS LA MEMORIA FANTASMA
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
-            st.success("Destajista asignado masivamente (solo a filas no pagadas).")
+            st.success("Destajista asignado masivamente (solo a filas pendientes).")
             st.rerun()
 
     # --- 2. Asignación % Adicional ---
@@ -1266,8 +1267,10 @@ if menu == "Registro de Destajos":
         if pct_adicional_masivo != "Seleccionar...":
             val = 0.10 if pct_adicional_masivo == "10%" else 0.0
             st.session_state.df.loc[indices_desbloqueados, '% Adicional'] = val
+            st.session_state.current_grid_state = pd.DataFrame()  # <--- MAGIA: PURGAMOS LA MEMORIA FANTASMA
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
-            st.success("% Adicional asignado masivamente (solo a filas no pagadas).")
+            st.success("% Adicional asignado masivamente (solo a filas pendientes).")
             st.rerun()
 
     # --- 3. Asignación % Retención ---
@@ -1276,8 +1279,10 @@ if menu == "Registro de Destajos":
         if pct_retencion_masiva != "Seleccionar...":
             val = 0.05 if pct_retencion_masiva == "5%" else 0.0
             st.session_state.df.loc[indices_desbloqueados, '% Retención'] = val
+            st.session_state.current_grid_state = pd.DataFrame()  # <--- MAGIA: PURGAMOS LA MEMORIA FANTASMA
+            st.session_state.grid_key += 1
             st.session_state.reload_trigger = True
-            st.success("% Retención asignado masivamente (solo a filas no pagadas).")
+            st.success("% Retención asignado masivamente (solo a filas pendientes).")
             st.rerun()
 
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
