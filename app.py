@@ -559,7 +559,7 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.df = obtener_datos_gsheet()
                 st.session_state.df_original = st.session_state.df.copy()
                 st.session_state.current_grid_state = pd.DataFrame() 
-                st.session_state.grid_key += 1 
+                #st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
                 
                 # --- NUEVO: GUARDAR FECHA DE ÉXITO EN MEMORIA ---
@@ -722,10 +722,10 @@ def dialogo_reportes():
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
+        #st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
         # --- CAMBIO A BOTÓN: Desaparece automáticamente si cambias un filtro ---
-        if st.button("⚙️ Construir documento PDF con estos filtros", type="primary", use_container_width=True):
+        if st.button("⚙️ Generar PDF", type="primary", use_container_width=True):
             
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
@@ -1658,7 +1658,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         c_sav_r1, c_sav_r2, c_sav_r3 = st.columns([3, 4, 3])
         
         with c_sav_r2:
-            if st.button("🔓 Procesar Guardado y Generar Recibo", type="primary", use_container_width=True):
+            if st.button("🔓 Guardar y Generar PDF", type="primary", use_container_width=True):
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
@@ -1769,14 +1769,14 @@ elif menu == "Fondo de Garantía (Retenciones)":
             c_desc1, c_desc2, c_desc3 = st.columns([3, 4, 3])
             with c_desc2:
                 st.download_button(
-                    label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
+                    label="📥 Descargar PDF",
                     data=st.session_state.ultimo_recibo_pdf,
                     file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                     type="primary"
                 )
-                if st.button("❌ Ocultar este recibo", use_container_width=True):
+                if st.button("❌ Ocultar recibo", use_container_width=True):
                     st.session_state.ultimo_recibo_pdf = None
                     st.rerun()
 
