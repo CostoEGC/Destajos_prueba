@@ -1420,18 +1420,21 @@ if menu == "Registro de Destajos":
     st.session_state.reload_trigger = False
 
         # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
-    if btn_actualizar:
+    if locals().get("btn_actualizar", False):
         hubo_cambios = False
         
-        # 1. Recuperamos todo lo que escribiste manualmente en la tabla
+        # 1. Recuperamos la edición manual de la tabla AL INSTANTE (Vectorizado para evitar congelamientos)
         if response['data'] is not None and not pd.DataFrame(response['data']).empty:
             df_temporal = pd.DataFrame(response['data'])
-            for _, fila in df_temporal.iterrows():
-                idx_orig = int(fila['_original_index'])
-                st.session_state.df.loc[idx_orig, 'Destajista'] = str(fila['Destajista']).strip() if pd.notna(fila['Destajista']) else ""
-                st.session_state.df.loc[idx_orig, '% Adicional'] = float(fila['% Adicional']) if pd.notna(fila['% Adicional']) else 0.0
-                st.session_state.df.loc[idx_orig, '% Retención'] = float(fila['% Retención']) if pd.notna(fila['% Retención']) else 0.0
-                st.session_state.df.loc[idx_orig, 'Pagar'] = True if str(fila['Pagar']).lower() in ['true', '1'] else False
+            
+            # Extraemos los índices originales de la pantalla
+            indices = df_temporal['_original_index'].astype(int)
+            
+            # Inyectamos los datos a la memoria de golpe (esto toma milisegundos en lugar de congelar la app)
+            st.session_state.df.loc[indices, 'Destajista'] = df_temporal['Destajista'].fillna("").astype(str).str.strip()
+            st.session_state.df.loc[indices, '% Adicional'] = pd.to_numeric(df_temporal['% Adicional'], errors='coerce').fillna(0.0)
+            st.session_state.df.loc[indices, '% Retención'] = pd.to_numeric(df_temporal['% Retención'], errors='coerce').fillna(0.0)
+            st.session_state.df.loc[indices, 'Pagar'] = df_temporal['Pagar'].astype(str).str.lower().isin(['true', '1'])
 
         # 2. Aplicamos las reglas masivas que elegiste (sobrescriben la tabla si las usas)
         if locals().get("chk_todos", False):
@@ -1442,23 +1445,22 @@ if menu == "Registro de Destajos":
             st.session_state.df.loc[indices_pend, 'Pagar'] = False
             hubo_cambios = True
             
-    if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
-            
-        if dest_masivo != "Sin cambios":
+        if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
             st.session_state.df.loc[df_filtrado.index, 'Destajista'] = dest_masivo
             hubo_cambios = True
             
-        if ad_masivo != "Sin cambios":
+        if locals().get("ad_masivo", "Sin cambios") != "Sin cambios":
             st.session_state.df.loc[df_filtrado.index, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
             hubo_cambios = True
             
-        if ret_masiva != "Sin cambios":
+        if locals().get("ret_masiva", "Sin cambios") != "Sin cambios":
             st.session_state.df.loc[df_filtrado.index, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
             hubo_cambios = True
             
         if hubo_cambios:
             st.session_state.reload_trigger = True
             st.rerun()
+# ---------------------------------------------------  
 # ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
