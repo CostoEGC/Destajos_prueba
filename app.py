@@ -1342,7 +1342,7 @@ if menu == "Registro de Destajos":
         return style;
     }
     """)
-    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
+    gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30, suppressScrollOnNewData=True)
     
     grid_options = gb.build()
 
@@ -1411,10 +1411,10 @@ if menu == "Registro de Destajos":
         
         
         response = AgGrid(
-            df_filtrado_grid[['_Seleccionar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
             gridOptions=grid_options,
-            key=f"grid_destajos_{st.session_state.grid_key}",
-            reload_data=st.session_state.reload_trigger,
+            key="grid_destajos_maestro",
+            reload_data=True,
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
             update_mode=GridUpdateMode.VALUE_CHANGED,  
@@ -1423,7 +1423,6 @@ if menu == "Registro de Destajos":
             theme='balham',
             height=800,
             custom_css=mis_estilos
-        )
     st.session_state.reload_trigger = False
 
         # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
@@ -1474,8 +1473,7 @@ if menu == "Registro de Destajos":
                     hubo_cambios = True
 
         if hubo_cambios or locals().get("btn_actualizar", False):
-            st.session_state.reload_trigger = True
-            st.session_state.grid_key += 1
+            st.session_state.reload_trigger = True            
             st.rerun()
     # ---------------------------------------------------
 # ---------------------------------------------------
