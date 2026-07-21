@@ -1236,45 +1236,45 @@ if menu == "Registro de Destajos":
 
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
 
-if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-    st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-    st.session_state.reload_trigger = True
-    st.rerun()
-    
-if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-    indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-    st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-    st.session_state.reload_trigger = True
-    st.rerun()
-
-# --- 1. Asignación Destajista ---
-destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
-if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
-    if destajista_masivo != "Seleccionar...":
-        st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
+    if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
+        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
         st.session_state.reload_trigger = True
-        st.success("Destajista asignado masivamente.")
+        st.rerun()
+        
+    if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
+        st.session_state.reload_trigger = True
         st.rerun()
 
-# --- 2. Asignación % Adicional ---
-pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
-if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
-    if pct_adicional_masivo != "Seleccionar...":
-        val = 0.10 if pct_adicional_masivo == "10%" else 0.0
-        st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
-        st.session_state.reload_trigger = True
-        st.success("% Adicional asignado masivamente.")
-        st.rerun()
+    # --- 1. Asignación Destajista ---
+    destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
+    if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
+        if destajista_masivo != "Seleccionar...":
+            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
+            st.session_state.reload_trigger = True
+            st.success("Destajista asignado masivamente.")
+            st.rerun()
 
-# --- 3. Asignación % Retención ---
-pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
-if b_col5.button("Asignación masiva % Retención", use_container_width=True):
-    if pct_retencion_masiva != "Seleccionar...":
-        val = 0.05 if pct_retencion_masiva == "5%" else 0.0
-        st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
-        st.session_state.reload_trigger = True
-        st.success("% Retención asignado masivamente.")
-        st.rerun()
+    # --- 2. Asignación % Adicional ---
+    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
+    if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
+        if pct_adicional_masivo != "Seleccionar...":
+            val = 0.10 if pct_adicional_masivo == "10%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
+            st.session_state.reload_trigger = True
+            st.success("% Adicional asignado masivamente.")
+            st.rerun()
+
+    # --- 3. Asignación % Retención ---
+    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
+    if b_col5.button("Asignación masiva % Retención", use_container_width=True):
+        if pct_retencion_masiva != "Seleccionar...":
+            val = 0.05 if pct_retencion_masiva == "5%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
+            st.session_state.reload_trigger = True
+            st.success("% Retención asignado masivamente.")
+            st.rerun()
 
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
@@ -1456,44 +1456,44 @@ if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         )
     st.session_state.reload_trigger = False
 
-    # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
-if btn_actualizar:
-    hubo_cambios = False
-    
-    # 1. Recuperamos todo lo que escribiste manualmente en la tabla
-    if response['data'] is not None and not pd.DataFrame(response['data']).empty:
-        df_temporal = pd.DataFrame(response['data'])
-        for _, fila in df_temporal.iterrows():
-            idx_orig = int(fila['_original_index'])
-            st.session_state.df.loc[idx_orig, 'Destajista'] = str(fila['Destajista']).strip() if pd.notna(fila['Destajista']) else ""
-            st.session_state.df.loc[idx_orig, '% Adicional'] = float(fila['% Adicional']) if pd.notna(fila['% Adicional']) else 0.0
-            st.session_state.df.loc[idx_orig, '% Retención'] = float(fila['% Retención']) if pd.notna(fila['% Retención']) else 0.0
-            st.session_state.df.loc[idx_orig, 'Pagar'] = True if str(fila['Pagar']).lower() in ['true', '1'] else False
+        # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
+    if btn_actualizar:
+        hubo_cambios = False
+        
+        # 1. Recuperamos todo lo que escribiste manualmente en la tabla
+        if response['data'] is not None and not pd.DataFrame(response['data']).empty:
+            df_temporal = pd.DataFrame(response['data'])
+            for _, fila in df_temporal.iterrows():
+                idx_orig = int(fila['_original_index'])
+                st.session_state.df.loc[idx_orig, 'Destajista'] = str(fila['Destajista']).strip() if pd.notna(fila['Destajista']) else ""
+                st.session_state.df.loc[idx_orig, '% Adicional'] = float(fila['% Adicional']) if pd.notna(fila['% Adicional']) else 0.0
+                st.session_state.df.loc[idx_orig, '% Retención'] = float(fila['% Retención']) if pd.notna(fila['% Retención']) else 0.0
+                st.session_state.df.loc[idx_orig, 'Pagar'] = True if str(fila['Pagar']).lower() in ['true', '1'] else False
 
-    # 2. Aplicamos las reglas masivas que elegiste (sobrescriben la tabla si las usas)
-    if sel_masiva == "Seleccionar Todos":
-        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-        hubo_cambios = True
-    elif sel_masiva == "Seleccionar Ninguno":
-        indices_pend = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        st.session_state.df.loc[indices_pend, 'Pagar'] = False
-        hubo_cambios = True
-        
-    if dest_masivo != "Sin cambios":
-        st.session_state.df.loc[df_filtrado.index, 'Destajista'] = dest_masivo
-        hubo_cambios = True
-        
-    if ad_masivo != "Sin cambios":
-        st.session_state.df.loc[df_filtrado.index, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
-        hubo_cambios = True
-        
-    if ret_masiva != "Sin cambios":
-        st.session_state.df.loc[df_filtrado.index, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
-        hubo_cambios = True
-        
-    if hubo_cambios:
-        st.session_state.reload_trigger = True
-        st.rerun()
+        # 2. Aplicamos las reglas masivas que elegiste (sobrescriben la tabla si las usas)
+        if sel_masiva == "Seleccionar Todos":
+            st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
+            hubo_cambios = True
+        elif sel_masiva == "Seleccionar Ninguno":
+            indices_pend = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+            st.session_state.df.loc[indices_pend, 'Pagar'] = False
+            hubo_cambios = True
+            
+        if dest_masivo != "Sin cambios":
+            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = dest_masivo
+            hubo_cambios = True
+            
+        if ad_masivo != "Sin cambios":
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
+            hubo_cambios = True
+            
+        if ret_masiva != "Sin cambios":
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
+            hubo_cambios = True
+            
+        if hubo_cambios:
+            st.session_state.reload_trigger = True
+            st.rerun()
 # ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
