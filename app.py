@@ -1233,49 +1233,7 @@ if menu == "Registro de Destajos":
     """, unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
-
-    b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
-
-    if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-        st.session_state.reload_trigger = True
-        st.rerun()
-        
-    if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-        st.session_state.reload_trigger = True
-        st.rerun()
-
-    # --- 1. Asignación Destajista ---
-    destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
-    if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
-        if destajista_masivo != "Seleccionar...":
-            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
-            st.session_state.reload_trigger = True
-            st.success("Destajista asignado masivamente.")
-            st.rerun()
-
-    # --- 2. Asignación % Adicional ---
-    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
-    if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
-        if pct_adicional_masivo != "Seleccionar...":
-            val = 0.10 if pct_adicional_masivo == "10%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
-            st.session_state.reload_trigger = True
-            st.success("% Adicional asignado masivamente.")
-            st.rerun()
-
-    # --- 3. Asignación % Retención ---
-    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
-    if b_col5.button("Asignación masiva % Retención", use_container_width=True):
-        if pct_retencion_masiva != "Seleccionar...":
-            val = 0.05 if pct_retencion_masiva == "5%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
-            st.session_state.reload_trigger = True
-            st.success("% Retención asignado masivamente.")
-            st.rerun()
-
+    
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
     ph_label_azul = st.empty()
@@ -1433,7 +1391,12 @@ if menu == "Registro de Destajos":
         # --- INICIO CONTROLES MASIVOS FLUIDOS ---
         st.markdown("<span style='color:#3B82F6; font-weight:bold; font-size:15px;'>🛠️ Acciones Masivas (Se aplican al dar clic en Actualizar Totales):</span>", unsafe_allow_html=True)
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        sel_masiva = m_col1.selectbox("☑️ Casillas de pago", ["Sin cambios", "Seleccionar Todos", "Seleccionar Ninguno"])
+        
+        with m_col1:
+            st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Casillas de pago</div>", unsafe_allow_html=True)
+            chk_todos = st.checkbox("Seleccionar Todos")
+            chk_ninguno = st.checkbox("Seleccionar Ninguno")
+            
         dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Sin cambios"] + LISTA_DESTAJISTAS)
         ad_masivo = m_col3.selectbox("📈 % Adicional", ["Sin cambios", "0%", "10%"])
         ret_masiva = m_col4.selectbox("🔒 % Retención", ["Sin cambios", "0%", "5%"])
@@ -1471,13 +1434,15 @@ if menu == "Registro de Destajos":
                 st.session_state.df.loc[idx_orig, 'Pagar'] = True if str(fila['Pagar']).lower() in ['true', '1'] else False
 
         # 2. Aplicamos las reglas masivas que elegiste (sobrescriben la tabla si las usas)
-        if sel_masiva == "Seleccionar Todos":
+        if locals().get("chk_todos", False):
             st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
             hubo_cambios = True
-        elif sel_masiva == "Seleccionar Ninguno":
+        elif locals().get("chk_ninguno", False):
             indices_pend = df_filtrado[df_filtrado['Fecha pago'] == ''].index
             st.session_state.df.loc[indices_pend, 'Pagar'] = False
             hubo_cambios = True
+            
+    if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
             
         if dest_masivo != "Sin cambios":
             st.session_state.df.loc[df_filtrado.index, 'Destajista'] = dest_masivo
