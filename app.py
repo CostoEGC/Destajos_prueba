@@ -1396,7 +1396,7 @@ if menu == "Registro de Destajos":
             st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Casillas de pago</div>", unsafe_allow_html=True)
             radio_seleccion = st.radio("Selector", ["Seleccionar Todos", "Seleccionar Ninguno"], label_visibility="collapsed")
             
-        dest_masivo = m_col2.selectbox("👷 Destajista masivo", + LISTA_DESTAJISTAS)
+        dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Seleccione un destajista..."] + LISTA_DESTAJISTAS)
         ad_masivo = m_col3.selectbox("📈 % Adicional", ["0%", "10%"])
         ret_masiva = m_col4.selectbox("🔒 % Retención", ["0%", "5%"])
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
