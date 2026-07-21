@@ -976,19 +976,7 @@ def dialogo_nueva_partida():
             usr = ""
             
         df_temp = st.session_state.df.copy()
-        
-        # --- NUEVO: Alineación y ordenamiento estricto previo con ID_DB ---
-        df_temp['ID_DB_Num'] = pd.to_numeric(df_temp['ID_DB'], errors='coerce')
-        df_temp['Lote_Num'] = pd.to_numeric(df_temp['Lote'], errors='coerce').fillna(9999)
-        df_temp['Partida_Limpia'] = df_temp['Partida'].apply(limpiar_texto_partida)
-        df_temp['Orden_Excel'] = df_temp['Partida_Limpia'].apply(
-            lambda x: ORDEN_PARTIDAS_MAESTRO.index(x) if x in ORDEN_PARTIDAS_MAESTRO else 99999
-        )
-        
-        # Ordenamos usando el ID_DB_Num como desempate (las más antiguas arriba, las nuevas al final)
-        df_temp = df_temp.sort_values(by=['Lote_Num', 'Prototipo', 'Orden_Excel', 'ID_DB_Num'], na_position='last').reset_index(drop=True)
-        df_temp = df_temp.drop(columns=['Lote_Num', 'Partida_Limpia', 'Orden_Excel', 'ID_DB_Num'])
-        # -------------------------------------------------------
+        nuevas_filas = []
         
         for lote in lotes_sel:
             datos_lote_existente = df_temp[df_temp['Lote'].astype(str).str.strip() == str(lote).strip()]
@@ -997,12 +985,10 @@ def dialogo_nueva_partida():
                 lote_original = datos_lote_existente['Lote'].iloc[0]
                 mz_original = datos_lote_existente['Manzana'].iloc[0]
                 pr_original = datos_lote_existente['Prototipo'].iloc[0]
-                idx_insert = datos_lote_existente.index.max() + 1
             else:
                 lote_original = lote
                 mz_original = ""
                 pr_original = ""
-                idx_insert = len(df_temp)
 
             nueva_fila = {
                 'ID_DB': None,
@@ -1022,15 +1008,10 @@ def dialogo_nueva_partida():
                 'Fecha pago': ahora,
                 'Usuario': usr
             }
+            nuevas_filas.append(nueva_fila)
             
-            df_arriba = df_temp.iloc[:idx_insert]
-            df_abajo = df_temp.iloc[idx_insert:]
-            df_temp = pd.concat([df_arriba, pd.DataFrame([nueva_fila]), df_abajo]).reset_index(drop=True)
-            
-        df_envio = df_temp.copy()
-        if 'Concepto_Limpio' in df_envio.columns:
-            df_envio = df_envio.drop(columns=['Concepto_Limpio'])
-            
+        # Enviamos a Supabase EXCLUSIVAMENTE las filas nuevas para evitar cuellos de botella
+        df_envio = pd.DataFrame(nuevas_filas)
         df_envio['Fecha pago'] = df_envio['Fecha pago'].apply(lambda x: f"'{x}" if str(x).strip() != '' else '')
         
         with st.spinner("Inyectando partida en el lote correspondiente y sincronizando con Supabase..."):
@@ -1039,7 +1020,7 @@ def dialogo_nueva_partida():
             
         st.session_state.df_original = st.session_state.df.copy()
         st.session_state.grid_key += 1
-        st.success("¡Partida(s) inyectada(s) exactamente al final de cada grupo!")
+        st.success("¡Partida(s) agregada(s) correctamente!")
         st.rerun()
 
 # --- TABLA DE RESUMEN DE PROTOTIPOS EN EL PANEL LATERAL (INFERIOR) ---
@@ -1237,7 +1218,8 @@ if menu == "Registro de Destajos":
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
         st.session_state.reload_trigger = True
         st.rerun()
         
@@ -1247,34 +1229,56 @@ if menu == "Registro de Destajos":
         st.session_state.reload_trigger = True
         st.rerun()
 
+    # --- Función auxiliar para obtener las filas marcadas con la casilla (Sel) y que NO estén bloqueadas ---
+    def obtener_indices_seleccionados_desbloqueados():
+        if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
+            df_pantalla = st.session_state.current_grid_state
+            df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
+            # Filtro doble: que la casilla esté marcada Y que no tenga fecha de pago
+            filas_validas = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha pago'].fillna('').astype(str).str.strip() == '')]
+            return filas_validas['_original_index'].astype(int).tolist()
+        return []
+
     # --- 1. Asignación Destajista ---
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
     if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
-            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
-            st.session_state.reload_trigger = True
-            st.success("Destajista asignado masivamente.")
-            st.rerun()
+            indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
+            if indices_a_cambiar:
+                st.session_state.df.loc[indices_a_cambiar, 'Destajista'] = destajista_masivo
+                st.session_state.reload_trigger = True
+                st.success(f"Destajista asignado a {len(indices_a_cambiar)} filas.")
+                st.rerun()
+            else:
+                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
 
     # --- 2. Asignación % Adicional ---
     pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
     if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
             val = 0.10 if pct_adicional_masivo == "10%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
-            st.session_state.reload_trigger = True
-            st.success("% Adicional asignado masivamente.")
-            st.rerun()
+            indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
+            if indices_a_cambiar:
+                st.session_state.df.loc[indices_a_cambiar, '% Adicional'] = val
+                st.session_state.reload_trigger = True
+                st.success(f"% Adicional asignado a {len(indices_a_cambiar)} filas.")
+                st.rerun()
+            else:
+                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
 
     # --- 3. Asignación % Retención ---
     pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
     if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
             val = 0.05 if pct_retencion_masiva == "5%" else 0.0
-            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
-            st.session_state.reload_trigger = True
-            st.success("% Retención asignado masivamente.")
-            st.rerun()
+            indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
+            if indices_a_cambiar:
+                st.session_state.df.loc[indices_a_cambiar, '% Retención'] = val
+                st.session_state.reload_trigger = True
+                st.success(f"% Retención asignado a {len(indices_a_cambiar)} filas.")
+                st.rerun()
+            else:
+                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
 
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
@@ -1330,10 +1334,11 @@ if menu == "Registro de Destajos":
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
     
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
+    # IMPORTANTE: Se movió 'Pagar' al inicio de la lista
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
-    gb.configure_column("ID_DB", hide=True) # SE OCULTA LA CLAVE DE SUPABASE PERO VIAJA EN MEMORIA
+    gb.configure_column("ID_DB", hide=True)
     
     st.markdown(
         """
@@ -1347,6 +1352,9 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
+    # Se renombra visualmente a "Sel" pero mantiene el vínculo lógico original para no arruinar nada
+    gb.configure_column("Pagar", headerName="Sel", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
@@ -1359,7 +1367,6 @@ if menu == "Registro de Destajos":
     
     formula_neto = "Number(data.Costo) + (Number(data.Costo) * (Number(data['% Adicional']) || 0)) - (Number(data.Costo) * (Number(data['% Retención']) || 0))"
     gb.configure_column("Monto Neto", editable=False, valueGetter=formula_neto, valueFormatter="x.toLocaleString('en-US', {style: 'currency', currency: 'USD'})", cellClass='centrar-valor', headerClass='ag-center-header', width=130)
-    gb.configure_column("Pagar", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Fecha pago", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=160)
     gb.configure_column("Usuario", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=120)
 
@@ -1431,7 +1438,7 @@ if menu == "Registro de Destajos":
         st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
         response = AgGrid(
-            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
             gridOptions=grid_options,
             key="grid_destajos_maestro",
             reload_data=st.session_state.get('reload_trigger', False),
