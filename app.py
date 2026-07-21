@@ -1410,10 +1410,7 @@ if menu == "Registro de Destajos":
         dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Sin cambios"] + LISTA_DESTAJISTAS)
         ad_masivo = m_col3.selectbox("📈 % Adicional", ["Sin cambios", "0%", "10%"])
         ret_masiva = m_col4.selectbox("🔒 % Retención", ["Sin cambios", "0%", "5%"])
-        
-        with m_col5:
-            st.markdown("<div style='font-size:14px; margin-bottom:15px;'>💳 Acción de Pago</div>", unsafe_allow_html=True)
-            chk_pagar_masivo = st.checkbox("Pagar seleccionados")
+        accion_pago_masivo = m_col5.selectbox("💳 Acción de Pago", ["Sin cambios", "Marcar para pago", "Desmarcar pago"])
             
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
         # --- FIN CONTROLES MASIVOS FLUIDOS ---       
@@ -1475,7 +1472,7 @@ if menu == "Registro de Destajos":
             # Obtenemos solo los índices que realmente quedaron seleccionados (Checkbox 'Sel.' en True)
             indices_seleccionados = st.session_state.df.loc[indices_pendientes][st.session_state.df.loc[indices_pendientes, '_Seleccionar'] == True].index
 
-            # 3. Acciones masivas aplican ESTRICTAMENTE a las filas con Checkbox activado
+                # 3. Acciones masivas aplican ESTRICTAMENTE a las filas con Checkbox activado
             if len(indices_seleccionados) > 0:
                 if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
                     st.session_state.df.loc[indices_seleccionados, 'Destajista'] = dest_masivo
@@ -1489,16 +1486,19 @@ if menu == "Registro de Destajos":
                     st.session_state.df.loc[indices_seleccionados, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
                     hubo_cambios = True
                     
-            # 4. Acción del Checkbox "Pagar": Sincroniza las casillas de Pagar con las de Sel.
-            if locals().get("chk_pagar_masivo", False):
-                st.session_state.df.loc[indices_pendientes, 'Pagar'] = st.session_state.df.loc[indices_pendientes, '_Seleccionar']
-                hubo_cambios = True
+                # 4. Acción de Pago Masiva
+                accion_pago = locals().get("accion_pago_masivo", "Sin cambios")
+                if accion_pago == "Marcar para pago":
+                    st.session_state.df.loc[indices_seleccionados, 'Pagar'] = True
+                    hubo_cambios = True
+                elif accion_pago == "Desmarcar pago":
+                    st.session_state.df.loc[indices_seleccionados, 'Pagar'] = False
+                    hubo_cambios = True
 
         if hubo_cambios or locals().get("btn_actualizar", False):
             st.session_state.reload_trigger = True
             st.rerun()
-# ---------------------------------------------------
-# ---------------------------------------------------
+    # ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
