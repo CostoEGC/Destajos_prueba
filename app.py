@@ -1288,20 +1288,15 @@ if menu == "Registro de Destajos":
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
     
-    # --- NUEVA COLUMNA VIRTUAL DE SELECCIÓN ---
-    if '_Seleccionar' not in st.session_state.df.columns:
-        st.session_state.df['_Seleccionar'] = False
-        
-    df_filtrado_grid['_Seleccionar'] = st.session_state.df.loc[df_filtrado_grid.index, '_Seleccionar'].fillna(False)
-    # ------------------------------------------
-    
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['_Seleccionar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
-    gb.configure_column("ID_DB", hide=True) # SE OCULTA LA CLAVE DE SUPABASE PERO VIAJA EN MEMORIA
+    gb.configure_column("ID_DB", hide=True) 
     
-    # Configuración de la nueva columna de checkboxes
-    gb.configure_column("_Seleccionar", headerName="Sel.", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=70, pinned='left')
+    # TU IDEA HECHA REALIDAD: La columna Pagar se disfraza visualmente de "Sel."
+    gb.configure_column("Pagar", headerName="Sel.", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=80, pinned='left')
+    
+    gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
         
     st.markdown(
         """
@@ -1400,20 +1395,19 @@ if menu == "Registro de Destajos":
         btn_actualizar = st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
         # --- INICIO CONTROLES MASIVOS FLUIDOS ---
-        st.markdown("<span style='color:#3B82F6; font-weight:bold; font-size:15px;'>🛠️ Acciones Masivas (Afectarán solo a las casillas 'Sel.' activadas):</span>", unsafe_allow_html=True)
-        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns([1.2, 1.5, 1, 1, 1.2])
+        st.markdown("<span style='color:#3B82F6; font-weight:bold; font-size:15px;'>🛠️ Acciones Masivas (Afectarán SOLO a las casillas de 'Sel.' que estén activadas):</span>", unsafe_allow_html=True)
+        m_col1, m_col2, m_col3, m_col4 = st.columns([1.5, 1.5, 1, 1])
         
         with m_col1:
-            st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Control de Selección</div>", unsafe_allow_html=True)
-            radio_seleccion = st.radio("Selector", ["Manual", "Seleccionar Todos", "Seleccionar Ninguno"], label_visibility="collapsed")
+            st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Selección Masiva</div>", unsafe_allow_html=True)
+            radio_seleccion = st.radio("Selector", ["👆 Selección Manual", "✅ Seleccionar Todos", "🔲 Seleccionar Ninguno"], label_visibility="collapsed")
             
         dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Sin cambios"] + LISTA_DESTAJISTAS)
         ad_masivo = m_col3.selectbox("📈 % Adicional", ["Sin cambios", "0%", "10%"])
         ret_masiva = m_col4.selectbox("🔒 % Retención", ["Sin cambios", "0%", "5%"])
-        accion_pago_masivo = m_col5.selectbox("💳 Acción de Pago", ["Sin cambios", "Marcar para pago", "Desmarcar pago"])
             
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
-        # --- FIN CONTROLES MASIVOS FLUIDOS ---       
+        # --- FIN CONTROLES MASIVOS FLUIDOS ---      
         
         
         response = AgGrid(
@@ -1432,17 +1426,13 @@ if menu == "Registro de Destajos":
         )
     st.session_state.reload_trigger = False
 
-            # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
+        # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
     if locals().get("btn_actualizar", False):
         hubo_cambios = False
         
-        # 1. Recuperamos la edición manual de la tabla (BLINDADO)
+        # 1. Recuperamos la edición manual de la tabla (Sincroniza la columna Sel./Pagar al instante)
         if response['data'] is not None and not pd.DataFrame(response['data']).empty:
             df_temporal = pd.DataFrame(response['data'])
-            
-            if '_Seleccionar' not in st.session_state.df.columns:
-                st.session_state.df['_Seleccionar'] = False
-                
             df_pendientes_manual = df_temporal[df_temporal['Fecha pago'].fillna('').astype(str).str.strip() == '']
             
             if not df_pendientes_manual.empty:
@@ -1452,27 +1442,24 @@ if menu == "Registro de Destajos":
                 st.session_state.df.loc[indices, '% Adicional'] = pd.to_numeric(df_pendientes_manual['% Adicional'], errors='coerce').fillna(0.0)
                 st.session_state.df.loc[indices, '% Retención'] = pd.to_numeric(df_pendientes_manual['% Retención'], errors='coerce').fillna(0.0)
                 st.session_state.df.loc[indices, 'Pagar'] = df_pendientes_manual['Pagar'].astype(str).str.lower().isin(['true', '1'])
-                
-                if '_Seleccionar' in df_pendientes_manual.columns:
-                    st.session_state.df.loc[indices, '_Seleccionar'] = df_pendientes_manual['_Seleccionar'].astype(str).str.lower().isin(['true', '1'])
 
-        # 2. Aplicamos el Radio Button a la columna virtual de selección
+        # 2. Aplicamos la Selección Masiva (Sobrescribe los clics manuales SOLO si NO está en "Manual")
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         
         if len(indices_pendientes) > 0:
-            radio_sel = locals().get("radio_seleccion", "Manual")
+            accion_sel = locals().get("radio_seleccion", "👆 Selección Manual")
             
-            if radio_sel == "Seleccionar Todos":
-                st.session_state.df.loc[indices_pendientes, '_Seleccionar'] = True
+            if accion_sel == "✅ Seleccionar Todos":
+                st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
                 hubo_cambios = True
-            elif radio_sel == "Seleccionar Ninguno":
-                st.session_state.df.loc[indices_pendientes, '_Seleccionar'] = False
+            elif accion_sel == "🔲 Seleccionar Ninguno":
+                st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
                 hubo_cambios = True
                 
-            # Obtenemos solo los índices que realmente quedaron seleccionados (Checkbox 'Sel.' en True)
-            indices_seleccionados = st.session_state.df.loc[indices_pendientes][st.session_state.df.loc[indices_pendientes, '_Seleccionar'] == True].index
+            # Obtenemos los índices que FINALMENTE quedaron con la palomita (ya sea manual o masiva)
+            indices_seleccionados = st.session_state.df.loc[indices_pendientes][st.session_state.df.loc[indices_pendientes, 'Pagar'] == True].index
 
-                # 3. Acciones masivas aplican ESTRICTAMENTE a las filas con Checkbox activado
+            # 3. Aplicamos Destajista y Porcentajes SOLO a las filas que tienen la palomita
             if len(indices_seleccionados) > 0:
                 if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
                     st.session_state.df.loc[indices_seleccionados, 'Destajista'] = dest_masivo
@@ -1485,20 +1472,12 @@ if menu == "Registro de Destajos":
                 if locals().get("ret_masiva", "Sin cambios") != "Sin cambios":
                     st.session_state.df.loc[indices_seleccionados, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
                     hubo_cambios = True
-                    
-                # 4. Acción de Pago Masiva
-                accion_pago = locals().get("accion_pago_masivo", "Sin cambios")
-                if accion_pago == "Marcar para pago":
-                    st.session_state.df.loc[indices_seleccionados, 'Pagar'] = True
-                    hubo_cambios = True
-                elif accion_pago == "Desmarcar pago":
-                    st.session_state.df.loc[indices_seleccionados, 'Pagar'] = False
-                    hubo_cambios = True
 
         if hubo_cambios or locals().get("btn_actualizar", False):
             st.session_state.reload_trigger = True
             st.rerun()
     # ---------------------------------------------------
+# ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
