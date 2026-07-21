@@ -1423,6 +1423,7 @@ if menu == "Registro de Destajos":
             theme='balham',
             height=800,
             custom_css=mis_estilos
+        )
     st.session_state.reload_trigger = False
 
         # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
