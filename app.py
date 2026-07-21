@@ -1378,7 +1378,7 @@ if menu == "Registro de Destajos":
                 margin-bottom: 15px !important;
                 position: relative !important;
                 z-index: 9999 !important;
-                float: right;
+                float: center;
                 margin-left: 10px;
             }
             div[data-testid="stFormSubmitButton"] button {
