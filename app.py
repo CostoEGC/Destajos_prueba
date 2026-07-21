@@ -1233,7 +1233,49 @@ if menu == "Registro de Destajos":
     """, unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
+
+    b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
+    if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
+        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
+        st.session_state.reload_trigger = True
+        st.rerun()
+        
+    if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
+        st.session_state.reload_trigger = True
+        st.rerun()
+
+    # --- 1. Asignación Destajista ---
+    destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
+    if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
+        if destajista_masivo != "Seleccionar...":
+            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
+            st.session_state.reload_trigger = True
+            st.success("Destajista asignado masivamente.")
+            st.rerun()
+
+    # --- 2. Asignación % Adicional ---
+    pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
+    if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
+        if pct_adicional_masivo != "Seleccionar...":
+            val = 0.10 if pct_adicional_masivo == "10%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
+            st.session_state.reload_trigger = True
+            st.success("% Adicional asignado masivamente.")
+            st.rerun()
+
+    # --- 3. Asignación % Retención ---
+    pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
+    if b_col5.button("Asignación masiva % Retención", use_container_width=True):
+        if pct_retencion_masiva != "Seleccionar...":
+            val = 0.05 if pct_retencion_masiva == "5%" else 0.0
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
+            st.session_state.reload_trigger = True
+            st.success("% Retención asignado masivamente.")
+            st.rerun()
+
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
     ph_label_azul = st.empty()
@@ -1386,21 +1428,7 @@ if menu == "Registro de Destajos":
             """,
             unsafe_allow_html=True
         )
-        btn_actualizar = st.form_submit_button("🔄 Actualizar Totales", type="primary")
-    
-        # --- INICIO CONTROLES MASIVOS FLUIDOS ---
-        st.markdown("<span style='color:#3B82F6; font-weight:bold; font-size:15px;'>🛠️ Acciones Masivas (Se aplican al dar clic en Actualizar Totales):</span>", unsafe_allow_html=True)
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        
-        with m_col1:
-            st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Casillas de pago</div>", unsafe_allow_html=True)
-            radio_seleccion = st.radio("Selector", ["Seleccionar Todos", "Seleccionar Ninguno"], label_visibility="collapsed")
-            
-        dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Seleccione un destajista..."] + LISTA_DESTAJISTAS)
-        ad_masivo = m_col3.selectbox("📈 % Adicional", ["0%", "10%"])
-        ret_masiva = m_col4.selectbox("🔒 % Retención", ["0%", "5%"])
-        st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
-        # --- FIN CONTROLES MASIVOS FLUIDOS ---
+        st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
         response = AgGrid(
             df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
@@ -1417,50 +1445,6 @@ if menu == "Registro de Destajos":
             custom_css=mis_estilos
         )
     st.session_state.reload_trigger = False
-
-    # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
-    if locals().get("btn_actualizar", False):
-        
-        # 1. Recuperamos la edición manual de la tabla (BLINDADO: SOLO FILAS NO PAGADAS)
-        if response['data'] is not None and not pd.DataFrame(response['data']).empty:
-            df_temporal = pd.DataFrame(response['data'])
-            
-            # Filtro de seguridad: Extraemos únicamente las filas donde 'Fecha pago' está en blanco
-            df_pendientes_manual = df_temporal[df_temporal['Fecha pago'].fillna('').astype(str).str.strip() == '']
-            
-            if not df_pendientes_manual.empty:
-                indices = df_pendientes_manual['_original_index'].astype(int)
-                
-                # Aplicamos los cambios manuales solo a esos índices permitidos
-                st.session_state.df.loc[indices, 'Destajista'] = df_pendientes_manual['Destajista'].fillna("").astype(str).str.strip()
-                st.session_state.df.loc[indices, '% Adicional'] = pd.to_numeric(df_pendientes_manual['% Adicional'], errors='coerce').fillna(0.0)
-                st.session_state.df.loc[indices, '% Retención'] = pd.to_numeric(df_pendientes_manual['% Retención'], errors='coerce').fillna(0.0)
-                st.session_state.df.loc[indices, 'Pagar'] = df_pendientes_manual['Pagar'].astype(str).str.lower().isin(['true', '1'])
-
-        # 2. Aplicamos las reglas masivas (BLINDADO: SOLO A ÍNDICES PENDIENTES)
-        # Identificamos estrictamente las filas en pantalla que NO tienen fecha de pago
-        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        
-        if len(indices_pendientes) > 0:
-            if locals().get("radio_seleccion") == "Seleccionar Todos":
-                st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
-            elif locals().get("radio_seleccion") == "Seleccionar Ninguno":
-                st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-                
-            if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
-                st.session_state.df.loc[indices_pendientes, 'Destajista'] = dest_masivo
-                
-            if locals().get("ad_masivo", "Sin cambios") != "Sin cambios":
-                st.session_state.df.loc[indices_pendientes, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
-                
-            if locals().get("ret_masiva", "Sin cambios") != "Sin cambios":
-                st.session_state.df.loc[indices_pendientes, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
-                
-        # Forzamos la actualización visual de la tabla
-        st.session_state.reload_trigger = True
-        st.rerun()
-    # ---------------------------------------------------  
-# ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
