@@ -1475,6 +1475,7 @@ if menu == "Registro de Destajos":
 
         if hubo_cambios or locals().get("btn_actualizar", False):
             st.session_state.reload_trigger = True
+            st.session_state.grid_key += 1
             st.rerun()
     # ---------------------------------------------------
 # ---------------------------------------------------
