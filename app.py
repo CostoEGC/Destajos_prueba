@@ -1394,8 +1394,7 @@ if menu == "Registro de Destajos":
         
         with m_col1:
             st.markdown("<div style='font-size:14px; margin-bottom:5px;'>☑️ Casillas de pago</div>", unsafe_allow_html=True)
-            chk_todos = st.checkbox("Seleccionar Todos")
-            chk_ninguno = st.checkbox("Seleccionar Ninguno")
+            radio_seleccion = st.radio("Selector", ["Sin cambios", "Seleccionar Todos", "Seleccionar Ninguno"], label_visibility="collapsed")
             
         dest_masivo = m_col2.selectbox("👷 Destajista masivo", ["Sin cambios"] + LISTA_DESTAJISTAS)
         ad_masivo = m_col3.selectbox("📈 % Adicional", ["Sin cambios", "0%", "10%"])
@@ -1419,48 +1418,48 @@ if menu == "Registro de Destajos":
         )
     st.session_state.reload_trigger = False
 
-        # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
+    # --- LÓGICA PARA PROCESAR LOS CONTROLES FLUIDOS ---
     if locals().get("btn_actualizar", False):
-        hubo_cambios = False
         
-        # 1. Recuperamos la edición manual de la tabla AL INSTANTE (Vectorizado para evitar congelamientos)
+        # 1. Recuperamos la edición manual de la tabla (BLINDADO: SOLO FILAS NO PAGADAS)
         if response['data'] is not None and not pd.DataFrame(response['data']).empty:
             df_temporal = pd.DataFrame(response['data'])
             
-            # Extraemos los índices originales de la pantalla
-            indices = df_temporal['_original_index'].astype(int)
+            # Filtro de seguridad: Extraemos únicamente las filas donde 'Fecha pago' está en blanco
+            df_pendientes_manual = df_temporal[df_temporal['Fecha pago'].fillna('').astype(str).str.strip() == '']
             
-            # Inyectamos los datos a la memoria de golpe (esto toma milisegundos en lugar de congelar la app)
-            st.session_state.df.loc[indices, 'Destajista'] = df_temporal['Destajista'].fillna("").astype(str).str.strip()
-            st.session_state.df.loc[indices, '% Adicional'] = pd.to_numeric(df_temporal['% Adicional'], errors='coerce').fillna(0.0)
-            st.session_state.df.loc[indices, '% Retención'] = pd.to_numeric(df_temporal['% Retención'], errors='coerce').fillna(0.0)
-            st.session_state.df.loc[indices, 'Pagar'] = df_temporal['Pagar'].astype(str).str.lower().isin(['true', '1'])
+            if not df_pendientes_manual.empty:
+                indices = df_pendientes_manual['_original_index'].astype(int)
+                
+                # Aplicamos los cambios manuales solo a esos índices permitidos
+                st.session_state.df.loc[indices, 'Destajista'] = df_pendientes_manual['Destajista'].fillna("").astype(str).str.strip()
+                st.session_state.df.loc[indices, '% Adicional'] = pd.to_numeric(df_pendientes_manual['% Adicional'], errors='coerce').fillna(0.0)
+                st.session_state.df.loc[indices, '% Retención'] = pd.to_numeric(df_pendientes_manual['% Retención'], errors='coerce').fillna(0.0)
+                st.session_state.df.loc[indices, 'Pagar'] = df_pendientes_manual['Pagar'].astype(str).str.lower().isin(['true', '1'])
 
-        # 2. Aplicamos las reglas masivas que elegiste (sobrescriben la tabla si las usas)
-        if locals().get("chk_todos", False):
-            st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
-            hubo_cambios = True
-        elif locals().get("chk_ninguno", False):
-            indices_pend = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-            st.session_state.df.loc[indices_pend, 'Pagar'] = False
-            hubo_cambios = True
-            
-        if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
-            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = dest_masivo
-            hubo_cambios = True
-            
-        if locals().get("ad_masivo", "Sin cambios") != "Sin cambios":
-            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
-            hubo_cambios = True
-            
-        if locals().get("ret_masiva", "Sin cambios") != "Sin cambios":
-            st.session_state.df.loc[df_filtrado.index, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
-            hubo_cambios = True
-            
-        if hubo_cambios:
-            st.session_state.reload_trigger = True
-            st.rerun()
-# ---------------------------------------------------  
+        # 2. Aplicamos las reglas masivas (BLINDADO: SOLO A ÍNDICES PENDIENTES)
+        # Identificamos estrictamente las filas en pantalla que NO tienen fecha de pago
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        
+        if len(indices_pendientes) > 0:
+            if locals().get("radio_seleccion") == "Seleccionar Todos":
+                st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
+            elif locals().get("radio_seleccion") == "Seleccionar Ninguno":
+                st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
+                
+            if locals().get("dest_masivo", "Sin cambios") != "Sin cambios":
+                st.session_state.df.loc[indices_pendientes, 'Destajista'] = dest_masivo
+                
+            if locals().get("ad_masivo", "Sin cambios") != "Sin cambios":
+                st.session_state.df.loc[indices_pendientes, '% Adicional'] = 0.10 if ad_masivo == "10%" else 0.0
+                
+            if locals().get("ret_masiva", "Sin cambios") != "Sin cambios":
+                st.session_state.df.loc[indices_pendientes, '% Retención'] = 0.05 if ret_masiva == "5%" else 0.0
+                
+        # Forzamos la actualización visual de la tabla
+        st.session_state.reload_trigger = True
+        st.rerun()
+    # ---------------------------------------------------  
 # ---------------------------------------------------
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
