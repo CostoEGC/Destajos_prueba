@@ -1433,8 +1433,8 @@ if menu == "Registro de Destajos":
         response = AgGrid(
             df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
             gridOptions=grid_options,
-            key=f"grid_destajos_{st.session_state.grid_key}",
-            reload_data=st.session_state.reload_trigger,
+            key="grid_destajos_maestro",
+            reload_data=st.session_state.get('reload_trigger', False),
             enable_enterprise_modules=False,
             allow_unsafe_jscode=True,
             update_mode=GridUpdateMode.VALUE_CHANGED,  
