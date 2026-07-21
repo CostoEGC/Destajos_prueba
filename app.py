@@ -562,16 +562,6 @@ if st.sidebar.button("💾 GUARDAR CAMBIOS"):
                 st.session_state.grid_key += 1 
                 st.session_state.reload_trigger = True
                 
-# --- NUEVO: Limpiar filtros de la tabla al guardar ---
-                st.session_state.sel_proto = "Todos"
-                st.session_state.sel_manzana = "Todos"
-                st.session_state.sel_lotes = []
-                st.session_state.sel_concepto = []
-                st.session_state.sel_dest = "Todos"
-                st.session_state.sel_estado = "Todos"
-                st.session_state.sel_fecha = ()
-                # -----------------------------------------------------
-
                 # --- NUEVO: GUARDAR FECHA DE ÉXITO EN MEMORIA ---
                 st.session_state.ultima_vez_guardado = f"{dia}/{mes}/{anio} {hora}"
                 
@@ -732,10 +722,10 @@ def dialogo_reportes():
         st.warning("No existen registros bajo los filtros seleccionados para generar el documento.")
     else:
         st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
-        #st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
+        st.info("💡 **Tip de rendimiento:** Mueve tus filtros libremente. El contador se actualizará en tiempo real. Da clic en el botón de abajo solo cuando estés listo para imprimir.")
         
         # --- CAMBIO A BOTÓN: Desaparece automáticamente si cambias un filtro ---
-        if st.button("⚙️ Generar PDF", type="primary", use_container_width=True):
+        if st.button("⚙️ Construir documento PDF con estos filtros", type="primary", use_container_width=True):
             
             with st.spinner("⏳ Compilando el PDF, por favor espera un momento..."):
                 pdf = FPDF(orientation='P', unit='mm', format='Letter')
@@ -1090,10 +1080,6 @@ if menu == "Registro de Destajos":
     mostrar_cabecera_con_logo("📝 Control de Pagos Destajos")
     
     df_actual = st.session_state.df
-
-    # --- NUEVO: Crear la columna 'Seleccionar' si no existe ---
-    if 'Seleccionar' not in st.session_state.df.columns:
-        st.session_state.df['Seleccionar'] = False
     
     espacio_kpi = st.empty() 
     espacio_filtros = st.container() 
@@ -1248,77 +1234,54 @@ if menu == "Registro de Destajos":
     
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # === NUEVA LÓGICA DE BOTONES BASADA EN LA COLUMNA 'SELECCIONAR' ===
-    # Obtenemos los índices de las filas que el usuario marcó con el checkbox y que NO estén pagadas
-    indices_marcados = df_filtrado[(df_filtrado['Seleccionar'] == True) & (df_filtrado['Fecha pago'] == '')].index
-
     b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
     
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        st.session_state.df.loc[indices_pendientes, 'Seleccionar'] = True
-        st.session_state.current_grid_state = pd.DataFrame()
-        st.session_state.grid_key += 1
+        st.session_state.df.loc[df_filtrado.index, 'Pagar'] = True
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        st.session_state.df.loc[df_filtrado.index, 'Seleccionar'] = False
-        st.session_state.current_grid_state = pd.DataFrame()
-        st.session_state.grid_key += 1
+        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
+        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
         st.session_state.reload_trigger = True
         st.rerun()
 
     # --- 1. Asignación Destajista ---
     destajista_masivo = b_col3.selectbox("Destajista M.", ["Seleccionar..."] + LISTA_DESTAJISTAS, label_visibility="collapsed")
-    if b_col3.button("Asignar Destajista", help="Aplica solo a filas con 'Sel ✔'", use_container_width=True):
+    if b_col3.button("Asignar Destajista Masivo", use_container_width=True):
         if destajista_masivo != "Seleccionar...":
-            st.session_state.df.loc[indices_marcados, 'Destajista'] = destajista_masivo
-            st.session_state.current_grid_state = pd.DataFrame()
-            st.session_state.grid_key += 1
+            st.session_state.df.loc[df_filtrado.index, 'Destajista'] = destajista_masivo
             st.session_state.reload_trigger = True
-            st.success("Destajista asignado a las filas seleccionadas.")
+            st.success("Destajista asignado masivamente.")
             st.rerun()
 
     # --- 2. Asignación % Adicional ---
     pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
-    if b_col4.button("Asignar % Adic", help="Aplica solo a filas con 'Sel ✔'", use_container_width=True):
+    if b_col4.button("Asignación masiva % Adicional", use_container_width=True):
         if pct_adicional_masivo != "Seleccionar...":
             val = 0.10 if pct_adicional_masivo == "10%" else 0.0
-            st.session_state.df.loc[indices_marcados, '% Adicional'] = val
-            st.session_state.current_grid_state = pd.DataFrame()
-            st.session_state.grid_key += 1
+            st.session_state.df.loc[df_filtrado.index, '% Adicional'] = val
             st.session_state.reload_trigger = True
-            st.success("% Adicional asignado a las filas seleccionadas.")
+            st.success("% Adicional asignado masivamente.")
             st.rerun()
 
     # --- 3. Asignación % Retención ---
     pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
-    if b_col5.button("Asignar % Ret", help="Aplica solo a filas con 'Sel ✔'", use_container_width=True):
+    if b_col5.button("Asignación masiva % Retención", use_container_width=True):
         if pct_retencion_masiva != "Seleccionar...":
             val = 0.05 if pct_retencion_masiva == "5%" else 0.0
-            st.session_state.df.loc[indices_marcados, '% Retención'] = val
-            st.session_state.current_grid_state = pd.DataFrame()
-            st.session_state.grid_key += 1
+            st.session_state.df.loc[df_filtrado.index, '% Retención'] = val
             st.session_state.reload_trigger = True
-            st.success("% Retención asignado a las filas seleccionadas.")
+            st.success("% Retención asignado masivamente.")
             st.rerun()
 
-    ph_indicador_suma = st.empty() 
+    ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
+
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
     
-    # --- NUEVO BOTÓN: MARCAR PARA PAGAR ---
-    c_btn_pagar, c_btn_add, c_btn_space = st.columns([2.5, 2, 5.5])
-    with c_btn_pagar:
-        if st.button("💳 Activar Pagar a marcados", type="primary", use_container_width=True):
-            st.session_state.df.loc[indices_marcados, 'Pagar'] = True
-            st.session_state.current_grid_state = pd.DataFrame()
-            st.session_state.grid_key += 1
-            st.session_state.reload_trigger = True
-            st.success("Casilla 'Pagar' activada en las filas marcadas.")
-            st.rerun()
-            
+    c_btn_add, c_btn_space = st.columns([2, 8])
     with c_btn_add:
         if st.button("➕ Añadir nueva partida", type="primary", use_container_width=True):
             dialogo_nueva_partida()
@@ -1367,7 +1330,7 @@ if menu == "Registro de Destajos":
     
     df_filtrado_grid['Monto Neto'] = df_filtrado_grid['Costo_Temp'] + (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ad_Temp']) - (df_filtrado_grid['Costo_Temp'] * df_filtrado_grid['% Ret_Temp'])
     
-    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Seleccionar','Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
+    gb = GridOptionsBuilder.from_dataframe(df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']])
     gb.configure_default_column(sortable=False, filter=False, resizable=True)
     gb.configure_column("_original_index", hide=True)
     gb.configure_column("ID_DB", hide=True) # SE OCULTA LA CLAVE DE SUPABASE PERO VIAJA EN MEMORIA
@@ -1384,7 +1347,6 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
-    gb.configure_column("Seleccionar", headerName="Sel ✔", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
     gb.configure_column("Prototipo", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=110)
@@ -1469,7 +1431,7 @@ if menu == "Registro de Destajos":
         st.form_submit_button("🔄 Actualizar Totales", type="primary")
         
         response = AgGrid(
-            df_filtrado_grid[['Seleccionar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+            df_filtrado_grid[['Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Pagar', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
             gridOptions=grid_options,
             key=f"grid_destajos_{st.session_state.grid_key}",
             reload_data=st.session_state.reload_trigger,
@@ -1687,7 +1649,7 @@ elif menu == "Fondo de Garantía (Retenciones)":
         c_sav_r1, c_sav_r2, c_sav_r3 = st.columns([3, 4, 3])
         
         with c_sav_r2:
-            if st.button("🔓 Guardar y Generar PDF", type="primary", use_container_width=True):
+            if st.button("🔓 Procesar Guardado y Generar Recibo", type="primary", use_container_width=True):
                 if response_ret['data'] is not None:
                     df_ret_pantalla = pd.DataFrame(response_ret['data'])
                     
@@ -1798,14 +1760,14 @@ elif menu == "Fondo de Garantía (Retenciones)":
             c_desc1, c_desc2, c_desc3 = st.columns([3, 4, 3])
             with c_desc2:
                 st.download_button(
-                    label="📥 Descargar PDF",
+                    label="📥 DESCARGAR RECIBO DE LA LIBERACIÓN REALIZADA",
                     data=st.session_state.ultimo_recibo_pdf,
                     file_name=f"Recibo_Retenciones_{datetime.now(ZoneInfo('America/Mexico_City')).strftime('%Y%m%d_%H%M%S')}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                     type="primary"
                 )
-                if st.button("❌ Ocultar recibo", use_container_width=True):
+                if st.button("❌ Ocultar este recibo", use_container_width=True):
                     st.session_state.ultimo_recibo_pdf = None
                     st.rerun()
 
