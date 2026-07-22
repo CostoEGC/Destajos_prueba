@@ -1220,12 +1220,14 @@ if menu == "Registro de Destajos":
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
+        st.session_state.grid_key += 1 # Fuerza el redibujado visual de los checks
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
+        st.session_state.grid_key += 1 # Fuerza el redibujado visual de los checks
         st.session_state.reload_trigger = True
         st.rerun()
 
@@ -1234,7 +1236,7 @@ if menu == "Registro de Destajos":
         if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
             df_pantalla = st.session_state.current_grid_state
             df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-            # Filtro doble: que la casilla esté marcada Y que no tenga fecha de pago
+            # Filtro estricto: la casilla está marcada Y la fila no tiene fecha de pago (no está bloqueada)
             filas_validas = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha pago'].fillna('').astype(str).str.strip() == '')]
             return filas_validas['_original_index'].astype(int).tolist()
         return []
@@ -1246,11 +1248,12 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, 'Destajista'] = destajista_masivo
+                st.session_state.grid_key += 1
                 st.session_state.reload_trigger = True
-                st.success(f"Destajista asignado a {len(indices_a_cambiar)} filas.")
+                st.success(f"Destajista asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
+                st.warning("No hay filas marcadas que estén desbloqueadas.")
 
     # --- 2. Asignación % Adicional ---
     pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
@@ -1260,11 +1263,12 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Adicional'] = val
+                st.session_state.grid_key += 1
                 st.session_state.reload_trigger = True
-                st.success(f"% Adicional asignado a {len(indices_a_cambiar)} filas.")
+                st.success(f"% Adicional asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
+                st.warning("No hay filas marcadas que estén desbloqueadas.")
 
     # --- 3. Asignación % Retención ---
     pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
@@ -1274,11 +1278,12 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Retención'] = val
+                st.session_state.grid_key += 1
                 st.session_state.reload_trigger = True
-                st.success(f"% Retención asignado a {len(indices_a_cambiar)} filas.")
+                st.success(f"% Retención asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas ('Sel') que estén desbloqueadas.")
+                st.warning("No hay filas marcadas que estén desbloqueadas.")
 
     ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
 
@@ -1294,7 +1299,8 @@ if menu == "Registro de Destajos":
     df_filtrado_grid = df_filtrado.copy()
     df_filtrado_grid['_original_index'] = df_filtrado_grid.index
     
-    df_filtrado_grid['Lote_Num'] = pd.to_numeric(df_filtrado_grid['Lote'], errors='coerce').fillna(9999)
+    df_filtrado_grid['Lote_Num'] = df_filtrado_grid['Lote'].apply(lambda x: int(re.search(r'\d+', str(x)).group()) if pd.notna(x) and re.search(r'\d+', str(x)) else 9999)
+
     # TRUCO VISUAL: Limpiamos la partida en pantalla para quitar el número 
     df_filtrado_grid['Partida'] = df_filtrado_grid['Partida'].apply(limpiar_texto_partida)
     
@@ -1352,8 +1358,8 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
-    # Se renombra visualmente a "Sel" pero mantiene el vínculo lógico original para no arruinar nada
-    gb.configure_column("Pagar", headerName="Sel", editable=True, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    # Cambiamos "Sel" por un icono claro de Checkbox
+    gb.configure_column("Pagar", headerName="☑️", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
@@ -1404,18 +1410,20 @@ if menu == "Registro de Destajos":
     # ====================================================
     # TABLA EN TIEMPO REAL CON PAGINACIÓN (SIN FORMULARIO)
     # ====================================================
+    filtros_hash = f"{st.session_state.sel_proto}_{st.session_state.sel_manzana}_{st.session_state.sel_dest}_{st.session_state.sel_estado}_{len(st.session_state.sel_lotes)}_{len(st.session_state.sel_concepto)}"
+
     response = AgGrid(
         df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
         gridOptions=grid_options,
-        key="grid_destajos_maestro",
-        reload_data=st.session_state.get('reload_trigger', False),
+        key=f"grid_destajos_{st.session_state.grid_key}_{filtros_hash}", # La llave dinámica que repara los filtros
+        reload_data=True,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
         update_mode=GridUpdateMode.VALUE_CHANGED,  
         data_return_mode=DataReturnMode.AS_INPUT,  
         fit_columns_on_grid_load=False,
         theme='balham',
-        height=650, # Reducido un poco para que los controles de paginación se vean perfectos en tus pantallas
+        height=650,
         custom_css=mis_estilos
     )
     st.session_state.reload_trigger = False
