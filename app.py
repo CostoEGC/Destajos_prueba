@@ -1220,14 +1220,12 @@ if menu == "Registro de Destajos":
     if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
-        st.session_state.grid_key += 1
         st.session_state.reload_trigger = True
         st.rerun()
         
     if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
         indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
         st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-        st.session_state.grid_key += 1
         st.session_state.reload_trigger = True
         st.rerun()
 
@@ -1247,8 +1245,7 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, 'Destajista'] = destajista_masivo
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el checkbox activado
-                st.session_state.grid_key += 1
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
                 st.session_state.reload_trigger = True
                 st.success(f"Destajista asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
@@ -1263,8 +1260,7 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Adicional'] = val
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el checkbox activado
-                st.session_state.grid_key += 1
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
                 st.session_state.reload_trigger = True
                 st.success(f"% Adicional asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
@@ -1279,18 +1275,34 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Retención'] = val
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el checkbox activado
-                st.session_state.grid_key += 1
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
                 st.session_state.reload_trigger = True
                 st.success(f"% Retención asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
                 st.rerun()
             else:
                 st.warning("No hay filas marcadas que estén desbloqueadas.")
 
-    ph_indicador_suma = st.empty() # Contenedor para reubicar la Suma a Pagar
-
+    ph_indicador_suma = st.empty()
     ph_label_azul = st.empty()
     st.markdown("<hr style='margin:5px 0 5px 0;'>", unsafe_allow_html=True)
+    
+    # === MAGIA ANTI-PARPADEO (Pre-llenado) ===
+    if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
+        df_pre = st.session_state.current_grid_state.copy()
+        df_pre['Pagar_Bool'] = df_pre['Pagar'].astype(str).str.lower().isin(['true', '1'])
+        df_pre['Fecha_Pago_Limpia'] = df_pre['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
+        
+        df_pagar_pre = df_pre[(df_pre['Pagar_Bool'] == True) & (df_pre['Fecha_Pago_Limpia'] == '')].copy()
+        df_pagar_pre['C_Temp'] = pd.to_numeric(df_pagar_pre['Costo'], errors='coerce').fillna(0)
+        df_pagar_pre['Ad_Temp'] = pd.to_numeric(df_pagar_pre['% Adicional'], errors='coerce').fillna(0)
+        df_pagar_pre['Ret_Temp'] = pd.to_numeric(df_pagar_pre['% Retención'], errors='coerce').fillna(0)
+        df_pagar_pre['Monto_Neto_Real'] = df_pagar_pre['C_Temp'] + (df_pagar_pre['C_Temp'] * df_pagar_pre['Ad_Temp']) - (df_pagar_pre['C_Temp'] * df_pagar_pre['Ret_Temp'])
+        
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${df_pagar_pre['Monto_Neto_Real'].sum():,.2f}</div>", unsafe_allow_html=True)
+        ph_label_azul.markdown(f"<div style='display: flex; justify-content: space-between; color: #3B82F6; font-weight: bold; background: transparent; font-size:14px; margin-bottom:5px; padding: 0 15px;'><div>Calculando vista previa...</div></div>", unsafe_allow_html=True)
+    else:
+        ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>$0.00</div>", unsafe_allow_html=True)
+    # ==========================================
     
     c_btn_add, c_btn_space = st.columns([2, 8])
     with c_btn_add:
@@ -1423,11 +1435,25 @@ if menu == "Registro de Destajos":
     # ====================================================
     # TABLA EN TIEMPO REAL CON PAGINACIÓN Y LLAVE ESTABLE
     # ====================================================
+    # === RECARGA INTELIGENTE (Detecta si moviste un filtro sin destruir la tabla) ===
+    filtros_hash = f"{st.session_state.sel_proto}_{st.session_state.sel_manzana}_{st.session_state.sel_dest}_{st.session_state.sel_estado}_{len(st.session_state.sel_lotes)}_{len(st.session_state.sel_concepto)}"
+    
+    if 'ultimo_hash_filtros' not in st.session_state:
+        st.session_state.ultimo_hash_filtros = filtros_hash
+        
+    if st.session_state.ultimo_hash_filtros != filtros_hash:
+        st.session_state.reload_trigger = True
+        st.session_state.ultimo_hash_filtros = filtros_hash
+    # ==============================================================================
+
+    # ====================================================
+    # TABLA EN TIEMPO REAL (CON LLAVE FIJA)
+    # ====================================================
     response = AgGrid(
         df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
         gridOptions=grid_options,
-        key=f"grid_destajos_maestro_{st.session_state.grid_key}", # Llave estable para no perder scroll ni filtros
-        reload_data=st.session_state.get('reload_trigger', False), # SOLO recarga datos al cambiar un filtro o hacer asignación
+        key="grid_destajos_maestro", # <-- LLAVE FIJA: Jamás te devolverá al inicio de la tabla.
+        reload_data=st.session_state.get('reload_trigger', False),
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
         update_mode=GridUpdateMode.VALUE_CHANGED,  
@@ -1438,18 +1464,17 @@ if menu == "Registro de Destajos":
         custom_css=mis_estilos
     )
     st.session_state.reload_trigger = False
-
+    
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
-        st.session_state.current_grid_state = df_grid
-
-        # === SINCRONIZACIÓN MÁGICA: GUARDA LOS CHECKBOX EN TIEMPO REAL ===
-        # Esto evita que al cambiar un filtro o dar clic se te borre lo que ya seleccionaste manualmente
+        st.session_state.current_grid_state = df_grid 
+        
+        # === SINCRONIZACIÓN MÁGICA: GUARDA LOS CHECKBOX MANUALES ===
         df_sync = df_grid.copy()
         df_sync['_original_index'] = df_sync['_original_index'].astype(int)
         df_sync = df_sync.set_index('_original_index')
         st.session_state.df.update(df_sync[['Pagar', 'Destajista', '% Adicional', '% Retención']])
-        # =================================================================
+        # ===========================================================
         
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
