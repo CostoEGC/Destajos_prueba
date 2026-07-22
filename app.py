@@ -1446,14 +1446,17 @@ if menu == "Registro de Destajos":
         st.session_state.ultimo_hash_filtros = filtros_hash
     # ==============================================================================
 
+    # 1. CAPTURAMOS EL ESTADO DEL TRIGGER ANTES DE LA TABLA
+    viene_de_boton_masivo = st.session_state.get('reload_trigger', False)
+
     # ====================================================
     # TABLA EN TIEMPO REAL (CON LLAVE FIJA)
     # ====================================================
     response = AgGrid(
         df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
         gridOptions=grid_options,
-        key="grid_destajos_maestro", # <-- LLAVE FIJA: Jamás te devolverá al inicio de la tabla.
-        reload_data=st.session_state.get('reload_trigger', False),
+        key="grid_destajos_maestro", 
+        reload_data=viene_de_boton_masivo, # <- Usamos la variable capturada
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
         update_mode=GridUpdateMode.VALUE_CHANGED,  
@@ -1463,17 +1466,21 @@ if menu == "Registro de Destajos":
         height=650,
         custom_css=mis_estilos
     )
+    
     st.session_state.reload_trigger = False
     
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
         df_grid = pd.DataFrame(response['data'])
         st.session_state.current_grid_state = df_grid 
         
-        # === SINCRONIZACIÓN MÁGICA: GUARDA LOS CHECKBOX MANUALES ===
-        df_sync = df_grid.copy()
-        df_sync['_original_index'] = df_sync['_original_index'].astype(int)
-        df_sync = df_sync.set_index('_original_index')
-        st.session_state.df.update(df_sync[['Pagar', 'Destajista', '% Adicional', '% Retención']])
+        # === SINCRONIZACIÓN MÁGICA BLINDADA ===
+        # Solo sincroniza si NO venimos de presionar "Seleccionar Ninguno" u otro botón.
+        # Esto evita que la pantalla reescriba nuestra instrucción masiva.
+        if not viene_de_boton_masivo:
+            df_sync = df_grid.copy()
+            df_sync['_original_index'] = df_sync['_original_index'].astype(int)
+            df_sync = df_sync.set_index('_original_index')
+            st.session_state.df.update(df_sync[['Pagar', 'Destajista', '% Adicional', '% Retención']])
         # ===========================================================
         
         total_filas = len(df_grid)
