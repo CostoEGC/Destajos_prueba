@@ -1388,6 +1388,9 @@ if menu == "Registro de Destajos":
     """)
     gb.configure_grid_options(getRowStyle=rowStyle, rowHeight=30)
     
+    # NUEVO: Encender la paginación a 100 filas máximo por vista para ultra velocidad
+    gb.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=100)
+    
     grid_options = gb.build()
 
     mis_estilos = {
@@ -1399,58 +1402,22 @@ if menu == "Registro de Destajos":
     }
 
     # ====================================================
-    # FORMULARIO ENCAPSULADOR (LA MAGIA CONTRA EL PARPADEO ESTÁ AQUÍ)
+    # TABLA EN TIEMPO REAL CON PAGINACIÓN (SIN FORMULARIO)
     # ====================================================
-    with st.form(key=f"form_destajos_{st.session_state.grid_key}"):
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stForm"] { 
-                border: none !important; 
-                padding: 0 !important; 
-            }
-            div[data-testid="stFormSubmitButton"] {
-                display: flex !important;
-                justify-content: flex-end !important;
-                width: 100% !important;
-                margin-top: -105px !important;
-                margin-bottom: 15px !important;
-                position: relative !important;
-                z-index: 9999 !important;
-            }
-            div[data-testid="stFormSubmitButton"] button {
-                width: 220px !important;
-                background-color: #3B82F6 !important;
-                color: white !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-                height: 42px !important;
-                font-weight: bold !important;
-            }
-            div[data-testid="stFormSubmitButton"] button:hover { 
-                background-color: #2563EB !important; 
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        st.form_submit_button("🔄 Actualizar Totales", type="primary")
-        
-        response = AgGrid(
-            df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
-            gridOptions=grid_options,
-            key="grid_destajos_maestro",
-            reload_data=st.session_state.get('reload_trigger', False),
-            enable_enterprise_modules=False,
-            allow_unsafe_jscode=True,
-            update_mode=GridUpdateMode.VALUE_CHANGED,  
-            data_return_mode=DataReturnMode.AS_INPUT,  
-            fit_columns_on_grid_load=False,
-            theme='balham',
-            height=800,
-            custom_css=mis_estilos
-        )
+    response = AgGrid(
+        df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
+        gridOptions=grid_options,
+        key="grid_destajos_maestro",
+        reload_data=st.session_state.get('reload_trigger', False),
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+        update_mode=GridUpdateMode.VALUE_CHANGED,  
+        data_return_mode=DataReturnMode.AS_INPUT,  
+        fit_columns_on_grid_load=False,
+        theme='balham',
+        height=650, # Reducido un poco para que los controles de paginación se vean perfectos en tus pantallas
+        custom_css=mis_estilos
+    )
     st.session_state.reload_trigger = False
 
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
