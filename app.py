@@ -1356,17 +1356,26 @@ if menu == "Registro de Destajos":
         unsafe_allow_html=True
     )
     
-    # Cambiamos "Sel" por un icono claro de Checkbox
-    # 1. Ocultamos la columna Pagar manual
-    gb.configure_column("Pagar", hide=True)
+    # 1. CONFIGURAMOS LA COLUMNA "PAGAR" COMO EL CHECKBOX MAESTRO
+    gb.configure_column(
+        "Pagar",
+        headerName="☑️", # Aquí vivirá el botón de Seleccionar Todos/Ninguno
+        checkboxSelection=True,
+        headerCheckboxSelection=True,
+        headerCheckboxSelectionFilteredOnly=True, # Respeta tus filtros al 100%
+        valueFormatter="''", # Magia visual: Oculta el texto "true/false" dejando solo el checkbox
+        editable=False, 
+        cellClass='centrar-valor',
+        headerClass='ag-center-header',
+        width=90
+    )
     
-    # 2. INYECTAMOS EL BOTÓN MAESTRO DENTRO DE LA TABLA (Tu idea aplicada)
+    # 2. ACTIVAMOS LA MEMORIA VISUAL DE LA SELECCIÓN
     gb.configure_selection(
         selection_mode='multiple',
-        use_checkbox=True,
-        header_checkbox=True, # Esto pone el "Seleccionar Todos / Ninguno" instantáneo en el encabezado
-        header_checkbox_filtered_only=True, # Respeta tus filtros al 100%
-        pre_selected_rows=[int(i) for i in range(len(df_filtrado_grid)) if df_filtrado_grid.iloc[i]['Pagar'] == True] # Memoria visual
+        use_checkbox=False, # Lo dejamos en False porque ya inyectamos el checkbox arriba en "Pagar"
+        pre_selected_rows=[int(i) for i in range(len(df_filtrado_grid)) if df_filtrado_grid.iloc[i]['Pagar'] == True]
+    )
     )
     
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
@@ -1504,7 +1513,7 @@ if menu == "Registro de Destajos":
         st.session_state.df.update(df_sync[['Destajista', '% Adicional', '% Retención']])
         
         total_filas = len(df_grid)
-        
+
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
