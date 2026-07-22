@@ -1215,27 +1215,17 @@ if menu == "Registro de Destajos":
     
     st.markdown("<br>", unsafe_allow_html=True)
 
-    b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns([1.5, 1.5, 2, 2, 2])
-    
-    if b_col1.button("☑️ Seleccionar Todos", use_container_width=True):
-        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        st.session_state.df.loc[indices_pendientes, 'Pagar'] = True
-        st.session_state.reload_trigger = True
-        st.rerun()
-        
-    if b_col2.button("🔲 Seleccionar Ninguno", use_container_width=True):
-        indices_pendientes = df_filtrado[df_filtrado['Fecha pago'] == ''].index
-        st.session_state.df.loc[indices_pendientes, 'Pagar'] = False
-        st.session_state.reload_trigger = True
-        st.rerun()
+   # (ELIMINAMOS b_col1 y b_col2 PORQUE EL BOTÓN AHORA VIVIRÁ DENTRO DE LA TABLA)
+    b_col3, b_col4, b_col5 = st.columns(3)
 
-    # --- Función auxiliar para obtener las filas marcadas con la casilla y que NO estén bloqueadas ---
     def obtener_indices_seleccionados_desbloqueados():
-        if 'current_grid_state' in st.session_state and not st.session_state.current_grid_state.empty:
-            df_pantalla = st.session_state.current_grid_state
-            df_pantalla['Pagar_Bool'] = df_pantalla['Pagar'].astype(str).str.lower().isin(['true', '1'])
-            filas_validas = df_pantalla[(df_pantalla['Pagar_Bool'] == True) & (df_pantalla['Fecha pago'].fillna('').astype(str).str.strip() == '')]
-            return filas_validas['_original_index'].astype(int).tolist()
+        # Leemos la selección que hiciste dentro de AgGrid
+        if 'filas_seleccionadas_aggrid' in st.session_state and st.session_state.filas_seleccionadas_aggrid:
+            df_pantalla = pd.DataFrame(st.session_state.filas_seleccionadas_aggrid)
+            # REGLA ESTRICTA: Solo modificamos filas que NO tienen fecha de pago (desbloqueadas)
+            filas_validas = df_pantalla[df_pantalla['Fecha pago'].fillna('').astype(str).str.strip() == '']
+            if not filas_validas.empty:
+                return filas_validas['_original_index'].astype(int).tolist()
         return []
 
     # --- 1. Asignación Destajista ---
@@ -1245,12 +1235,10 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, 'Destajista'] = destajista_masivo
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
-                st.session_state.reload_trigger = True
-                st.success(f"Destajista asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas que estén desbloqueadas.")
+                st.warning("No hay filas seleccionadas que estén desbloqueadas.")
 
     # --- 2. Asignación % Adicional ---
     pct_adicional_masivo = b_col4.selectbox("% Adic M.", ["Seleccionar...", "0%", "10%"], label_visibility="collapsed")
@@ -1260,12 +1248,10 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Adicional'] = val
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
-                st.session_state.reload_trigger = True
-                st.success(f"% Adicional asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas que estén desbloqueadas.")
+                st.warning("No hay filas seleccionadas que estén desbloqueadas.")
 
     # --- 3. Asignación % Retención ---
     pct_retencion_masiva = b_col5.selectbox("% Ret M.", ["Seleccionar...", "0%", "5%"], label_visibility="collapsed")
@@ -1275,12 +1261,10 @@ if menu == "Registro de Destajos":
             indices_a_cambiar = obtener_indices_seleccionados_desbloqueados()
             if indices_a_cambiar:
                 st.session_state.df.loc[indices_a_cambiar, '% Retención'] = val
-                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True # Mantiene el check
-                st.session_state.reload_trigger = True
-                st.success(f"% Retención asignado a {len(indices_a_cambiar)} filas desbloqueadas.")
+                st.session_state.df.loc[indices_a_cambiar, 'Pagar'] = True
                 st.rerun()
             else:
-                st.warning("No hay filas marcadas que estén desbloqueadas.")
+                st.warning("No hay filas seleccionadas que estén desbloqueadas.")
 
     ph_indicador_suma = st.empty()
     ph_label_azul = st.empty()
@@ -1373,7 +1357,17 @@ if menu == "Registro de Destajos":
     )
     
     # Cambiamos "Sel" por un icono claro de Checkbox
-    gb.configure_column("Pagar", headerName="☑️", editable=True, cellRenderer='agCheckboxCellRenderer', cellEditor='agCheckboxCellEditor', cellClass='centrar-valor', headerClass='ag-center-header', width=90)
+    # 1. Ocultamos la columna Pagar manual
+    gb.configure_column("Pagar", hide=True)
+    
+    # 2. INYECTAMOS EL BOTÓN MAESTRO DENTRO DE LA TABLA (Tu idea aplicada)
+    gb.configure_selection(
+        selection_mode='multiple',
+        use_checkbox=True,
+        header_checkbox=True, # Esto pone el "Seleccionar Todos / Ninguno" instantáneo en el encabezado
+        header_checkbox_filtered_only=True, # Respeta tus filtros al 100%
+        pre_selected_rows=[int(i) for i in range(len(df_filtrado_grid)) if df_filtrado_grid.iloc[i]['Pagar'] == True] # Memoria visual
+    )
     
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
@@ -1452,14 +1446,14 @@ if menu == "Registro de Destajos":
     # ====================================================
     # TABLA EN TIEMPO REAL (CON LLAVE FIJA)
     # ====================================================
+    # === TABLA CON CHECKBOX MAESTRO NATIVO (SIN LLAVES QUE PARPADEAN) ===
     response = AgGrid(
         df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
         gridOptions=grid_options,
-        key="grid_destajos_maestro", 
-        reload_data=viene_de_boton_masivo,
+        key="grid_destajos_maestro", # Llave inamovible, adiós reseteo de filtros
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.VALUE_CHANGED,  
+        update_mode=GridUpdateMode.SELECTION_CHANGED | GridUpdateMode.VALUE_CHANGED,  
         data_return_mode=DataReturnMode.AS_INPUT,  
         fit_columns_on_grid_load=False,
         theme='balham',
@@ -1467,27 +1461,50 @@ if menu == "Registro de Destajos":
         custom_css=mis_estilos
     )
     
-    st.session_state.reload_trigger = False
-    
-    if response['data'] is not None and not pd.DataFrame(response['data']).empty:
-        df_grid_frontend = pd.DataFrame(response['data'])
-        
-        if viene_de_boton_masivo:
-            # 🛑 EL ESCUDO: Si apretaste un botón masivo, ignoramos el "fantasma" visual 
-            # de la tabla y forzamos la memoria con la verdad absoluta de la base de datos (falso).
-            st.session_state.current_grid_state = df_filtrado_grid.copy()
-            df_grid = st.session_state.current_grid_state
+    # Extraemos instantáneamente lo que seleccionaste con los checkboxes nativos
+    filas_seleccionadas = response.get('selected_rows', [])
+    st.session_state.filas_seleccionadas_aggrid = filas_seleccionadas
+
+    # Actualizamos el indicador de Suma a Pagar en tiempo real basándonos en tu selección
+    if filas_seleccionadas:
+        df_sel = pd.DataFrame(filas_seleccionadas)
+        # Filtramos estrictamente las que no tienen fecha de pago para sumarlas
+        df_a_pagar = df_sel[df_sel['Fecha pago'].fillna('').astype(str).str.strip() == '']
+        if not df_a_pagar.empty:
+            df_a_pagar['C_Temp'] = pd.to_numeric(df_a_pagar['Costo'], errors='coerce').fillna(0)
+            df_a_pagar['Ad_Temp'] = pd.to_numeric(df_a_pagar['% Adicional'], errors='coerce').fillna(0)
+            df_a_pagar['Ret_Temp'] = pd.to_numeric(df_a_pagar['% Retención'], errors='coerce').fillna(0)
+            suma_total = (df_a_pagar['C_Temp'] + (df_a_pagar['C_Temp'] * df_a_pagar['Ad_Temp']) - (df_a_pagar['C_Temp'] * df_a_pagar['Ret_Temp'])).sum()
         else:
-            # ✅ FLUJO NORMAL: Guardamos tus clics manuales
-            df_grid = df_grid_frontend
-            st.session_state.current_grid_state = df_grid 
+            suma_total = 0.0
+    else:
+        suma_total = 0.0
+
+    ph_indicador_suma.markdown(f"<div style='background-color:#F59E0B; color:black; padding:10px; border-radius:5px; text-align:center; font-weight:bold; font-size:18px;'>Suma a Pagar:<br>${suma_total:,.2f}</div>", unsafe_allow_html=True)
+
+    # Sincronizamos silenciosamente la selección nativa con tu base de datos central
+    if response['data'] is not None:
+        df_grid = pd.DataFrame(response['data'])
+        st.session_state.current_grid_state = df_grid
+        
+        # Apagamos todas las de la vista actual primero
+        idx_vista = df_grid['_original_index'].astype(int).tolist()
+        st.session_state.df.loc[idx_vista, 'Pagar'] = False
+        
+        # Encendemos las que acabas de seleccionar
+        if filas_seleccionadas:
+            df_sel = pd.DataFrame(filas_seleccionadas)
+            idx_encendidos = df_sel['_original_index'].astype(int).tolist()
+            st.session_state.df.loc[idx_encendidos, 'Pagar'] = True
             
-            df_sync = df_grid.copy()
-            df_sync['_original_index'] = df_sync['_original_index'].astype(int)
-            df_sync = df_sync.set_index('_original_index')
-            st.session_state.df.update(df_sync[['Pagar', 'Destajista', '% Adicional', '% Retención']])
+        # Sincronizamos las ediciones manuales (destajista, %, etc)
+        df_sync = df_grid.copy()
+        df_sync['_original_index'] = df_sync['_original_index'].astype(int)
+        df_sync = df_sync.set_index('_original_index')
+        st.session_state.df.update(df_sync[['Destajista', '% Adicional', '% Retención']])
         
         total_filas = len(df_grid)
+        
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
         df_grid['Fecha_Pago_Limpia'] = df_grid['Fecha pago'].fillna('').astype(str).str.strip().replace(['nan', 'None', '<NA>'], '')
         
