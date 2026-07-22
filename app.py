@@ -1456,7 +1456,7 @@ if menu == "Registro de Destajos":
         df_filtrado_grid[['Pagar', 'Lote', 'Manzana', 'Prototipo', 'Partida', 'Costo', 'Destajista', '% Adicional', '% Retención', 'Monto Neto', 'Fecha pago', 'Usuario', '_original_index', 'ID_DB']].copy(),
         gridOptions=grid_options,
         key="grid_destajos_maestro", 
-        reload_data=viene_de_boton_masivo, # <- Usamos la variable capturada
+        reload_data=viene_de_boton_masivo,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
         update_mode=GridUpdateMode.VALUE_CHANGED,  
@@ -1470,18 +1470,22 @@ if menu == "Registro de Destajos":
     st.session_state.reload_trigger = False
     
     if response['data'] is not None and not pd.DataFrame(response['data']).empty:
-        df_grid = pd.DataFrame(response['data'])
-        st.session_state.current_grid_state = df_grid 
+        df_grid_frontend = pd.DataFrame(response['data'])
         
-        # === SINCRONIZACIÓN MÁGICA BLINDADA ===
-        # Solo sincroniza si NO venimos de presionar "Seleccionar Ninguno" u otro botón.
-        # Esto evita que la pantalla reescriba nuestra instrucción masiva.
-        if not viene_de_boton_masivo:
+        if viene_de_boton_masivo:
+            # 🛑 EL ESCUDO: Si apretaste un botón masivo, ignoramos el "fantasma" visual 
+            # de la tabla y forzamos la memoria con la verdad absoluta de la base de datos (falso).
+            st.session_state.current_grid_state = df_filtrado_grid.copy()
+            df_grid = st.session_state.current_grid_state
+        else:
+            # ✅ FLUJO NORMAL: Guardamos tus clics manuales
+            df_grid = df_grid_frontend
+            st.session_state.current_grid_state = df_grid 
+            
             df_sync = df_grid.copy()
             df_sync['_original_index'] = df_sync['_original_index'].astype(int)
             df_sync = df_sync.set_index('_original_index')
             st.session_state.df.update(df_sync[['Pagar', 'Destajista', '% Adicional', '% Retención']])
-        # ===========================================================
         
         total_filas = len(df_grid)
         df_grid['Pagar_Bool'] = df_grid['Pagar'].astype(str).str.lower().isin(['true', '1'])
