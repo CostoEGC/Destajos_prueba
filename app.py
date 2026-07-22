@@ -1376,7 +1376,7 @@ if menu == "Registro de Destajos":
         use_checkbox=False, # Lo dejamos en False porque ya inyectamos el checkbox arriba en "Pagar"
         pre_selected_rows=[int(i) for i in range(len(df_filtrado_grid)) if df_filtrado_grid.iloc[i]['Pagar'] == True]
     )
-    )
+    
     
     gb.configure_column("Lote", type=["numericColumn","numberColumnFilter"], editable=False, filter=False, cellClass='centrar-valor', headerClass='ag-center-header', width=90)
     gb.configure_column("Manzana", editable=False, cellClass='centrar-valor', headerClass='ag-center-header', width=100)
